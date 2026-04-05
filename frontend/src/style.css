@@ -1,0 +1,149 @@
+:root,
+[data-theme="dark"] {
+    --bg-primary: #1b2636;
+    --bg-secondary: #1e2d42;
+    --bg-tertiary: #243447;
+    --bg-hover: #2a3f58;
+    --bg-input: #1a2535;
+    --text-primary: #e0e6ed;
+    --text-secondary: #8899aa;
+    --text-muted: #5a6a7a;
+    --border-color: #2a3f58;
+    --accent: #4a9eff;
+    --accent-hover: #3a8eef;
+    --success: #44cc66;
+    --danger: #ff4444;
+    --warning: #ffcc00;
+    --border-subtle: rgba(42, 63, 88, 0.3);
+    --danger-hover: #cc3333;
+    --inactive: #555;
+    --dot-inactive: #888;
+    --accent-bg: rgba(74, 158, 255, 0.15);
+    --success-bg: rgba(40, 167, 69, 0.15);
+    --danger-bg: rgba(220, 53, 69, 0.15);
+    --warning-bg: rgba(255, 193, 7, 0.1);
+    --overlay-bg: rgba(0, 0, 0, 0.5);
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --success-text: #69db7c;
+}
+
+[data-theme="light"] {
+    --bg-primary: #f5f7fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #edf0f5;
+    --bg-hover: #e2e7ee;
+    --bg-input: #ffffff;
+    --text-primary: #1a2332;
+    --text-secondary: #4a5568;
+    --text-muted: #8899aa;
+    --border-color: #d1d9e6;
+    --accent: #2b7de9;
+    --accent-hover: #1a6dd8;
+    --success: #22a84e;
+    --danger: #e53e3e;
+    --warning: #d69e2e;
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --danger-hover: #c53030;
+    --inactive: #aaa;
+    --dot-inactive: #bbb;
+    --accent-bg: rgba(43, 125, 233, 0.12);
+    --success-bg: rgba(34, 168, 78, 0.12);
+    --danger-bg: rgba(229, 62, 62, 0.1);
+    --warning-bg: rgba(214, 158, 46, 0.1);
+    --overlay-bg: rgba(0, 0, 0, 0.3);
+    --shadow-color: rgba(0, 0, 0, 0.15);
+    --success-text: #22a84e;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+body {
+    margin: 0;
+    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+        "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+        sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+@font-face {
+    font-family: "Nunito";
+    font-style: normal;
+    font-weight: 400;
+    src: local(""),
+        url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
+}
+
+#app {
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    transition: background-color 0.15s;
+}
+
+input[type="text"],
+input[type="number"] {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    padding: 5px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+    border-color: var(--accent);
+}
+
+input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+select {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    padding: 5px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--bg-hover);
+}
