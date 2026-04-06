@@ -283,7 +283,7 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
 
     function recalc() {
         let msgs: SyslogMessage[] = [];
-        let f: FilterCriteria = { severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', useRegex: false, dateFrom: '', dateTo: '' };
+        let f: FilterCriteria = { severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', searchMode: 'text' as SearchMode, dateFrom: '', dateTo: '' };
         let sc: SortColumn = '';
         let sd: SortDir = 'desc';
         messages.subscribe(v => { msgs = v; })();

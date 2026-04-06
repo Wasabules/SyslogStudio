@@ -4,7 +4,6 @@
     import { initEventListeners, destroyEventListeners } from './lib/events';
     import { activeView, serverStatus } from './lib/stores';
     import { theme, toggleTheme } from './lib/theme';
-    import { appLocale } from './lib/i18n';
     import ServerControls from './components/ServerControls.svelte';
     import FilterBar from './components/FilterBar.svelte';
     import LogViewer from './components/LogViewer.svelte';

@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { filteredMessages, selectedMessage, autoScroll, logViewMode, historyResult, filter,
              stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages } from '../lib/stores';
-    import type { SyslogMessage, SortColumn as SortCol, SortDir, GroupBy as GroupByType, MessageGroup } from '../lib/stores';
+    import type { SyslogMessage, SortColumn as SortCol, GroupBy as GroupByType, MessageGroup } from '../lib/stores';
     import { SEVERITY_COLORS, formatTimestamp } from '../lib/constants';
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
     import { _ } from 'svelte-i18n';
@@ -356,10 +356,6 @@
         }
     }
 
-    function sortIcon(col: SortCol): string {
-        if ($sortColumn !== col) return '';
-        return $sortDirection === 'asc' ? ' \u25B2' : ' \u25BC';
-    }
 
 
 </script>
