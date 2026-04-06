@@ -21,6 +21,8 @@ jobs:
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev pkg-config
+      - name: Create frontend/dist placeholder for go:embed
+        run: mkdir -p frontend/dist && touch frontend/dist/.gitkeep
       - run: go vet ./...
       - run: go test -race -count=1 ./...
 
