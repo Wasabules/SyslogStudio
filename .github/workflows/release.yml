@@ -8,58 +8,145 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            artifact: SyslogStudio.exe
-          - os: macos-latest
-            artifact: SyslogStudio
+  build-windows:
+    name: Windows (amd64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
-
       - name: Build
-        run: wails build
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        run: wails build -ldflags "-X main.AppVersion=${{ github.ref_name }}"
+      - name: Create portable zip
+        working-directory: build/bin
+        run: 7z a -tzip "../../SyslogStudio-${{ github.ref_name }}-windows-amd64.zip" SyslogStudio.exe
+      - name: Build NSIS installer
+        run: wails build -nsis -ldflags "-X main.AppVersion=${{ github.ref_name }}"
+      - name: Rename installer
+        run: mv "build/bin/SyslogStudio-amd64-installer.exe" "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
+      - uses: actions/upload-artifact@v4
         with:
-          name: SyslogStudio-${{ runner.os }}
-          path: build/bin/${{ matrix.artifact }}
+          name: windows-amd64
+          path: |
+            SyslogStudio-${{ github.ref_name }}-windows-amd64.zip
+            SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe
+
+  build-macos:
+    name: macOS (universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+      - name: Build
+        run: wails build -platform darwin/universal -ldflags "-X main.AppVersion=${{ github.ref_name }}"
+      - name: Create portable zip
+        working-directory: build/bin
+        run: zip -r "../../SyslogStudio-${{ github.ref_name }}-macos-universal.zip" SyslogStudio.app
+      - name: Create DMG
+        run: |
+          mkdir -p dmg-staging
+          cp -r build/bin/SyslogStudio.app dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "SyslogStudio" -srcfolder dmg-staging -ov -format UDZO \
+            "SyslogStudio-${{ github.ref_name }}-macos-universal.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: |
+            SyslogStudio-${{ github.ref_name }}-macos-universal.zip
+            SyslogStudio-${{ github.ref_name }}-macos-universal.dmg
+
+  build-linux:
+    name: Linux (amd64)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev pkg-config
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+      - name: Build
+        run: wails build -ldflags "-X main.AppVersion=${{ github.ref_name }}"
+      - name: Create portable tar.gz
+        run: tar -czf "SyslogStudio-${{ github.ref_name }}-linux-amd64.tar.gz" -C build/bin SyslogStudio
+      - name: Create .deb package
+        run: |
+          VERSION="${{ github.ref_name }}"
+          DEB_VERSION="${VERSION#v}"
+          mkdir -p pkg/DEBIAN pkg/usr/bin pkg/usr/share/applications pkg/usr/share/icons/hicolor/256x256/apps
+          cp build/bin/SyslogStudio pkg/usr/bin/syslogstudio
+          chmod 755 pkg/usr/bin/syslogstudio
+          cp build/linux/syslogstudio.desktop pkg/usr/share/applications/
+          cp build/appicon.png pkg/usr/share/icons/hicolor/256x256/apps/syslogstudio.png
+          cat > pkg/DEBIAN/control << EOF
+          Package: syslogstudio
+          Version: ${DEB_VERSION}
+          Section: utils
+          Architecture: amd64
+          Maintainer: Geoffrey Lecoq
+          Description: Lightweight desktop syslog viewer and analyzer
+           Multi-protocol syslog server (UDP, TCP, TLS) with real-time log viewing,
+           filtering, alerts, and statistics dashboard.
+          Depends: libgtk-3-0, libwebkit2gtk-4.0-37
+          EOF
+          dpkg-deb --build pkg "SyslogStudio-${VERSION}-linux-amd64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: |
+            SyslogStudio-${{ github.ref_name }}-linux-amd64.tar.gz
+            SyslogStudio-${{ github.ref_name }}-linux-amd64.deb
 
   release:
     name: Create release
-    needs: build
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-
+          merge-multiple: true
+      - name: List release assets
+        run: ls -lh artifacts/
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            artifacts/SyslogStudio-Windows/SyslogStudio.exe
-            artifacts/SyslogStudio-macOS/SyslogStudio
+          files: artifacts/*

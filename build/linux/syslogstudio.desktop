@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=SyslogStudio
+Comment=Lightweight desktop syslog viewer and analyzer
+Exec=syslogstudio
+Icon=syslogstudio
+Terminal=false
+Type=Application
+Categories=System;Network;Utility;
+Keywords=syslog;log;network;monitor;viewer;
