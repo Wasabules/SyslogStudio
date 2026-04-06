@@ -1,4 +1,4 @@
-package main
+package pki
 
 import (
 	"crypto/ecdsa"
@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"SyslogStudio/internal/models"
 )
 
 // ---------------------------------------------------------------------------
@@ -26,7 +28,7 @@ import (
 
 func TestGenerateCA_DefaultOptions(t *testing.T) {
 	tm := NewTLSManager()
-	info, err := tm.GenerateCA(CertOptions{})
+	info, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA with empty options failed: %v", err)
 	}
@@ -55,14 +57,14 @@ func TestGenerateCA_DefaultOptions(t *testing.T) {
 func TestGenerateCA_RespectsOptions(t *testing.T) {
 	tests := []struct {
 		name      string
-		opts      CertOptions
+		opts      models.CertOptions
 		wantCN    string
 		wantOrg   string
 		wantAlgo  string
 	}{
 		{
 			name: "ECDSA-P256 custom",
-			opts: CertOptions{
+			opts: models.CertOptions{
 				Algorithm:    "ECDSA-P256",
 				ValidityDays: 30,
 				CommonName:   "My CA",
@@ -74,7 +76,7 @@ func TestGenerateCA_RespectsOptions(t *testing.T) {
 		},
 		{
 			name: "RSA-4096 custom",
-			opts: CertOptions{
+			opts: models.CertOptions{
 				Algorithm:    "RSA-4096",
 				ValidityDays: 730,
 				CommonName:   "Big RSA CA",
@@ -86,7 +88,7 @@ func TestGenerateCA_RespectsOptions(t *testing.T) {
 		},
 		{
 			name: "ECDSA-P384 custom",
-			opts: CertOptions{
+			opts: models.CertOptions{
 				Algorithm:    "ECDSA-P384",
 				ValidityDays: 100,
 				CommonName:   "P384 CA",
@@ -124,7 +126,7 @@ func TestGenerateCA_RespectsOptions(t *testing.T) {
 func TestGenerateCA_ValidityDates(t *testing.T) {
 	tm := NewTLSManager()
 	days := 10
-	info, err := tm.GenerateCA(CertOptions{ValidityDays: days})
+	info, err := tm.GenerateCA(models.CertOptions{ValidityDays: days})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
@@ -148,7 +150,7 @@ func TestGenerateCA_ValidityDates(t *testing.T) {
 
 func TestGenerateCA_ProducesValidX509(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "RSA-2048"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
@@ -180,7 +182,7 @@ func TestGenerateCA_ProducesValidX509(t *testing.T) {
 
 func TestGenerateServerCertSignedByCA_NoCA(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateServerCertSignedByCA(CertOptions{})
+	_, err := tm.GenerateServerCertSignedByCA(models.CertOptions{})
 	if err == nil {
 		t.Fatal("expected error when no CA exists, got nil")
 	}
@@ -191,12 +193,12 @@ func TestGenerateServerCertSignedByCA_NoCA(t *testing.T) {
 
 func TestGenerateServerCertSignedByCA_Success(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "ECDSA-P256"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "ECDSA-P256"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
 
-	info, err := tm.GenerateServerCertSignedByCA(CertOptions{
+	info, err := tm.GenerateServerCertSignedByCA(models.CertOptions{
 		Algorithm:    "ECDSA-P256",
 		ValidityDays: 90,
 		CommonName:   "myserver",
@@ -250,12 +252,12 @@ func TestGenerateServerCertSignedByCA_Success(t *testing.T) {
 
 func TestGenerateServerCertSignedByCA_VerifiableByCA(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "RSA-2048"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
 
-	_, err = tm.GenerateServerCertSignedByCA(CertOptions{
+	_, err = tm.GenerateServerCertSignedByCA(models.CertOptions{
 		Algorithm: "RSA-2048",
 		DNSNames:  []string{"localhost"},
 	})
@@ -290,12 +292,12 @@ func TestGenerateServerCertSignedByCA_VerifiableByCA(t *testing.T) {
 
 func TestGenerateServerCertSignedByCA_Defaults(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{})
+	_, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
 
-	info, err := tm.GenerateServerCertSignedByCA(CertOptions{})
+	info, err := tm.GenerateServerCertSignedByCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateServerCertSignedByCA with empty opts failed: %v", err)
 	}
@@ -314,7 +316,7 @@ func TestGenerateServerCertSignedByCA_Defaults(t *testing.T) {
 
 func TestGenerateSelfSignedWithOptions_Defaults(t *testing.T) {
 	tm := NewTLSManager()
-	tlsConfig, info, err := tm.GenerateSelfSignedWithOptions(CertOptions{})
+	tlsConfig, info, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -344,7 +346,7 @@ func TestGenerateSelfSignedWithOptions_Defaults(t *testing.T) {
 
 func TestGenerateSelfSignedWithOptions_CustomOptions(t *testing.T) {
 	tm := NewTLSManager()
-	opts := CertOptions{
+	opts := models.CertOptions{
 		Algorithm:    "RSA-4096",
 		ValidityDays: 7,
 		CommonName:   "TestServer",
@@ -378,7 +380,7 @@ func TestGenerateSelfSignedWithOptions_CustomOptions(t *testing.T) {
 
 func TestGenerateSelfSignedWithOptions_StoresCertInManager(t *testing.T) {
 	tm := NewTLSManager()
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -400,7 +402,7 @@ func TestHasCA_InitiallyFalse(t *testing.T) {
 
 func TestHasCA_TrueAfterGeneration(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{})
+	_, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
@@ -418,11 +420,11 @@ func TestHasServerCert_InitiallyFalse(t *testing.T) {
 
 func TestHasServerCert_TrueAfterGeneration(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{})
+	_, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
-	_, err = tm.GenerateServerCertSignedByCA(CertOptions{})
+	_, err = tm.GenerateServerCertSignedByCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateServerCertSignedByCA failed: %v", err)
 	}
@@ -433,7 +435,7 @@ func TestHasServerCert_TrueAfterGeneration(t *testing.T) {
 
 func TestHasServerCert_TrueAfterSelfSigned(t *testing.T) {
 	tm := NewTLSManager()
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -459,7 +461,7 @@ func TestGetCACertificateInfo_ErrorWhenNoCert(t *testing.T) {
 
 func TestGetCACertificateInfo_ReturnsValidInfo(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{
+	_, err := tm.GenerateCA(models.CertOptions{
 		CommonName:   "InfoTest CA",
 		Organization: "InfoTestOrg",
 		Algorithm:    "ECDSA-P384",
@@ -499,11 +501,11 @@ func TestGetServerCertificateInfo_ErrorWhenNoCert(t *testing.T) {
 
 func TestGetServerCertificateInfo_ReturnsValidInfo(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{})
+	_, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
-	_, err = tm.GenerateServerCertSignedByCA(CertOptions{
+	_, err = tm.GenerateServerCertSignedByCA(models.CertOptions{
 		CommonName: "ServerInfoTest",
 		DNSNames:   []string{"srv.local"},
 	})
@@ -541,7 +543,7 @@ func TestSaveCACertificateToFile_NoCA(t *testing.T) {
 
 func TestSaveCACertificateToFile_WritesFile(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{})
+	_, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
@@ -585,11 +587,11 @@ func TestSaveServerCertificateToFile_NoCert(t *testing.T) {
 
 func TestSaveServerCertificateToFile_WritesFiles(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{})
+	_, err := tm.GenerateCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
-	_, err = tm.GenerateServerCertSignedByCA(CertOptions{})
+	_, err = tm.GenerateServerCertSignedByCA(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateServerCertSignedByCA failed: %v", err)
 	}
@@ -638,11 +640,11 @@ func TestSaveServerCertificateToFile_WritesFiles(t *testing.T) {
 
 func TestSaveServerCertificateToFile_LoadableByTLS(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "RSA-2048"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
-	_, err = tm.GenerateServerCertSignedByCA(CertOptions{Algorithm: "RSA-2048"})
+	_, err = tm.GenerateServerCertSignedByCA(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateServerCertSignedByCA failed: %v", err)
 	}
@@ -668,7 +670,7 @@ func TestSaveServerCertificateToFile_LoadableByTLS(t *testing.T) {
 func TestLoadCertificate_LoadsFromFiles(t *testing.T) {
 	// First, generate and save a certificate
 	tm := NewTLSManager()
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "ECDSA-P256"})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "ECDSA-P256"})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -727,7 +729,7 @@ func TestLoadCertificate_FailsWithMissingFiles(t *testing.T) {
 func TestLoadCertificate_FailsWithMismatchedKeyPair(t *testing.T) {
 	// Generate two different certs
 	tm1 := NewTLSManager()
-	_, _, err := tm1.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "ECDSA-P256", CommonName: "cert1"})
+	_, _, err := tm1.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "ECDSA-P256", CommonName: "cert1"})
 	if err != nil {
 		t.Fatalf("first GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -736,7 +738,7 @@ func TestLoadCertificate_FailsWithMismatchedKeyPair(t *testing.T) {
 	tm1.mu.Unlock()
 
 	tm2 := NewTLSManager()
-	_, _, err = tm2.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "ECDSA-P256", CommonName: "cert2"})
+	_, _, err = tm2.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "ECDSA-P256", CommonName: "cert2"})
 	if err != nil {
 		t.Fatalf("second GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -763,9 +765,9 @@ func TestLoadCertificate_FailsWithMismatchedKeyPair(t *testing.T) {
 
 func TestGetTLSConfig_SelfSigned_GeneratesOnTheFly(t *testing.T) {
 	tm := NewTLSManager()
-	config := ServerConfig{
+	config := models.ServerConfig{
 		UseSelfSigned: true,
-		CertOptions:   CertOptions{Algorithm: "ECDSA-P256"},
+		CertOptions:   models.CertOptions{Algorithm: "ECDSA-P256"},
 	}
 	tlsConfig, err := tm.GetTLSConfig(config)
 	if err != nil {
@@ -782,12 +784,12 @@ func TestGetTLSConfig_SelfSigned_GeneratesOnTheFly(t *testing.T) {
 func TestGetTLSConfig_SelfSigned_UsesExistingCert(t *testing.T) {
 	tm := NewTLSManager()
 	// Pre-generate
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "ECDSA-P256"})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "ECDSA-P256"})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
 
-	config := ServerConfig{
+	config := models.ServerConfig{
 		UseSelfSigned: true,
 	}
 	tlsConfig, err := tm.GetTLSConfig(config)
@@ -805,7 +807,7 @@ func TestGetTLSConfig_SelfSigned_UsesExistingCert(t *testing.T) {
 func TestGetTLSConfig_FromFiles(t *testing.T) {
 	// Generate a cert, save to files, load from files
 	gen := NewTLSManager()
-	_, _, err := gen.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "RSA-2048"})
+	_, _, err := gen.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -820,7 +822,7 @@ func TestGetTLSConfig_FromFiles(t *testing.T) {
 	gen.mu.Unlock()
 
 	tm := NewTLSManager()
-	config := ServerConfig{
+	config := models.ServerConfig{
 		UseSelfSigned: false,
 		CertFile:      certPath,
 		KeyFile:       keyPath,
@@ -836,7 +838,7 @@ func TestGetTLSConfig_FromFiles(t *testing.T) {
 
 func TestGetTLSConfig_RequiresCertAndKeyPaths(t *testing.T) {
 	tm := NewTLSManager()
-	config := ServerConfig{
+	config := models.ServerConfig{
 		UseSelfSigned: false,
 		CertFile:      "",
 		KeyFile:       "",
@@ -853,11 +855,11 @@ func TestGetTLSConfig_RequiresCertAndKeyPaths(t *testing.T) {
 func TestGetTLSConfig_MutualTLS(t *testing.T) {
 	// Generate CA and server cert
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "RSA-2048"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
-	_, err = tm.GenerateServerCertSignedByCA(CertOptions{Algorithm: "RSA-2048"})
+	_, err = tm.GenerateServerCertSignedByCA(models.CertOptions{Algorithm: "RSA-2048"})
 	if err != nil {
 		t.Fatalf("GenerateServerCertSignedByCA failed: %v", err)
 	}
@@ -876,7 +878,7 @@ func TestGetTLSConfig_MutualTLS(t *testing.T) {
 
 	// Fresh manager to test from-files + mutual TLS
 	tm2 := NewTLSManager()
-	config := ServerConfig{
+	config := models.ServerConfig{
 		UseSelfSigned: false,
 		CertFile:      certPath,
 		KeyFile:       keyPath,
@@ -897,12 +899,12 @@ func TestGetTLSConfig_MutualTLS(t *testing.T) {
 
 func TestGetTLSConfig_MutualTLS_BadCAFile(t *testing.T) {
 	tm := NewTLSManager()
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
 
-	config := ServerConfig{
+	config := models.ServerConfig{
 		UseSelfSigned: true,
 		MutualTLS:     true,
 		CAFile:        "/nonexistent/ca.pem",
@@ -953,7 +955,7 @@ func TestAlgorithms_TableDriven(t *testing.T) {
 	for _, tc := range algorithms {
 		t.Run(tc.name+"_CA", func(t *testing.T) {
 			tm := NewTLSManager()
-			info, err := tm.GenerateCA(CertOptions{Algorithm: tc.algorithm})
+			info, err := tm.GenerateCA(models.CertOptions{Algorithm: tc.algorithm})
 			if err != nil {
 				t.Fatalf("GenerateCA with %s failed: %v", tc.algorithm, err)
 			}
@@ -975,7 +977,7 @@ func TestAlgorithms_TableDriven(t *testing.T) {
 
 		t.Run(tc.name+"_SelfSigned", func(t *testing.T) {
 			tm := NewTLSManager()
-			_, info, err := tm.GenerateSelfSignedWithOptions(CertOptions{Algorithm: tc.algorithm})
+			_, info, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: tc.algorithm})
 			if err != nil {
 				t.Fatalf("GenerateSelfSignedWithOptions with %s failed: %v", tc.algorithm, err)
 			}
@@ -989,11 +991,11 @@ func TestAlgorithms_TableDriven(t *testing.T) {
 
 		t.Run(tc.name+"_ServerCertSignedByCA", func(t *testing.T) {
 			tm := NewTLSManager()
-			_, err := tm.GenerateCA(CertOptions{Algorithm: tc.algorithm})
+			_, err := tm.GenerateCA(models.CertOptions{Algorithm: tc.algorithm})
 			if err != nil {
 				t.Fatalf("GenerateCA failed: %v", err)
 			}
-			info, err := tm.GenerateServerCertSignedByCA(CertOptions{Algorithm: tc.algorithm})
+			info, err := tm.GenerateServerCertSignedByCA(models.CertOptions{Algorithm: tc.algorithm})
 			if err != nil {
 				t.Fatalf("GenerateServerCertSignedByCA with %s failed: %v", tc.algorithm, err)
 			}
@@ -1010,7 +1012,7 @@ func TestAlgorithms_TableDriven(t *testing.T) {
 
 func TestBuildCertInfoFromX509_CorrectFingerprint(t *testing.T) {
 	tm := NewTLSManager()
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "ECDSA-P256"})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "ECDSA-P256"})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -1283,7 +1285,7 @@ func TestBuildCertInfoFromX509_DNSAndIPAddresses(t *testing.T) {
 
 func TestLoadCACertificateFromFile(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "ECDSA-P256"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "ECDSA-P256"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
@@ -1329,12 +1331,12 @@ func TestLoadCACertificateFromFile_MissingFile(t *testing.T) {
 
 func TestGetCertificateInfo_SelfSigned(t *testing.T) {
 	tm := NewTLSManager()
-	_, _, err := tm.GenerateSelfSignedWithOptions(CertOptions{CommonName: "CertInfoTest"})
+	_, _, err := tm.GenerateSelfSignedWithOptions(models.CertOptions{CommonName: "CertInfoTest"})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
 
-	info, err := tm.GetCertificateInfo(ServerConfig{UseSelfSigned: true})
+	info, err := tm.GetCertificateInfo(models.ServerConfig{UseSelfSigned: true})
 	if err != nil {
 		t.Fatalf("GetCertificateInfo failed: %v", err)
 	}
@@ -1345,7 +1347,7 @@ func TestGetCertificateInfo_SelfSigned(t *testing.T) {
 
 func TestGetCertificateInfo_NoCert(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GetCertificateInfo(ServerConfig{UseSelfSigned: true})
+	_, err := tm.GetCertificateInfo(models.ServerConfig{UseSelfSigned: true})
 	if err == nil {
 		t.Fatal("expected error when no cert exists")
 	}
@@ -1353,7 +1355,7 @@ func TestGetCertificateInfo_NoCert(t *testing.T) {
 
 func TestGetCertificateInfo_FromFile(t *testing.T) {
 	gen := NewTLSManager()
-	_, _, err := gen.GenerateSelfSignedWithOptions(CertOptions{Algorithm: "RSA-2048", CommonName: "FileInfoTest"})
+	_, _, err := gen.GenerateSelfSignedWithOptions(models.CertOptions{Algorithm: "RSA-2048", CommonName: "FileInfoTest"})
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedWithOptions failed: %v", err)
 	}
@@ -1368,7 +1370,7 @@ func TestGetCertificateInfo_FromFile(t *testing.T) {
 	gen.mu.Unlock()
 
 	tm := NewTLSManager()
-	info, err := tm.GetCertificateInfo(ServerConfig{
+	info, err := tm.GetCertificateInfo(models.ServerConfig{
 		UseSelfSigned: false,
 		CertFile:      certPath,
 	})
@@ -1382,7 +1384,7 @@ func TestGetCertificateInfo_FromFile(t *testing.T) {
 
 func TestGetCertificateInfo_NoCertFile(t *testing.T) {
 	tm := NewTLSManager()
-	_, err := tm.GetCertificateInfo(ServerConfig{UseSelfSigned: false, CertFile: ""})
+	_, err := tm.GetCertificateInfo(models.ServerConfig{UseSelfSigned: false, CertFile: ""})
 	if err == nil {
 		t.Fatal("expected error when no cert file specified")
 	}
@@ -1530,7 +1532,7 @@ func TestConcurrentAccess(t *testing.T) {
 	tm := NewTLSManager()
 
 	// Generate CA first
-	_, err := tm.GenerateCA(CertOptions{Algorithm: "ECDSA-P256"})
+	_, err := tm.GenerateCA(models.CertOptions{Algorithm: "ECDSA-P256"})
 	if err != nil {
 		t.Fatalf("GenerateCA failed: %v", err)
 	}
@@ -1542,7 +1544,7 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer func() { done <- struct{}{} }()
-			_, e := tm.GenerateServerCertSignedByCA(CertOptions{Algorithm: "ECDSA-P256"})
+			_, e := tm.GenerateServerCertSignedByCA(models.CertOptions{Algorithm: "ECDSA-P256"})
 			if e != nil {
 				errs <- e
 			}

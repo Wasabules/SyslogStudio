@@ -1,4 +1,4 @@
-package main
+package alert
 
 import (
 	"log/slog"
@@ -7,43 +7,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/models"
 )
-
-// AlertRule defines a condition that triggers an alert.
-type AlertRule struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Enabled     bool   `json:"enabled"`
-	Pattern     string `json:"pattern"`     // Text or regex pattern to match in message
-	UseRegex    bool   `json:"useRegex"`    // If true, Pattern is a regex
-	MinSeverity int    `json:"minSeverity"` // -1 = any, 0 = Emergency .. 7 = Debug (alert if severity <= this)
-	Hostname    string `json:"hostname"`    // Substring match on hostname (empty = any)
-	AppName     string `json:"appName"`     // Substring match on appName (empty = any)
-	Cooldown    int    `json:"cooldown"`    // Seconds between repeated alerts for this rule (0 = no cooldown)
-}
-
-// AlertEvent records a triggered alert.
-type AlertEvent struct {
-	ID        string    `json:"id"`
-	RuleID    string    `json:"ruleId"`
-	RuleName  string    `json:"ruleName"`
-	Message   string    `json:"message"`
-	Severity  string    `json:"severity"`
-	Hostname  string    `json:"hostname"`
-	Timestamp time.Time `json:"timestamp"`
-}
 
 // AlertManager evaluates incoming messages against alert rules.
 type AlertManager struct {
 	mu       sync.RWMutex
-	rules    []AlertRule
-	history  []AlertEvent
+	rules    []models.AlertRule
+	history  []models.AlertEvent
 	lastFire map[string]time.Time // ruleID -> last fire time
-	emitter  EventEmitter
+	emitter  event.EventEmitter
 }
 
 // NewAlertManager creates an AlertManager.
-func NewAlertManager(emitter EventEmitter) *AlertManager {
+func NewAlertManager(emitter event.EventEmitter) *AlertManager {
 	return &AlertManager{
 		lastFire: make(map[string]time.Time),
 		emitter:  emitter,
@@ -51,23 +30,23 @@ func NewAlertManager(emitter EventEmitter) *AlertManager {
 }
 
 // SetRules replaces the entire rule set.
-func (am *AlertManager) SetRules(rules []AlertRule) {
+func (am *AlertManager) SetRules(rules []models.AlertRule) {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	am.rules = rules
 }
 
 // GetRules returns the current rule set.
-func (am *AlertManager) GetRules() []AlertRule {
+func (am *AlertManager) GetRules() []models.AlertRule {
 	am.mu.RLock()
 	defer am.mu.RUnlock()
-	out := make([]AlertRule, len(am.rules))
+	out := make([]models.AlertRule, len(am.rules))
 	copy(out, am.rules)
 	return out
 }
 
 // AddRule adds a new alert rule and returns it with a generated ID.
-func (am *AlertManager) AddRule(rule AlertRule) AlertRule {
+func (am *AlertManager) AddRule(rule models.AlertRule) models.AlertRule {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	rule.ID = uuid.New().String()
@@ -76,7 +55,7 @@ func (am *AlertManager) AddRule(rule AlertRule) AlertRule {
 }
 
 // UpdateRule updates an existing rule by ID.
-func (am *AlertManager) UpdateRule(rule AlertRule) bool {
+func (am *AlertManager) UpdateRule(rule models.AlertRule) bool {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	for i, r := range am.rules {
@@ -103,10 +82,10 @@ func (am *AlertManager) DeleteRule(id string) bool {
 }
 
 // GetHistory returns recent alert events.
-func (am *AlertManager) GetHistory() []AlertEvent {
+func (am *AlertManager) GetHistory() []models.AlertEvent {
 	am.mu.RLock()
 	defer am.mu.RUnlock()
-	out := make([]AlertEvent, len(am.history))
+	out := make([]models.AlertEvent, len(am.history))
 	copy(out, am.history)
 	return out
 }
@@ -120,11 +99,11 @@ func (am *AlertManager) ClearHistory() {
 
 // CheckMessage evaluates a message against all enabled rules.
 // Returns triggered events (may be empty).
-func (am *AlertManager) CheckMessage(msg SyslogMessage) []AlertEvent {
+func (am *AlertManager) CheckMessage(msg models.SyslogMessage) []models.AlertEvent {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 
-	var events []AlertEvent
+	var events []models.AlertEvent
 	now := time.Now()
 
 	for _, rule := range am.rules {
@@ -145,7 +124,7 @@ func (am *AlertManager) CheckMessage(msg SyslogMessage) []AlertEvent {
 			}
 		}
 
-		event := AlertEvent{
+		event := models.AlertEvent{
 			ID:        uuid.New().String(),
 			RuleID:    rule.ID,
 			RuleName:  rule.Name,
@@ -168,7 +147,7 @@ func (am *AlertManager) CheckMessage(msg SyslogMessage) []AlertEvent {
 	return events
 }
 
-func (am *AlertManager) matchesRule(msg SyslogMessage, rule AlertRule) bool {
+func (am *AlertManager) matchesRule(msg models.SyslogMessage, rule models.AlertRule) bool {
 	// Severity check: alert if message severity <= minSeverity (lower = more severe)
 	if rule.MinSeverity >= 0 && int(msg.Severity) > rule.MinSeverity {
 		return false
@@ -191,7 +170,7 @@ func (am *AlertManager) matchesRule(msg SyslogMessage, rule AlertRule) bool {
 	// Pattern match
 	if rule.Pattern != "" {
 		if rule.UseRegex {
-			re, err := safeCompileRegex(rule.Pattern)
+			re, err := models.SafeCompileRegex(rule.Pattern)
 			if err != nil {
 				slog.Debug("invalid alert regex", "rule", rule.Name, "pattern", rule.Pattern, "error", err)
 				return false

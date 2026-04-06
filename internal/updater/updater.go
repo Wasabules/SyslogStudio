@@ -1,12 +1,13 @@
-package main
+package updater
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"SyslogStudio/internal/models"
 )
 
 // AppVersion is the current application version. Set at build time via ldflags.
@@ -17,22 +18,14 @@ const (
 	releaseCheckURL = "https://api.github.com/repos/" + githubRepo + "/releases/latest"
 )
 
-// UpdateInfo contains information about an available update.
-type UpdateInfo struct {
-	CurrentVersion string `json:"currentVersion"`
-	LatestVersion  string `json:"latestVersion"`
-	UpdateURL      string `json:"updateUrl"`
-	HasUpdate      bool   `json:"hasUpdate"`
-}
-
 type githubRelease struct {
 	TagName string `json:"tag_name"`
 	HTMLURL string `json:"html_url"`
 }
 
 // CheckForUpdate queries GitHub for the latest release.
-func CheckForUpdate() UpdateInfo {
-	info := UpdateInfo{
+func CheckForUpdate() models.UpdateInfo {
+	info := models.UpdateInfo{
 		CurrentVersion: AppVersion,
 	}
 
@@ -94,10 +87,4 @@ func isNewer(latest, current string) bool {
 // GetAppVersion returns the current version string.
 func GetAppVersion() string {
 	return AppVersion
-}
-
-// OpenURL opens a URL in the default browser.
-func OpenURL(url string) error {
-	// This will be called via Wails, which handles it client-side
-	return fmt.Errorf("use window.open() from frontend")
 }

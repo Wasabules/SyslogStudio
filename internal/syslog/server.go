@@ -1,4 +1,4 @@
-package main
+package syslog
 
 import (
 	"bufio"
@@ -7,10 +7,15 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"SyslogStudio/internal/alert"
+	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/pki"
+	"SyslogStudio/internal/storage"
 )
 
 const (
@@ -27,19 +32,19 @@ const (
 
 // SyslogServer manages UDP, TCP, and TLS syslog listeners.
 type SyslogServer struct {
-	config       ServerConfig
-	emitter      EventEmitter
+	config       models.ServerConfig
+	emitter      event.EventEmitter
 	stats        *StatsCollector
-	alertManager *AlertManager
-	logStore     *LogStore
+	AlertManager *alert.AlertManager
+	LogStore     *storage.LogStore
 
 	mu       sync.RWMutex
-	messages []SyslogMessage // Ring buffer
-	head     int             // Next write position
-	count    int             // Current number of messages
+	messages []models.SyslogMessage // Ring buffer
+	head     int                    // Next write position
+	count    int                    // Current number of messages
 
 	// Pending batch for emission
-	pendingBatch []SyslogMessage
+	pendingBatch []models.SyslogMessage
 
 	// Listener handles
 	udpConn     *net.UDPConn
@@ -54,30 +59,30 @@ type SyslogServer struct {
 	// Worker pool
 	workCh chan func()
 
-	tlsManager *TLSManager
+	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
 }
 
 // NewSyslogServer creates a server with default config.
 // If tlsMgr is nil, a new TLSManager is created.
-func NewSyslogServer(emitter EventEmitter, tlsMgr *TLSManager) *SyslogServer {
+func NewSyslogServer(emitter event.EventEmitter, tlsMgr *pki.TLSManager) *SyslogServer {
 	if tlsMgr == nil {
-		tlsMgr = NewTLSManager()
+		tlsMgr = pki.NewTLSManager()
 	}
-	config := DefaultServerConfig()
+	config := models.DefaultServerConfig()
 	return &SyslogServer{
 		emitter:      emitter,
 		config:       config,
-		messages:     make([]SyslogMessage, config.MaxBuffer),
+		messages:     make([]models.SyslogMessage, config.MaxBuffer),
 		stats:        NewStatsCollector(),
-		alertManager: NewAlertManager(emitter),
+		AlertManager: alert.NewAlertManager(emitter),
 		tlsManager:   tlsMgr,
 	}
 }
 
 // Start begins listening on enabled protocols.
-func (s *SyslogServer) Start(config ServerConfig) error {
-	if err := ValidateServerConfig(config); err != nil {
+func (s *SyslogServer) Start(config models.ServerConfig) error {
+	if err := models.ValidateServerConfig(config); err != nil {
 		return err
 	}
 
@@ -94,7 +99,7 @@ func (s *SyslogServer) Start(config ServerConfig) error {
 
 	// Reinitialize buffer if size changed
 	if len(s.messages) != config.MaxBuffer {
-		s.messages = make([]SyslogMessage, config.MaxBuffer)
+		s.messages = make([]models.SyslogMessage, config.MaxBuffer)
 		s.head = 0
 		s.count = 0
 	}
@@ -191,7 +196,7 @@ func (s *SyslogServer) startTCPListener(ctx context.Context, port int) error {
 	return nil
 }
 
-func (s *SyslogServer) startTLSListener(ctx context.Context, config ServerConfig) error {
+func (s *SyslogServer) startTLSListener(ctx context.Context, config models.ServerConfig) error {
 	tlsCfg, err := s.tlsManager.GetTLSConfig(config)
 	if err != nil {
 		return fmt.Errorf("TLS config: %v", err)
@@ -250,11 +255,11 @@ func (s *SyslogServer) Stop() error {
 }
 
 // GetStatus returns the current server status.
-func (s *SyslogServer) GetStatus() ServerStatus {
+func (s *SyslogServer) GetStatus() models.ServerStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return ServerStatus{
+	return models.ServerStatus{
 		Running:    s.running,
 		UDPRunning: s.running && s.udpConn != nil,
 		TCPRunning: s.running && s.tcpListener != nil,
@@ -264,7 +269,7 @@ func (s *SyslogServer) GetStatus() ServerStatus {
 }
 
 // GetStats returns the current statistics.
-func (s *SyslogServer) GetStats() ServerStats {
+func (s *SyslogServer) GetStats() models.ServerStats {
 	s.mu.RLock()
 	bufferUsed := s.count
 	bufferMax := len(s.messages)
@@ -274,11 +279,11 @@ func (s *SyslogServer) GetStats() ServerStats {
 }
 
 // GetMessages returns buffered messages matching the filter.
-func (s *SyslogServer) GetMessages(filter FilterCriteria) []SyslogMessage {
+func (s *SyslogServer) GetMessages(filter models.FilterCriteria) []models.SyslogMessage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := make([]SyslogMessage, 0, s.count)
+	result := make([]models.SyslogMessage, 0, s.count)
 
 	// Read from oldest to newest
 	for i := 0; i < s.count; i++ {
@@ -299,7 +304,7 @@ func (s *SyslogServer) ClearMessages() {
 	s.count = 0
 	s.pendingBatch = nil
 	for i := range s.messages {
-		s.messages[i] = SyslogMessage{}
+		s.messages[i] = models.SyslogMessage{}
 	}
 	s.mu.Unlock()
 
@@ -487,7 +492,7 @@ func (s *SyslogServer) processMessage(raw []byte, sourceIP string, protocol stri
 	s.addMessage(msg)
 }
 
-func (s *SyslogServer) addMessage(msg SyslogMessage) {
+func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
 	s.mu.Lock()
 	s.messages[s.head] = msg
 	s.head = (s.head + 1) % len(s.messages)
@@ -502,12 +507,12 @@ func (s *SyslogServer) addMessage(msg SyslogMessage) {
 	s.stats.RecordMessage(msg)
 
 	// Persist to SQLite
-	if s.logStore != nil {
-		s.logStore.BufferMessage(msg)
+	if s.LogStore != nil {
+		s.LogStore.BufferMessage(msg)
 	}
 
 	// Check alert rules
-	if events := s.alertManager.CheckMessage(msg); len(events) > 0 {
+	if events := s.AlertManager.CheckMessage(msg); len(events) > 0 {
 		s.emitter.Emit("syslog:alerts", events)
 	}
 }
@@ -526,7 +531,7 @@ func (s *SyslogServer) runBatchEmitter(ctx context.Context) {
 		case <-ticker.C:
 			s.mu.Lock()
 			if len(s.pendingBatch) > 0 {
-				batch := make([]SyslogMessage, len(s.pendingBatch))
+				batch := make([]models.SyslogMessage, len(s.pendingBatch))
 				copy(batch, s.pendingBatch)
 				s.pendingBatch = s.pendingBatch[:0] // reuse capacity
 				s.mu.Unlock()
@@ -560,38 +565,8 @@ func (s *SyslogServer) emitStatus() {
 	s.emitter.Emit("syslog:status", status)
 }
 
-const maxRegexLen = 200
-
-// safeCompileRegex compiles a user-supplied regex with length limit to prevent ReDoS.
-func safeCompileRegex(pattern string) (*regexp.Regexp, error) {
-	if len(pattern) > maxRegexLen {
-		return nil, fmt.Errorf("regex pattern too long (max %d characters)", maxRegexLen)
-	}
-	return regexp.Compile("(?i)" + pattern)
-}
-
-// parseFilterDate parses a date string in RFC 3339 or "YYYY-MM-DD" format.
-func parseFilterDate(s string) (time.Time, bool) {
-	if s == "" {
-		return time.Time{}, false
-	}
-	t, err := time.Parse(time.RFC3339, s)
-	if err == nil {
-		return t, true
-	}
-	t, err = time.Parse("2006-01-02", s)
-	if err == nil {
-		return t, true
-	}
-	t, err = time.Parse("2006-01-02T15:04", s)
-	if err == nil {
-		return t, true
-	}
-	return time.Time{}, false
-}
-
 // matchesFilter checks if a message matches the given filter criteria.
-func matchesFilter(msg SyslogMessage, filter FilterCriteria) bool {
+func matchesFilter(msg models.SyslogMessage, filter models.FilterCriteria) bool {
 	if len(filter.Severities) > 0 {
 		found := false
 		for _, sev := range filter.Severities {
@@ -637,12 +612,12 @@ func matchesFilter(msg SyslogMessage, filter FilterCriteria) bool {
 	}
 
 	// Date range filter
-	if from, ok := parseFilterDate(filter.DateFrom); ok {
+	if from, ok := models.ParseFilterDate(filter.DateFrom); ok {
 		if msg.Timestamp.Before(from) {
 			return false
 		}
 	}
-	if to, ok := parseFilterDate(filter.DateTo); ok {
+	if to, ok := models.ParseFilterDate(filter.DateTo); ok {
 		// If only date is given (no time part), include the whole day
 		if to.Hour() == 0 && to.Minute() == 0 && to.Second() == 0 {
 			to = to.Add(24*time.Hour - time.Nanosecond)
@@ -655,7 +630,7 @@ func matchesFilter(msg SyslogMessage, filter FilterCriteria) bool {
 	// Search
 	if filter.Search != "" {
 		if filter.SearchMode == "regex" {
-			re, err := safeCompileRegex(filter.Search)
+			re, err := models.SafeCompileRegex(filter.Search)
 			if err != nil {
 				return matchPlainSearch(msg, filter.Search)
 			}
@@ -672,7 +647,7 @@ func matchesFilter(msg SyslogMessage, filter FilterCriteria) bool {
 	return true
 }
 
-func matchPlainSearch(msg SyslogMessage, search string) bool {
+func matchPlainSearch(msg models.SyslogMessage, search string) bool {
 	s := strings.ToLower(search)
 	return strings.Contains(strings.ToLower(msg.Message), s) ||
 		strings.Contains(strings.ToLower(msg.RawMessage), s)

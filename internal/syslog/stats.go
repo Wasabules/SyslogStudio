@@ -1,8 +1,10 @@
-package main
+package syslog
 
 import (
 	"sort"
 	"sync"
+
+	"SyslogStudio/internal/models"
 )
 
 // StatsCollector tracks syslog message statistics independently of the server.
@@ -24,7 +26,7 @@ func NewStatsCollector() *StatsCollector {
 }
 
 // RecordMessage updates statistics for a received message.
-func (sc *StatsCollector) RecordMessage(msg SyslogMessage) {
+func (sc *StatsCollector) RecordMessage(msg models.SyslogMessage) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
@@ -40,7 +42,7 @@ func (sc *StatsCollector) RecordMessage(msg SyslogMessage) {
 }
 
 // GetStats returns a snapshot of current statistics.
-func (sc *StatsCollector) GetStats(bufferUsed, bufferMax int) ServerStats {
+func (sc *StatsCollector) GetStats(bufferUsed, bufferMax int) models.ServerStats {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
@@ -57,7 +59,7 @@ func (sc *StatsCollector) GetStats(bufferUsed, bufferMax int) ServerStats {
 	}
 	msgsPerSec := float64(totalRate) / float64(len(sc.rateBuckets))
 
-	return ServerStats{
+	return models.ServerStats{
 		TotalMessages:   sc.totalMessages,
 		MessagesByLevel: levelsCopy,
 		TopSources:      topSources,
@@ -85,10 +87,10 @@ func (sc *StatsCollector) Clear() {
 	sc.rateBuckets = [10]int64{}
 }
 
-func (sc *StatsCollector) computeTopSources(n int) []SourceCount {
-	sources := make([]SourceCount, 0, len(sc.sourceCounts))
+func (sc *StatsCollector) computeTopSources(n int) []models.SourceCount {
+	sources := make([]models.SourceCount, 0, len(sc.sourceCounts))
 	for hostname, count := range sc.sourceCounts {
-		sources = append(sources, SourceCount{Hostname: hostname, Count: count})
+		sources = append(sources, models.SourceCount{Hostname: hostname, Count: count})
 	}
 	sort.Slice(sources, func(i, j int) bool {
 		return sources[i].Count > sources[j].Count

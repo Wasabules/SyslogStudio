@@ -1,8 +1,9 @@
-package main
+package models
 
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -73,8 +74,8 @@ type SyslogMessage struct {
 
 // CertOptions holds parameters for certificate generation.
 type CertOptions struct {
-	Algorithm    string   `json:"algorithm"`    // "ECDSA-P256", "ECDSA-P384", "RSA-2048", "RSA-4096"
-	ValidityDays int      `json:"validityDays"` // Certificate validity in days
+	Algorithm    string   `json:"algorithm"`
+	ValidityDays int      `json:"validityDays"`
 	CommonName   string   `json:"commonName"`
 	Organization string   `json:"organization"`
 	DNSNames     []string `json:"dnsNames"`
@@ -161,10 +162,91 @@ type FilterCriteria struct {
 	AppName    string `json:"appName,omitempty"`
 	SourceIP   string `json:"sourceIP,omitempty"`
 	Search     string `json:"search,omitempty"`
-	SearchMode string `json:"searchMode,omitempty"` // "text" (default), "fts", "regex"
-	DateFrom   string `json:"dateFrom,omitempty"` // RFC 3339 or "YYYY-MM-DD" or ""
-	DateTo     string `json:"dateTo,omitempty"`   // RFC 3339 or "YYYY-MM-DD" or ""
+	SearchMode string `json:"searchMode,omitempty"`
+	DateFrom   string `json:"dateFrom,omitempty"`
+	DateTo     string `json:"dateTo,omitempty"`
 }
+
+// StorageConfig holds persistence settings.
+type StorageConfig struct {
+	Enabled       bool   `json:"enabled"`
+	Path          string `json:"path"`
+	RetentionDays int    `json:"retentionDays"`
+	MaxMessages   int    `json:"maxMessages"`
+	MaxSizeMB     int    `json:"maxSizeMB"`
+}
+
+// StorageStats provides database information.
+type StorageStats struct {
+	MessageCount    int64   `json:"messageCount"`
+	DatabaseSizeMB  float64 `json:"databaseSizeMB"`
+	OldestTimestamp string  `json:"oldestTimestamp"`
+}
+
+// PagedResult holds a paginated query result.
+type PagedResult struct {
+	Messages []SyslogMessage `json:"messages"`
+	Total    int             `json:"total"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+}
+
+// QueryOptions holds parameters for paginated, sorted queries.
+type QueryOptions struct {
+	Filter    FilterCriteria `json:"filter"`
+	Page      int            `json:"page"`
+	PageSize  int            `json:"pageSize"`
+	SortField string         `json:"sortField"`
+	SortDir   string         `json:"sortDir"`
+	GroupBy   string         `json:"groupBy"`
+}
+
+// GroupSummary holds a group key and its message count.
+type GroupSummary struct {
+	Key   string `json:"key"`
+	Count int    `json:"count"`
+}
+
+// AlertRule defines a condition that triggers an alert.
+type AlertRule struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Enabled     bool   `json:"enabled"`
+	Pattern     string `json:"pattern"`
+	UseRegex    bool   `json:"useRegex"`
+	MinSeverity int    `json:"minSeverity"`
+	Hostname    string `json:"hostname"`
+	AppName     string `json:"appName"`
+	Cooldown    int    `json:"cooldown"`
+}
+
+// AlertEvent records a triggered alert.
+type AlertEvent struct {
+	ID        string    `json:"id"`
+	RuleID    string    `json:"ruleId"`
+	RuleName  string    `json:"ruleName"`
+	Message   string    `json:"message"`
+	Severity  string    `json:"severity"`
+	Hostname  string    `json:"hostname"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// AppConfig is the top-level persisted configuration.
+type AppConfig struct {
+	Server  ServerConfig  `json:"server"`
+	Storage StorageConfig `json:"storage"`
+	Alerts  []AlertRule   `json:"alerts"`
+}
+
+// UpdateInfo contains information about an available update.
+type UpdateInfo struct {
+	CurrentVersion string `json:"currentVersion"`
+	LatestVersion  string `json:"latestVersion"`
+	UpdateURL      string `json:"updateUrl"`
+	HasUpdate      bool   `json:"hasUpdate"`
+}
+
+// --- Label converters ---
 
 // SeverityToLabel converts a severity level to its string label.
 func SeverityToLabel(s Severity) string {
@@ -246,6 +328,34 @@ func FacilityToLabel(f Facility) string {
 	}
 }
 
+// --- Default factories ---
+
+// DefaultStorageConfig returns sensible defaults for storage.
+func DefaultStorageConfig() StorageConfig {
+	return StorageConfig{
+		Enabled:       true,
+		RetentionDays: 7,
+		MaxMessages:   1000000,
+		MaxSizeMB:     500,
+	}
+}
+
+// DefaultServerConfig returns sensible defaults.
+func DefaultServerConfig() ServerConfig {
+	return ServerConfig{
+		UDPEnabled:    true,
+		TCPEnabled:    false,
+		TLSEnabled:    false,
+		UDPPort:       514,
+		TCPPort:       514,
+		TLSPort:       6514,
+		MaxBuffer:     10000,
+		UseSelfSigned: false,
+	}
+}
+
+// --- Validation ---
+
 // ValidateServerConfig checks the configuration for errors before starting.
 func ValidateServerConfig(c ServerConfig) error {
 	if !c.UDPEnabled && !c.TCPEnabled && !c.TLSEnabled {
@@ -275,15 +385,11 @@ func ValidateServerConfig(c ServerConfig) error {
 		}
 	}
 
-	// Check for port conflicts between enabled protocols
 	type portProto struct {
 		port int
 		name string
 	}
 	var active []portProto
-	if c.UDPEnabled {
-		// UDP doesn't conflict with TCP/TLS (different L4 protocol)
-	}
 	if c.TCPEnabled {
 		active = append(active, portProto{c.TCPPort, "TCP"})
 	}
@@ -298,7 +404,6 @@ func ValidateServerConfig(c ServerConfig) error {
 		}
 	}
 
-	// TLS file validation
 	if c.TLSEnabled && !c.UseSelfSigned {
 		if c.CertFile == "" {
 			return fmt.Errorf("TLS certificate file path is required")
@@ -323,66 +428,34 @@ func ValidateServerConfig(c ServerConfig) error {
 	return nil
 }
 
-// StorageConfig holds persistence settings.
-type StorageConfig struct {
-	Enabled       bool   `json:"enabled"`
-	Path          string `json:"path"`          // empty = default location
-	RetentionDays int    `json:"retentionDays"` // 0 = unlimited
-	MaxMessages   int    `json:"maxMessages"`   // 0 = unlimited
-	MaxSizeMB     int    `json:"maxSizeMB"`     // 0 = unlimited
-}
+// --- Shared filter utilities (used by syslog, alert, and storage packages) ---
 
-// StorageStats provides database information.
-type StorageStats struct {
-	MessageCount    int64  `json:"messageCount"`
-	DatabaseSizeMB  float64 `json:"databaseSizeMB"`
-	OldestTimestamp string `json:"oldestTimestamp"`
-}
+const MaxRegexLen = 200
 
-// PagedResult holds a paginated query result.
-type PagedResult struct {
-	Messages []SyslogMessage `json:"messages"`
-	Total    int             `json:"total"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"pageSize"`
-}
-
-// QueryOptions holds parameters for paginated, sorted queries.
-type QueryOptions struct {
-	Filter    FilterCriteria `json:"filter"`
-	Page      int            `json:"page"`
-	PageSize  int            `json:"pageSize"`
-	SortField string         `json:"sortField"` // "timestamp","severity","hostname","appName","sourceIP","protocol","message"
-	SortDir   string         `json:"sortDir"`   // "asc" or "desc"
-	GroupBy   string         `json:"groupBy"`   // "severity","hostname","appName","sourceIP" or ""
-}
-
-// GroupSummary holds a group key and its message count.
-type GroupSummary struct {
-	Key   string `json:"key"`
-	Count int    `json:"count"`
-}
-
-// DefaultStorageConfig returns sensible defaults for storage.
-func DefaultStorageConfig() StorageConfig {
-	return StorageConfig{
-		Enabled:       true,
-		RetentionDays: 7,
-		MaxMessages:   1000000,
-		MaxSizeMB:     500,
+// SafeCompileRegex compiles a user-supplied regex with length limit to prevent ReDoS.
+func SafeCompileRegex(pattern string) (*regexp.Regexp, error) {
+	if len(pattern) > MaxRegexLen {
+		return nil, fmt.Errorf("regex pattern too long (max %d characters)", MaxRegexLen)
 	}
+	return regexp.Compile("(?i)" + pattern)
 }
 
-// DefaultServerConfig returns sensible defaults.
-func DefaultServerConfig() ServerConfig {
-	return ServerConfig{
-		UDPEnabled:    true,
-		TCPEnabled:    false,
-		TLSEnabled:    false,
-		UDPPort:       514,
-		TCPPort:       514,
-		TLSPort:       6514,
-		MaxBuffer:     10000,
-		UseSelfSigned: false,
+// ParseFilterDate parses a date string in RFC 3339 or "YYYY-MM-DD" format.
+func ParseFilterDate(s string) (time.Time, bool) {
+	if s == "" {
+		return time.Time{}, false
 	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err == nil {
+		return t, true
+	}
+	t, err = time.Parse("2006-01-02", s)
+	if err == nil {
+		return t, true
+	}
+	t, err = time.Parse("2006-01-02T15:04", s)
+	if err == nil {
+		return t, true
+	}
+	return time.Time{}, false
 }

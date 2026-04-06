@@ -1,4 +1,4 @@
-package main
+package storage
 
 import (
 	"database/sql"
@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/models"
 
 	_ "modernc.org/sqlite"
 )
@@ -24,21 +27,21 @@ const (
 type LogStore struct {
 	mu      sync.Mutex
 	db      *sql.DB
-	config  StorageConfig
-	buffer  []SyslogMessage
-	emitter EventEmitter
+	config  models.StorageConfig
+	buffer  []models.SyslogMessage
+	emitter event.EventEmitter
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
 
 // NewLogStore creates and initializes a LogStore.
-func NewLogStore(config StorageConfig, emitter EventEmitter) (*LogStore, error) {
+func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogStore, error) {
 	if !config.Enabled {
 		return &LogStore{config: config}, nil
 	}
 
-	dbPath, err := resolveDBPath(config.Path)
+	dbPath, err := ResolveDBPath(config.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve DB path: %w", err)
 	}
@@ -51,9 +54,9 @@ func NewLogStore(config StorageConfig, emitter EventEmitter) (*LogStore, error) 
 		"?_pragma=journal_mode(wal)"+
 		"&_pragma=synchronous(normal)"+
 		"&_pragma=busy_timeout(5000)"+
-		"&_pragma=cache_size(-64000)"+ // 64 MB cache (vs 2 MB default)
+		"&_pragma=cache_size(-64000)"+  // 64 MB cache (vs 2 MB default)
 		"&_pragma=mmap_size(268435456)"+ // 256 MB memory-mapped I/O
-		"&_pragma=temp_store(memory)") // temp tables in RAM
+		"&_pragma=temp_store(memory)")   // temp tables in RAM
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -69,7 +72,7 @@ func NewLogStore(config StorageConfig, emitter EventEmitter) (*LogStore, error) 
 	ls := &LogStore{
 		db:      db,
 		config:  config,
-		buffer:  make([]SyslogMessage, 0, 256),
+		buffer:  make([]models.SyslogMessage, 0, 256),
 		emitter: emitter,
 		stopCh:  make(chan struct{}),
 	}
@@ -82,7 +85,8 @@ func NewLogStore(config StorageConfig, emitter EventEmitter) (*LogStore, error) 
 	return ls, nil
 }
 
-func resolveDBPath(configPath string) (string, error) {
+// ResolveDBPath returns the database file path, using the default location if configPath is empty.
+func ResolveDBPath(configPath string) (string, error) {
 	if configPath != "" {
 		return configPath, nil
 	}
@@ -156,7 +160,7 @@ func initSchema(db *sql.DB) error {
 }
 
 // BufferMessage adds a message to the write buffer (non-blocking).
-func (ls *LogStore) BufferMessage(msg SyslogMessage) {
+func (ls *LogStore) BufferMessage(msg models.SyslogMessage) {
 	if ls.db == nil {
 		return
 	}
@@ -188,7 +192,7 @@ func (ls *LogStore) flush() {
 		return
 	}
 	batch := ls.buffer
-	ls.buffer = make([]SyslogMessage, 0, cap(batch))
+	ls.buffer = make([]models.SyslogMessage, 0, cap(batch))
 	ls.mu.Unlock()
 
 	tx, err := ls.db.Begin()
@@ -321,11 +325,11 @@ func buildOrderClause(sortField, sortDir string) string {
 }
 
 // QueryMessages returns a paginated, filtered, sorted result set.
-func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
+func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 	page := opts.Page
 	pageSize := opts.PageSize
 	if ls.db == nil {
-		return PagedResult{Page: page, PageSize: pageSize}
+		return models.PagedResult{Page: page, PageSize: pageSize}
 	}
 	if page < 1 {
 		page = 1
@@ -342,7 +346,7 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 	var regexFilter *regexp.Regexp
 	if useRegexFilter {
 		var err error
-		regexFilter, err = safeCompileRegex(opts.Filter.Search)
+		regexFilter, err = models.SafeCompileRegex(opts.Filter.Search)
 		if err != nil {
 			useRegexFilter = false // invalid regex, skip
 		}
@@ -350,7 +354,7 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 
 	if useRegexFilter {
 		// Two-pass approach for performance:
-		// Pass 1: scan only id + message + raw_message (lightweight) → collect matching IDs
+		// Pass 1: scan only id + message + raw_message (lightweight) -> collect matching IDs
 		// Pass 2: fetch full rows only for the current page
 
 		var totalRows int
@@ -365,7 +369,7 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 		rows, err := ls.db.Query(scanSQL, args...)
 		if err != nil {
 			slog.Error("log store: regex scan failed", "error", err)
-			return PagedResult{Page: page, PageSize: pageSize}
+			return models.PagedResult{Page: page, PageSize: pageSize}
 		}
 
 		var matchedIDs []string
@@ -404,7 +408,7 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 		}
 
 		// Pass 2: fetch full data for this page only
-		var messages []SyslogMessage
+		var messages []models.SyslogMessage
 		if offset < end {
 			pageIDs := matchedIDs[offset:end]
 			placeholders := make([]string, len(pageIDs))
@@ -426,7 +430,7 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 			}
 		}
 
-		return PagedResult{
+		return models.PagedResult{
 			Messages: messages,
 			Total:    total,
 			Page:     page,
@@ -445,11 +449,11 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 	rows, err := ls.db.Query(querySQL, queryArgs...)
 	if err != nil {
 		slog.Error("log store: query failed", "error", err)
-		return PagedResult{Page: page, PageSize: pageSize, Total: total}
+		return models.PagedResult{Page: page, PageSize: pageSize, Total: total}
 	}
 	defer rows.Close()
 
-	var messages []SyslogMessage
+	var messages []models.SyslogMessage
 	for rows.Next() {
 		msg := ls.scanMessage(rows)
 		if msg != nil {
@@ -457,7 +461,7 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 		}
 	}
 
-	return PagedResult{
+	return models.PagedResult{
 		Messages: messages,
 		Total:    total,
 		Page:     page,
@@ -465,8 +469,8 @@ func (ls *LogStore) QueryMessages(opts QueryOptions) PagedResult {
 	}
 }
 
-func (ls *LogStore) scanMessage(rows *sql.Rows) *SyslogMessage {
-	var msg SyslogMessage
+func (ls *LogStore) scanMessage(rows *sql.Rows) *models.SyslogMessage {
+	var msg models.SyslogMessage
 	var tsStr, raStr string
 	err := rows.Scan(
 		&msg.ID, &tsStr, &raStr,
@@ -486,7 +490,7 @@ func (ls *LogStore) scanMessage(rows *sql.Rows) *SyslogMessage {
 }
 
 // QueryGroups returns message counts grouped by a field.
-func (ls *LogStore) QueryGroups(filter FilterCriteria, groupField string) []GroupSummary {
+func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string) []models.GroupSummary {
 	if ls.db == nil {
 		return nil
 	}
@@ -504,9 +508,9 @@ func (ls *LogStore) QueryGroups(filter FilterCriteria, groupField string) []Grou
 	}
 	defer rows.Close()
 
-	var groups []GroupSummary
+	var groups []models.GroupSummary
 	for rows.Next() {
-		var g GroupSummary
+		var g models.GroupSummary
 		if err := rows.Scan(&g.Key, &g.Count); err == nil {
 			if g.Key == "" {
 				g.Key = "unknown"
@@ -519,7 +523,7 @@ func (ls *LogStore) QueryGroups(filter FilterCriteria, groupField string) []Grou
 
 // ftsEscapeQuery converts a user search string into a safe FTS5 query.
 // Each word becomes a prefix search term, joined with AND.
-// e.g. "connection refused" → "connection* AND refused*"
+// e.g. "connection refused" -> "connection* AND refused*"
 func ftsEscapeQuery(input string) string {
 	words := strings.Fields(input)
 	if len(words) == 0 {
@@ -540,7 +544,7 @@ func ftsEscapeQuery(input string) string {
 	return strings.Join(escaped, " AND ")
 }
 
-func buildWhereClause(filter FilterCriteria) (string, []interface{}) {
+func buildWhereClause(filter models.FilterCriteria) (string, []interface{}) {
 	var conditions []string
 	var args []interface{}
 
@@ -605,17 +609,17 @@ func buildWhereClause(filter FilterCriteria) (string, []interface{}) {
 }
 
 // GetStats returns storage statistics.
-func (ls *LogStore) GetStats() StorageStats {
+func (ls *LogStore) GetStats() models.StorageStats {
 	if ls.db == nil {
-		return StorageStats{}
+		return models.StorageStats{}
 	}
 
-	stats := StorageStats{
+	stats := models.StorageStats{
 		MessageCount: ls.messageCount(),
 	}
 
 	// DB file size (main + WAL + SHM)
-	dbPath, _ := resolveDBPath(ls.config.Path)
+	dbPath, _ := ResolveDBPath(ls.config.Path)
 	var totalBytes int64
 	for _, suffix := range []string{"", "-wal", "-shm"} {
 		if info, err := os.Stat(dbPath + suffix); err == nil {
@@ -662,7 +666,7 @@ func (ls *LogStore) ClearAll() error {
 }
 
 // UpdateConfig updates the storage configuration (for retention changes).
-func (ls *LogStore) UpdateConfig(config StorageConfig) {
+func (ls *LogStore) UpdateConfig(config models.StorageConfig) {
 	ls.mu.Lock()
 	ls.config = config
 	ls.mu.Unlock()

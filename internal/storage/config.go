@@ -1,20 +1,15 @@
-package main
+package storage
 
 import (
 	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"SyslogStudio/internal/models"
 )
 
 const configFileName = "config.json"
-
-// AppConfig is the top-level persisted configuration.
-type AppConfig struct {
-	Server  ServerConfig  `json:"server"`
-	Storage StorageConfig `json:"storage"`
-	Alerts  []AlertRule   `json:"alerts"`
-}
 
 // ConfigStore handles persisting and loading user configuration.
 type ConfigStore struct {
@@ -36,36 +31,36 @@ func (cs *ConfigStore) path() string {
 	return filepath.Join(cs.dir, configFileName)
 }
 
-func (cs *ConfigStore) loadAll() AppConfig {
+func (cs *ConfigStore) loadAll() models.AppConfig {
 	if cs.dir == "" {
-		return AppConfig{Server: DefaultServerConfig(), Storage: DefaultStorageConfig()}
+		return models.AppConfig{Server: models.DefaultServerConfig(), Storage: models.DefaultStorageConfig()}
 	}
 	data, err := os.ReadFile(cs.path())
 	if err != nil {
-		return AppConfig{Server: DefaultServerConfig(), Storage: DefaultStorageConfig()}
+		return models.AppConfig{Server: models.DefaultServerConfig(), Storage: models.DefaultStorageConfig()}
 	}
 
-	var cfg AppConfig
+	var cfg models.AppConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		slog.Warn("failed to parse config file, using defaults", "error", err)
-		return AppConfig{Server: DefaultServerConfig(), Storage: DefaultStorageConfig()}
+		return models.AppConfig{Server: models.DefaultServerConfig(), Storage: models.DefaultStorageConfig()}
 	}
 
 	// Detect old flat format: if server fields are all zero but file exists,
 	// try to parse as flat ServerConfig (migration from pre-AppConfig format)
 	if cfg.Server.UDPPort == 0 && cfg.Server.TCPPort == 0 && cfg.Server.TLSPort == 0 {
-		var legacy ServerConfig
+		var legacy models.ServerConfig
 		if json.Unmarshal(data, &legacy) == nil && legacy.UDPPort > 0 {
 			slog.Info("migrating old config format to new AppConfig")
 			cfg.Server = legacy
 			cs.saveAll(cfg)
 		} else {
-			cfg.Server = DefaultServerConfig()
+			cfg.Server = models.DefaultServerConfig()
 		}
 	}
 
 	// Fill missing server defaults (ports saved as 0, buffer as 0, etc.)
-	defaults := DefaultServerConfig()
+	defaults := models.DefaultServerConfig()
 	if cfg.Server.TCPPort == 0 {
 		cfg.Server.TCPPort = defaults.TCPPort
 	}
@@ -78,13 +73,13 @@ func (cs *ConfigStore) loadAll() AppConfig {
 
 	// Apply storage defaults if all zero
 	if !cfg.Storage.Enabled && cfg.Storage.RetentionDays == 0 && cfg.Storage.MaxMessages == 0 {
-		cfg.Storage = DefaultStorageConfig()
+		cfg.Storage = models.DefaultStorageConfig()
 	}
 
 	return cfg
 }
 
-func (cs *ConfigStore) saveAll(cfg AppConfig) {
+func (cs *ConfigStore) saveAll(cfg models.AppConfig) {
 	if cs.dir == "" {
 		return
 	}
@@ -103,36 +98,36 @@ func (cs *ConfigStore) saveAll(cfg AppConfig) {
 }
 
 // Load reads the saved ServerConfig from disk.
-func (cs *ConfigStore) Load() ServerConfig {
+func (cs *ConfigStore) Load() models.ServerConfig {
 	return cs.loadAll().Server
 }
 
 // Save writes the ServerConfig to disk.
-func (cs *ConfigStore) Save(cfg ServerConfig) {
+func (cs *ConfigStore) Save(cfg models.ServerConfig) {
 	all := cs.loadAll()
 	all.Server = cfg
 	cs.saveAll(all)
 }
 
 // LoadStorage reads the saved StorageConfig.
-func (cs *ConfigStore) LoadStorage() StorageConfig {
+func (cs *ConfigStore) LoadStorage() models.StorageConfig {
 	return cs.loadAll().Storage
 }
 
 // SaveStorage writes the StorageConfig.
-func (cs *ConfigStore) SaveStorage(cfg StorageConfig) {
+func (cs *ConfigStore) SaveStorage(cfg models.StorageConfig) {
 	all := cs.loadAll()
 	all.Storage = cfg
 	cs.saveAll(all)
 }
 
 // LoadAlertRules reads the saved alert rules.
-func (cs *ConfigStore) LoadAlertRules() []AlertRule {
+func (cs *ConfigStore) LoadAlertRules() []models.AlertRule {
 	return cs.loadAll().Alerts
 }
 
 // SaveAlertRules writes the alert rules.
-func (cs *ConfigStore) SaveAlertRules(rules []AlertRule) {
+func (cs *ConfigStore) SaveAlertRules(rules []models.AlertRule) {
 	all := cs.loadAll()
 	all.Alerts = rules
 	cs.saveAll(all)

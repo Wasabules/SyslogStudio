@@ -9,46 +9,53 @@ import (
 	"os"
 	"strings"
 
+	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/pki"
+	"SyslogStudio/internal/storage"
+	"SyslogStudio/internal/syslog"
+	"SyslogStudio/internal/updater"
+
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct is the main Wails binding facade.
 type App struct {
 	ctx         context.Context
-	server      *SyslogServer
-	tlsManager  *TLSManager
-	configStore *ConfigStore
-	logStore    *LogStore
+	server      *syslog.SyslogServer
+	tlsManager  *pki.TLSManager
+	configStore *storage.ConfigStore
+	logStore    *storage.LogStore
 }
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
 	return &App{
-		tlsManager:  NewTLSManager(),
-		configStore: NewConfigStore(),
+		tlsManager:  pki.NewTLSManager(),
+		configStore: storage.NewConfigStore(),
 	}
 }
 
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	emitter := NewWailsEventEmitter(ctx)
-	a.server = NewSyslogServer(emitter, a.tlsManager)
+	emitter := event.NewWailsEventEmitter(ctx)
+	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)
 
 	// Initialize log store
 	storageCfg := a.configStore.LoadStorage()
-	ls, err := NewLogStore(storageCfg, emitter)
+	ls, err := storage.NewLogStore(storageCfg, emitter)
 	if err != nil {
 		slog.Warn("failed to initialize log store, persistence disabled", "error", err)
 	} else {
 		a.logStore = ls
-		a.server.logStore = ls
+		a.server.LogStore = ls
 	}
 
 	// Restore alert rules
 	rules := a.configStore.LoadAlertRules()
 	if len(rules) > 0 {
-		a.server.alertManager.SetRules(rules)
+		a.server.AlertManager.SetRules(rules)
 		slog.Info("restored alert rules", "count", len(rules))
 	}
 }
@@ -58,9 +65,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.server != nil {
 		a.server.Stop()
 	}
-	// Persist alert rules
-	a.configStore.SaveAlertRules(a.server.alertManager.GetRules())
-	// Close log store (flush + vacuum + close)
+	a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	if a.logStore != nil {
 		a.logStore.Close()
 	}
@@ -68,8 +73,7 @@ func (a *App) shutdown(ctx context.Context) {
 
 // --- Server Control Methods ---
 
-// StartServer starts the syslog server with the given configuration.
-func (a *App) StartServer(config ServerConfig) error {
+func (a *App) StartServer(config models.ServerConfig) error {
 	err := a.server.Start(config)
 	if err == nil {
 		a.configStore.Save(config)
@@ -77,46 +81,38 @@ func (a *App) StartServer(config ServerConfig) error {
 	return err
 }
 
-// StopServer stops all listeners.
 func (a *App) StopServer() error {
 	return a.server.Stop()
 }
 
-// GetServerStatus returns the current running state.
-func (a *App) GetServerStatus() ServerStatus {
+func (a *App) GetServerStatus() models.ServerStatus {
 	return a.server.GetStatus()
 }
 
-// GetDefaultConfig returns the saved or default server configuration.
-func (a *App) GetDefaultConfig() ServerConfig {
+func (a *App) GetDefaultConfig() models.ServerConfig {
 	return a.configStore.Load()
 }
 
 // --- Log Methods ---
 
-// GetMessages returns the buffered messages, optionally filtered.
-func (a *App) GetMessages(filter FilterCriteria) []SyslogMessage {
+func (a *App) GetMessages(filter models.FilterCriteria) []models.SyslogMessage {
 	return a.server.GetMessages(filter)
 }
 
-// ClearMessages empties the log buffer.
 func (a *App) ClearMessages() {
 	a.server.ClearMessages()
 }
 
-// GetStats returns the current server statistics.
-func (a *App) GetStats() ServerStats {
+func (a *App) GetStats() models.ServerStats {
 	return a.server.GetStats()
 }
 
 // --- Storage Methods ---
 
-// GetStorageConfig returns the current storage configuration with resolved path.
-func (a *App) GetStorageConfig() StorageConfig {
+func (a *App) GetStorageConfig() models.StorageConfig {
 	cfg := a.configStore.LoadStorage()
-	// Resolve the actual DB path so the frontend can display it
 	if cfg.Path == "" {
-		resolved, err := resolveDBPath("")
+		resolved, err := storage.ResolveDBPath("")
 		if err == nil {
 			cfg.Path = resolved
 		}
@@ -124,39 +120,34 @@ func (a *App) GetStorageConfig() StorageConfig {
 	return cfg
 }
 
-// SetStorageConfig updates the storage configuration.
-func (a *App) SetStorageConfig(cfg StorageConfig) {
+func (a *App) SetStorageConfig(cfg models.StorageConfig) {
 	a.configStore.SaveStorage(cfg)
 	if a.logStore != nil {
 		a.logStore.UpdateConfig(cfg)
 	}
 }
 
-// GetStorageStats returns database statistics.
-func (a *App) GetStorageStats() StorageStats {
+func (a *App) GetStorageStats() models.StorageStats {
 	if a.logStore != nil {
 		return a.logStore.GetStats()
 	}
-	return StorageStats{}
+	return models.StorageStats{}
 }
 
-// QueryMessages returns paginated, filtered, sorted messages from the database.
-func (a *App) QueryMessages(opts QueryOptions) PagedResult {
+func (a *App) QueryMessages(opts models.QueryOptions) models.PagedResult {
 	if a.logStore != nil {
 		return a.logStore.QueryMessages(opts)
 	}
-	return PagedResult{Page: opts.Page, PageSize: opts.PageSize}
+	return models.PagedResult{Page: opts.Page, PageSize: opts.PageSize}
 }
 
-// QueryMessageGroups returns message counts grouped by a field.
-func (a *App) QueryMessageGroups(filter FilterCriteria, groupField string) []GroupSummary {
+func (a *App) QueryMessageGroups(filter models.FilterCriteria, groupField string) []models.GroupSummary {
 	if a.logStore != nil {
 		return a.logStore.QueryGroups(filter, groupField)
 	}
 	return nil
 }
 
-// CompactDatabase runs VACUUM to reclaim disk space.
 func (a *App) CompactDatabase() error {
 	if a.logStore != nil {
 		return a.logStore.Compact()
@@ -164,7 +155,6 @@ func (a *App) CompactDatabase() error {
 	return nil
 }
 
-// ClearDatabase deletes all stored messages.
 func (a *App) ClearDatabase() error {
 	if a.logStore != nil {
 		return a.logStore.ClearAll()
@@ -174,46 +164,38 @@ func (a *App) ClearDatabase() error {
 
 // --- PKI / Certificate Methods ---
 
-// GenerateCA generates a self-signed CA certificate.
-func (a *App) GenerateCA(opts CertOptions) (CertInfo, error) {
+func (a *App) GenerateCA(opts models.CertOptions) (models.CertInfo, error) {
 	return a.tlsManager.GenerateCA(opts)
 }
 
-// GenerateServerCert generates a server certificate signed by the stored CA.
-func (a *App) GenerateServerCert(opts CertOptions) (CertInfo, error) {
+func (a *App) GenerateServerCert(opts models.CertOptions) (models.CertInfo, error) {
 	return a.tlsManager.GenerateServerCertSignedByCA(opts)
 }
 
-// GenerateCertificate generates a self-signed certificate with the given options (legacy/quick).
-func (a *App) GenerateCertificate(opts CertOptions) (CertInfo, error) {
+func (a *App) GenerateCertificate(opts models.CertOptions) (models.CertInfo, error) {
 	_, info, err := a.tlsManager.GenerateSelfSignedWithOptions(opts)
 	if err != nil {
-		return CertInfo{}, err
+		return models.CertInfo{}, err
 	}
 	return info, nil
 }
 
-// GetCACertInfo returns details about the stored CA certificate.
-func (a *App) GetCACertInfo() (CertInfo, error) {
+func (a *App) GetCACertInfo() (models.CertInfo, error) {
 	return a.tlsManager.GetCACertificateInfo()
 }
 
-// GetServerCertInfo returns details about the stored server certificate.
-func (a *App) GetServerCertInfo() (CertInfo, error) {
+func (a *App) GetServerCertInfo() (models.CertInfo, error) {
 	return a.tlsManager.GetServerCertificateInfo()
 }
 
-// GetCertificateInfo returns details about the currently loaded/generated certificate.
-func (a *App) GetCertificateInfo(config ServerConfig) (CertInfo, error) {
+func (a *App) GetCertificateInfo(config models.ServerConfig) (models.CertInfo, error) {
 	return a.tlsManager.GetCertificateInfo(config)
 }
 
-// GetDefaultCertOptions returns sensible defaults for certificate generation.
-func (a *App) GetDefaultCertOptions() CertOptions {
-	return DefaultCertOptions()
+func (a *App) GetDefaultCertOptions() models.CertOptions {
+	return models.DefaultCertOptions()
 }
 
-// ExportCACertificate exports the CA certificate (for uploading to devices) via a save dialog.
 func (a *App) ExportCACertificate() (string, error) {
 	if !a.tlsManager.HasCA() {
 		return "", fmt.Errorf("no CA certificate available to export; generate a CA first")
@@ -239,7 +221,6 @@ func (a *App) ExportCACertificate() (string, error) {
 	return path, nil
 }
 
-// ExportServerCertificate exports the server cert + key via save dialogs.
 func (a *App) ExportServerCertificate() (string, error) {
 	if !a.tlsManager.HasServerCert() {
 		return "", fmt.Errorf("no server certificate available to export")
@@ -279,12 +260,10 @@ func (a *App) ExportServerCertificate() (string, error) {
 	return fmt.Sprintf("Exported:\n  %s\n  %s", certPath, keyPath), nil
 }
 
-// ExportCertificate exports the last generated/loaded certificate (legacy).
 func (a *App) ExportCertificate() (string, error) {
 	return a.ExportServerCertificate()
 }
 
-// GetLocalIPs returns the machine's non-loopback IPv4 addresses.
 func (a *App) GetLocalIPs() []string {
 	var ips []string
 	addrs, err := net.InterfaceAddrs()
@@ -303,61 +282,52 @@ func (a *App) GetLocalIPs() []string {
 
 // --- Alert Methods ---
 
-// GetAlertRules returns all configured alert rules.
-func (a *App) GetAlertRules() []AlertRule {
-	return a.server.alertManager.GetRules()
+func (a *App) GetAlertRules() []models.AlertRule {
+	return a.server.AlertManager.GetRules()
 }
 
-// AddAlertRule adds a new alert rule and returns it with its generated ID.
-func (a *App) AddAlertRule(rule AlertRule) AlertRule {
-	r := a.server.alertManager.AddRule(rule)
-	a.configStore.SaveAlertRules(a.server.alertManager.GetRules())
+func (a *App) AddAlertRule(rule models.AlertRule) models.AlertRule {
+	r := a.server.AlertManager.AddRule(rule)
+	a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	return r
 }
 
-// UpdateAlertRule updates an existing alert rule.
-func (a *App) UpdateAlertRule(rule AlertRule) bool {
-	ok := a.server.alertManager.UpdateRule(rule)
+func (a *App) UpdateAlertRule(rule models.AlertRule) bool {
+	ok := a.server.AlertManager.UpdateRule(rule)
 	if ok {
-		a.configStore.SaveAlertRules(a.server.alertManager.GetRules())
+		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	}
 	return ok
 }
 
-// DeleteAlertRule removes an alert rule by ID.
 func (a *App) DeleteAlertRule(id string) bool {
-	ok := a.server.alertManager.DeleteRule(id)
+	ok := a.server.AlertManager.DeleteRule(id)
 	if ok {
-		a.configStore.SaveAlertRules(a.server.alertManager.GetRules())
+		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	}
 	return ok
 }
 
-// GetAlertHistory returns recent alert events.
-func (a *App) GetAlertHistory() []AlertEvent {
-	return a.server.alertManager.GetHistory()
+func (a *App) GetAlertHistory() []models.AlertEvent {
+	return a.server.AlertManager.GetHistory()
 }
 
-// ClearAlertHistory removes all alert history.
 func (a *App) ClearAlertHistory() {
-	a.server.alertManager.ClearHistory()
+	a.server.AlertManager.ClearHistory()
 }
 
 // --- Update Check ---
 
-// CheckForUpdate queries GitHub for a newer release.
-func (a *App) CheckForUpdate() UpdateInfo {
-	return CheckForUpdate()
+func (a *App) CheckForUpdate() models.UpdateInfo {
+	return updater.CheckForUpdate()
 }
 
-// GetAppVersion returns the current version string.
 func (a *App) GetAppVersion() string {
-	return AppVersion
+	return updater.AppVersion
 }
 
 // --- File Selection Dialogs ---
 
-// SelectCertFile opens a file dialog for selecting a TLS certificate.
 func (a *App) SelectCertFile() (string, error) {
 	return wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select TLS Certificate",
@@ -368,7 +338,6 @@ func (a *App) SelectCertFile() (string, error) {
 	})
 }
 
-// SelectKeyFile opens a file dialog for selecting a TLS private key.
 func (a *App) SelectKeyFile() (string, error) {
 	return wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select TLS Private Key",
@@ -379,7 +348,6 @@ func (a *App) SelectKeyFile() (string, error) {
 	})
 }
 
-// SelectCAFile opens a file dialog for selecting a CA certificate.
 func (a *App) SelectCAFile() (string, error) {
 	return wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select CA Certificate",
@@ -392,8 +360,7 @@ func (a *App) SelectCAFile() (string, error) {
 
 // --- Export Logs ---
 
-// ExportLogs exports filtered logs to a file chosen by the user.
-func (a *App) ExportLogs(filter FilterCriteria, format string) (string, error) {
+func (a *App) ExportLogs(filter models.FilterCriteria, format string) (string, error) {
 	var defaultFilename string
 	var filters []wailsRuntime.FileFilter
 
@@ -434,7 +401,7 @@ func (a *App) ExportLogs(filter FilterCriteria, format string) (string, error) {
 	return path, nil
 }
 
-func writeCSV(path string, messages []SyslogMessage) error {
+func writeCSV(path string, messages []models.SyslogMessage) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -468,7 +435,7 @@ func writeCSV(path string, messages []SyslogMessage) error {
 	return w.Error()
 }
 
-func writeText(path string, messages []SyslogMessage) error {
+func writeText(path string, messages []models.SyslogMessage) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err

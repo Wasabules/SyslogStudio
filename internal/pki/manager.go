@@ -1,4 +1,4 @@
-package main
+package pki
 
 import (
 	"crypto/ecdsa"
@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"SyslogStudio/internal/models"
 )
 
 // TLSManager handles TLS certificate operations including CA and server cert generation.
@@ -38,7 +40,7 @@ func NewTLSManager() *TLSManager {
 }
 
 // GetTLSConfig returns a tls.Config based on server configuration.
-func (t *TLSManager) GetTLSConfig(config ServerConfig) (*tls.Config, error) {
+func (t *TLSManager) GetTLSConfig(config models.ServerConfig) (*tls.Config, error) {
 	var tlsConfig *tls.Config
 	var err error
 
@@ -118,7 +120,7 @@ func (t *TLSManager) LoadCertificate(certFile, keyFile string) (*tls.Config, err
 // --- CA Certificate Operations ---
 
 // GenerateCA creates a self-signed CA certificate.
-func (t *TLSManager) GenerateCA(opts CertOptions) (CertInfo, error) {
+func (t *TLSManager) GenerateCA(opts models.CertOptions) (models.CertInfo, error) {
 	if opts.ValidityDays <= 0 {
 		opts.ValidityDays = 3650
 	}
@@ -134,12 +136,12 @@ func (t *TLSManager) GenerateCA(opts CertOptions) (CertInfo, error) {
 
 	privateKey, publicKey, keyPEMBlock, err := generateKeyPair(opts.Algorithm)
 	if err != nil {
-		return CertInfo{}, err
+		return models.CertInfo{}, err
 	}
 
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to generate serial number: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
 	now := time.Now()
@@ -159,7 +161,7 @@ func (t *TLSManager) GenerateCA(opts CertOptions) (CertInfo, error) {
 
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey, privateKey)
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to create CA certificate: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to create CA certificate: %w", err)
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -174,30 +176,30 @@ func (t *TLSManager) GenerateCA(opts CertOptions) (CertInfo, error) {
 }
 
 // GenerateServerCertSignedByCA creates a server certificate signed by the stored CA.
-func (t *TLSManager) GenerateServerCertSignedByCA(opts CertOptions) (CertInfo, error) {
+func (t *TLSManager) GenerateServerCertSignedByCA(opts models.CertOptions) (models.CertInfo, error) {
 	t.mu.Lock()
 	caCertPEM := t.caCertPEM
 	caKeyPEM := t.caKeyPEM
 	t.mu.Unlock()
 
 	if len(caCertPEM) == 0 || len(caKeyPEM) == 0 {
-		return CertInfo{}, fmt.Errorf("no CA certificate available; generate a CA first")
+		return models.CertInfo{}, fmt.Errorf("no CA certificate available; generate a CA first")
 	}
 
 	// Parse CA certificate
 	caBlock, _ := pem.Decode(caCertPEM)
 	if caBlock == nil {
-		return CertInfo{}, fmt.Errorf("failed to decode CA certificate PEM")
+		return models.CertInfo{}, fmt.Errorf("failed to decode CA certificate PEM")
 	}
 	caCert, err := x509.ParseCertificate(caBlock.Bytes)
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to parse CA certificate: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
 
 	// Parse CA private key
 	caKey, err := parsePrivateKey(caKeyPEM)
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to parse CA key: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to parse CA key: %w", err)
 	}
 
 	// Apply defaults for server cert
@@ -218,7 +220,7 @@ func (t *TLSManager) GenerateServerCertSignedByCA(opts CertOptions) (CertInfo, e
 	serverKey, serverPub, serverKeyPEMBlock, err := generateKeyPair(opts.Algorithm)
 	_ = serverKey // used only for PEM encoding above
 	if err != nil {
-		return CertInfo{}, err
+		return models.CertInfo{}, err
 	}
 
 	// Parse IP addresses for SAN
@@ -245,7 +247,7 @@ func (t *TLSManager) GenerateServerCertSignedByCA(opts CertOptions) (CertInfo, e
 
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to generate serial number: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
 	now := time.Now()
@@ -267,7 +269,7 @@ func (t *TLSManager) GenerateServerCertSignedByCA(opts CertOptions) (CertInfo, e
 	// Sign with CA (not self-signed!)
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, caCert, serverPub, caKey)
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to create server certificate: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to create server certificate: %w", err)
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -296,25 +298,25 @@ func (t *TLSManager) HasServerCert() bool {
 }
 
 // GetCACertificateInfo returns details about the stored CA certificate.
-func (t *TLSManager) GetCACertificateInfo() (CertInfo, error) {
+func (t *TLSManager) GetCACertificateInfo() (models.CertInfo, error) {
 	t.mu.Lock()
 	certPEM := t.caCertPEM
 	t.mu.Unlock()
 
 	if len(certPEM) == 0 {
-		return CertInfo{}, fmt.Errorf("no CA certificate has been generated")
+		return models.CertInfo{}, fmt.Errorf("no CA certificate has been generated")
 	}
 	return t.parseCertPEMInfo(certPEM)
 }
 
 // GetServerCertificateInfo returns details about the stored server certificate.
-func (t *TLSManager) GetServerCertificateInfo() (CertInfo, error) {
+func (t *TLSManager) GetServerCertificateInfo() (models.CertInfo, error) {
 	t.mu.Lock()
 	certPEM := t.serverCertPEM
 	t.mu.Unlock()
 
 	if len(certPEM) == 0 {
-		return CertInfo{}, fmt.Errorf("no server certificate available")
+		return models.CertInfo{}, fmt.Errorf("no server certificate available")
 	}
 	return t.parseCertPEMInfo(certPEM)
 }
@@ -354,7 +356,7 @@ func (t *TLSManager) SaveServerCertificateToFile(certPath, keyPath string) error
 // --- Self-signed (legacy/quick) ---
 
 // GenerateSelfSignedWithOptions creates a self-signed certificate with customizable options.
-func (t *TLSManager) GenerateSelfSignedWithOptions(opts CertOptions) (*tls.Config, CertInfo, error) {
+func (t *TLSManager) GenerateSelfSignedWithOptions(opts models.CertOptions) (*tls.Config, models.CertInfo, error) {
 	if opts.Algorithm == "" {
 		opts.Algorithm = "ECDSA-P256"
 	}
@@ -376,7 +378,7 @@ func (t *TLSManager) GenerateSelfSignedWithOptions(opts CertOptions) (*tls.Confi
 
 	privateKey, publicKey, keyPEMBlock, err := generateKeyPair(opts.Algorithm)
 	if err != nil {
-		return nil, CertInfo{}, err
+		return nil, models.CertInfo{}, err
 	}
 
 	var ips []net.IP
@@ -399,7 +401,7 @@ func (t *TLSManager) GenerateSelfSignedWithOptions(opts CertOptions) (*tls.Confi
 
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return nil, CertInfo{}, fmt.Errorf("failed to generate serial number: %w", err)
+		return nil, models.CertInfo{}, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
 	now := time.Now()
@@ -420,7 +422,7 @@ func (t *TLSManager) GenerateSelfSignedWithOptions(opts CertOptions) (*tls.Confi
 
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey, privateKey)
 	if err != nil {
-		return nil, CertInfo{}, fmt.Errorf("failed to create certificate: %w", err)
+		return nil, models.CertInfo{}, fmt.Errorf("failed to create certificate: %w", err)
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -433,7 +435,7 @@ func (t *TLSManager) GenerateSelfSignedWithOptions(opts CertOptions) (*tls.Confi
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, CertInfo{}, fmt.Errorf("failed to create TLS certificate: %w", err)
+		return nil, models.CertInfo{}, fmt.Errorf("failed to create TLS certificate: %w", err)
 	}
 
 	tlsConfig := &tls.Config{
@@ -461,7 +463,7 @@ func (t *TLSManager) LoadCACertificateFromFile(caPath string) (*x509.CertPool, e
 }
 
 // GetCertificateInfo extracts details from the current configuration's certificate.
-func (t *TLSManager) GetCertificateInfo(config ServerConfig) (CertInfo, error) {
+func (t *TLSManager) GetCertificateInfo(config models.ServerConfig) (models.CertInfo, error) {
 	var certPEM []byte
 
 	if config.UseSelfSigned {
@@ -469,15 +471,15 @@ func (t *TLSManager) GetCertificateInfo(config ServerConfig) (CertInfo, error) {
 		certPEM = t.serverCertPEM
 		t.mu.Unlock()
 		if len(certPEM) == 0 {
-			return CertInfo{}, fmt.Errorf("no server certificate has been generated yet")
+			return models.CertInfo{}, fmt.Errorf("no server certificate has been generated yet")
 		}
 	} else {
 		if config.CertFile == "" {
-			return CertInfo{}, fmt.Errorf("no certificate file specified")
+			return models.CertInfo{}, fmt.Errorf("no certificate file specified")
 		}
 		data, err := os.ReadFile(config.CertFile)
 		if err != nil {
-			return CertInfo{}, fmt.Errorf("failed to read certificate: %w", err)
+			return models.CertInfo{}, fmt.Errorf("failed to read certificate: %w", err)
 		}
 		certPEM = data
 	}
@@ -545,23 +547,23 @@ func parsePrivateKey(keyPEM []byte) (interface{}, error) {
 }
 
 // parseCertPEMInfo parses a PEM certificate and returns CertInfo.
-func (t *TLSManager) parseCertPEMInfo(certPEM []byte) (CertInfo, error) {
+func (t *TLSManager) parseCertPEMInfo(certPEM []byte) (models.CertInfo, error) {
 	block, _ := pem.Decode(certPEM)
 	if block == nil {
-		return CertInfo{}, fmt.Errorf("failed to decode PEM block")
+		return models.CertInfo{}, fmt.Errorf("failed to decode PEM block")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return CertInfo{}, fmt.Errorf("failed to parse certificate: %w", err)
+		return models.CertInfo{}, fmt.Errorf("failed to parse certificate: %w", err)
 	}
 	return t.buildCertInfoFromX509(cert), nil
 }
 
 // buildCertInfo creates a CertInfo from raw DER certificate bytes and algorithm hint.
-func (t *TLSManager) buildCertInfo(certDER []byte, algorithm string) CertInfo {
+func (t *TLSManager) buildCertInfo(certDER []byte, algorithm string) models.CertInfo {
 	cert, err := x509.ParseCertificate(certDER)
 	if err != nil {
-		return CertInfo{}
+		return models.CertInfo{}
 	}
 	info := t.buildCertInfoFromX509(cert)
 	if algorithm != "" {
@@ -571,7 +573,7 @@ func (t *TLSManager) buildCertInfo(certDER []byte, algorithm string) CertInfo {
 }
 
 // buildCertInfoFromX509 creates a CertInfo from a parsed x509 certificate.
-func (t *TLSManager) buildCertInfoFromX509(cert *x509.Certificate) CertInfo {
+func (t *TLSManager) buildCertInfoFromX509(cert *x509.Certificate) models.CertInfo {
 	now := time.Now()
 	fingerprint := sha256.Sum256(cert.Raw)
 
@@ -605,7 +607,7 @@ func (t *TLSManager) buildCertInfoFromX509(cert *x509.Certificate) CertInfo {
 		fpParts = append(fpParts, fpHex[i:end])
 	}
 
-	return CertInfo{
+	return models.CertInfo{
 		Subject:           cert.Subject.String(),
 		Issuer:            cert.Issuer.String(),
 		NotBefore:         cert.NotBefore.Format("2006-01-02 15:04:05"),

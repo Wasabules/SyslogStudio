@@ -1,4 +1,4 @@
-package main
+package syslog
 
 import (
 	"fmt"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"SyslogStudio/internal/models"
 )
 
 // clone creates an independent copy of a string, releasing the original backing array.
@@ -16,10 +18,10 @@ func clone(s string) string {
 }
 
 // Parse attempts to parse a raw syslog message. Tries RFC 5424 first, then RFC 3164.
-func Parse(raw []byte, sourceIP string, protocol string) SyslogMessage {
+func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
 	rawStr := strings.TrimRight(string(raw), "\n\r\x00")
 
-	msg := SyslogMessage{
+	msg := models.SyslogMessage{
 		ID:         uuid.New().String(),
 		ReceivedAt: time.Now(),
 		SourceIP:   sourceIP,
@@ -29,10 +31,10 @@ func Parse(raw []byte, sourceIP string, protocol string) SyslogMessage {
 
 	if len(rawStr) == 0 {
 		msg.Message = ""
-		msg.Severity = SevNotice
-		msg.SeverityLabel = SeverityToLabel(SevNotice)
-		msg.Facility = FacUser
-		msg.FacilityLabel = FacilityToLabel(FacUser)
+		msg.Severity = models.SevNotice
+		msg.SeverityLabel = models.SeverityToLabel(models.SevNotice)
+		msg.Facility = models.FacUser
+		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
 		return msg
 	}
@@ -40,10 +42,10 @@ func Parse(raw []byte, sourceIP string, protocol string) SyslogMessage {
 	// Must start with '<'
 	if rawStr[0] != '<' {
 		msg.Message = rawStr
-		msg.Severity = SevNotice
-		msg.SeverityLabel = SeverityToLabel(SevNotice)
-		msg.Facility = FacUser
-		msg.FacilityLabel = FacilityToLabel(FacUser)
+		msg.Severity = models.SevNotice
+		msg.SeverityLabel = models.SeverityToLabel(models.SevNotice)
+		msg.Facility = models.FacUser
+		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
 		return msg
 	}
@@ -52,10 +54,10 @@ func Parse(raw []byte, sourceIP string, protocol string) SyslogMessage {
 	closeIdx := strings.Index(rawStr, ">")
 	if closeIdx < 0 || closeIdx > 4 {
 		msg.Message = rawStr
-		msg.Severity = SevNotice
-		msg.SeverityLabel = SeverityToLabel(SevNotice)
-		msg.Facility = FacUser
-		msg.FacilityLabel = FacilityToLabel(FacUser)
+		msg.Severity = models.SevNotice
+		msg.SeverityLabel = models.SeverityToLabel(models.SevNotice)
+		msg.Facility = models.FacUser
+		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
 		return msg
 	}
@@ -64,18 +66,18 @@ func Parse(raw []byte, sourceIP string, protocol string) SyslogMessage {
 	facility, severity, err := parsePriority(priStr)
 	if err != nil {
 		msg.Message = rawStr
-		msg.Severity = SevNotice
-		msg.SeverityLabel = SeverityToLabel(SevNotice)
-		msg.Facility = FacUser
-		msg.FacilityLabel = FacilityToLabel(FacUser)
+		msg.Severity = models.SevNotice
+		msg.SeverityLabel = models.SeverityToLabel(models.SevNotice)
+		msg.Facility = models.FacUser
+		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
 		return msg
 	}
 
 	msg.Severity = severity
-	msg.SeverityLabel = SeverityToLabel(severity)
+	msg.SeverityLabel = models.SeverityToLabel(severity)
 	msg.Facility = facility
-	msg.FacilityLabel = FacilityToLabel(facility)
+	msg.FacilityLabel = models.FacilityToLabel(facility)
 
 	remainder := rawStr[closeIdx+1:]
 
@@ -93,7 +95,7 @@ func Parse(raw []byte, sourceIP string, protocol string) SyslogMessage {
 
 // parsePriority extracts facility and severity from the PRI value.
 // PRI = Facility * 8 + Severity
-func parsePriority(priStr string) (Facility, Severity, error) {
+func parsePriority(priStr string) (models.Facility, models.Severity, error) {
 	pri, err := strconv.Atoi(priStr)
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid PRI: %s", priStr)
@@ -101,14 +103,14 @@ func parsePriority(priStr string) (Facility, Severity, error) {
 	if pri < 0 || pri > 191 {
 		return 0, 0, fmt.Errorf("PRI out of range: %d", pri)
 	}
-	facility := Facility(pri / 8)
-	severity := Severity(pri % 8)
+	facility := models.Facility(pri / 8)
+	severity := models.Severity(pri % 8)
 	return facility, severity, nil
 }
 
 // parseRFC5424 parses an RFC 5424 formatted message.
 // Format: VERSION SP TIMESTAMP SP HOSTNAME SP APP-NAME SP PROCID SP MSGID SP STRUCTURED-DATA [SP MSG]
-func parseRFC5424(remainder string, msg *SyslogMessage) bool {
+func parseRFC5424(remainder string, msg *models.SyslogMessage) bool {
 	msg.Version = 1
 
 	parts := strings.SplitN(remainder, " ", 7)
@@ -227,7 +229,7 @@ func findSDEnd(s string) int {
 
 // parseRFC3164 parses a BSD-style syslog message.
 // Format: TIMESTAMP HOSTNAME MSG (after PRI is stripped)
-func parseRFC3164(remainder string, msg *SyslogMessage) {
+func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 	msg.Version = 0
 
 	if len(remainder) == 0 {
@@ -293,7 +295,7 @@ func parseRFC3164(remainder string, msg *SyslogMessage) {
 
 // extractAppFromMsg tries to extract app name and PID from the message TAG field.
 // Common format: "appname[pid]: message" or "appname: message"
-func extractAppFromMsg(msg *SyslogMessage) {
+func extractAppFromMsg(msg *models.SyslogMessage) {
 	if msg.Message == "" {
 		return
 	}

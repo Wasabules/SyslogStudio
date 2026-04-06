@@ -1,8 +1,10 @@
-package main
+package syslog
 
 import (
 	"sync"
 	"testing"
+
+	"SyslogStudio/internal/models"
 )
 
 func TestNewStatsCollector(t *testing.T) {
@@ -24,17 +26,17 @@ func TestNewStatsCollector(t *testing.T) {
 func TestRecordMessage_IncrementsCounters(t *testing.T) {
 	sc := NewStatsCollector()
 
-	msg1 := SyslogMessage{
+	msg1 := models.SyslogMessage{
 		SeverityLabel: "Error",
 		Hostname:      "host1",
 		SourceIP:      "10.0.0.1",
 	}
-	msg2 := SyslogMessage{
+	msg2 := models.SyslogMessage{
 		SeverityLabel: "Warning",
 		Hostname:      "host2",
 		SourceIP:      "10.0.0.2",
 	}
-	msg3 := SyslogMessage{
+	msg3 := models.SyslogMessage{
 		SeverityLabel: "Error",
 		Hostname:      "host1",
 		SourceIP:      "10.0.0.1",
@@ -66,7 +68,7 @@ func TestRecordMessage_IncrementsCounters(t *testing.T) {
 func TestRecordMessage_UsesSourceIPWhenHostnameEmpty(t *testing.T) {
 	sc := NewStatsCollector()
 
-	msg := SyslogMessage{
+	msg := models.SyslogMessage{
 		SeverityLabel: "Info",
 		Hostname:      "",
 		SourceIP:      "192.168.1.100",
@@ -85,7 +87,7 @@ func TestRecordMessage_UsesSourceIPWhenHostnameEmpty(t *testing.T) {
 func TestRecordMessage_IncrementsRateBucket(t *testing.T) {
 	sc := NewStatsCollector()
 
-	msg := SyslogMessage{
+	msg := models.SyslogMessage{
 		SeverityLabel: "Info",
 		Hostname:      "host",
 	}
@@ -102,7 +104,7 @@ func TestRecordMessage_IncrementsRateBucket(t *testing.T) {
 func TestGetStats_ReturnsCorrectSnapshot(t *testing.T) {
 	sc := NewStatsCollector()
 
-	msgs := []SyslogMessage{
+	msgs := []models.SyslogMessage{
 		{SeverityLabel: "Error", Hostname: "host-a"},
 		{SeverityLabel: "Error", Hostname: "host-a"},
 		{SeverityLabel: "Warning", Hostname: "host-b"},
@@ -151,7 +153,7 @@ func TestGetStats_TopSourcesLimitedTo10(t *testing.T) {
 
 	// Add messages from 15 different hosts
 	for i := 0; i < 15; i++ {
-		msg := SyslogMessage{
+		msg := models.SyslogMessage{
 			SeverityLabel: "Info",
 			Hostname:      "host-" + string(rune('A'+i)),
 		}
@@ -168,7 +170,7 @@ func TestGetStats_TopSourcesLimitedTo10(t *testing.T) {
 func TestGetStats_MessagesByLevelIsCopy(t *testing.T) {
 	sc := NewStatsCollector()
 
-	sc.RecordMessage(SyslogMessage{SeverityLabel: "Error", Hostname: "h"})
+	sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Error", Hostname: "h"})
 	stats := sc.GetStats(1, 100)
 
 	// Modify the returned map
@@ -189,7 +191,7 @@ func TestGetStats_MessagesPerSec(t *testing.T) {
 
 	// Record some messages (they go to rateBuckets[0])
 	for i := 0; i < 20; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
 	}
 
 	stats := sc.GetStats(20, 10000)
@@ -206,7 +208,7 @@ func TestRotateRateBucket(t *testing.T) {
 
 	// Record messages in bucket 0
 	for i := 0; i < 5; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
 	}
 	if sc.rateBuckets[0] != 5 {
 		t.Fatalf("expected rateBuckets[0]=5, got %d", sc.rateBuckets[0])
@@ -227,7 +229,7 @@ func TestRotateRateBucket(t *testing.T) {
 
 	// Record in new bucket
 	for i := 0; i < 3; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
 	}
 	if sc.rateBuckets[1] != 3 {
 		t.Errorf("expected rateBuckets[1]=3, got %d", sc.rateBuckets[1])
@@ -276,10 +278,10 @@ func TestClear_ResetsEverything(t *testing.T) {
 
 	// Add some data
 	for i := 0; i < 10; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Error", Hostname: "host"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Error", Hostname: "host"})
 	}
 	sc.RotateRateBucket()
-	sc.RecordMessage(SyslogMessage{SeverityLabel: "Warning", Hostname: "host2"})
+	sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Warning", Hostname: "host2"})
 
 	// Verify we have data
 	if sc.totalMessages == 0 {
@@ -307,9 +309,9 @@ func TestClear_ResetsEverything(t *testing.T) {
 func TestClear_ThenRecordWorks(t *testing.T) {
 	sc := NewStatsCollector()
 
-	sc.RecordMessage(SyslogMessage{SeverityLabel: "Error", Hostname: "h"})
+	sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Error", Hostname: "h"})
 	sc.Clear()
-	sc.RecordMessage(SyslogMessage{SeverityLabel: "Warning", Hostname: "h2"})
+	sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Warning", Hostname: "h2"})
 
 	if sc.totalMessages != 1 {
 		t.Errorf("expected totalMessages 1 after clear+record, got %d", sc.totalMessages)
@@ -336,7 +338,7 @@ func TestStatsCollector_ConcurrentRecordMessage(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for i := 0; i < messagesPerGoroutine; i++ {
-				msg := SyslogMessage{
+				msg := models.SyslogMessage{
 					SeverityLabel: "Info",
 					Hostname:      "host",
 				}
@@ -362,7 +364,7 @@ func TestStatsCollector_ConcurrentRecordAndRotate(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
+			sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "h"})
 		}
 	}()
 
@@ -404,7 +406,7 @@ func TestStatsCollector_ConcurrentGetStats(t *testing.T) {
 
 	// Pre-populate with data
 	for i := 0; i < 100; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Error", Hostname: "host"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Error", Hostname: "host"})
 	}
 
 	var wg sync.WaitGroup
@@ -431,13 +433,13 @@ func TestComputeTopSources_SortOrder(t *testing.T) {
 
 	// Add messages with different frequencies
 	for i := 0; i < 5; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "low"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "low"})
 	}
 	for i := 0; i < 15; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "high"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "high"})
 	}
 	for i := 0; i < 10; i++ {
-		sc.RecordMessage(SyslogMessage{SeverityLabel: "Info", Hostname: "medium"})
+		sc.RecordMessage(models.SyslogMessage{SeverityLabel: "Info", Hostname: "medium"})
 	}
 
 	stats := sc.GetStats(30, 10000)
