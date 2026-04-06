@@ -24,20 +24,23 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install NSIS
+        run: choco install nsis -y
+        shell: pwsh
+      - name: Add NSIS to PATH
+        run: echo "/c/Program Files (x86)/NSIS" >> $GITHUB_PATH
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
       - name: Build
-        run: wails build -ldflags "-X main.AppVersion=${{ github.ref_name }}"
-      - name: Create portable zip
-        working-directory: build/bin
-        run: 7z a -tzip "../../SyslogStudio-${{ github.ref_name }}-windows-amd64.zip" SyslogStudio.exe
-      - name: Build NSIS installer
         run: wails build -nsis -ldflags "-X main.AppVersion=${{ github.ref_name }}"
       - name: List build output
         run: ls -la build/bin/
+      - name: Create portable zip
+        working-directory: build/bin
+        run: 7z a -tzip "../../SyslogStudio-${{ github.ref_name }}-windows-amd64.zip" SyslogStudio.exe
       - name: Rename installer
         run: mv build/bin/*installer*.exe "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
       - uses: actions/upload-artifact@v4
