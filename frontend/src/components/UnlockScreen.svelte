@@ -100,6 +100,7 @@
         <p class="subtitle">{$_('encryption.unlockMessage')}</p>
 
         <div class="input-group">
+            <!-- svelte-ignore a11y-autofocus -->
             <input
                 type="password"
                 bind:value={password}
