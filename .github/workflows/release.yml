@@ -11,9 +11,6 @@ jobs:
   build-windows:
     name: Windows (amd64)
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -25,24 +22,24 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install NSIS
-        run: choco install nsis -y
-        shell: pwsh
-      - name: Add NSIS to PATH
-        run: echo "/c/Program Files (x86)/NSIS" >> $GITHUB_PATH
+        run: |
+          choco install nsis -y
+          Add-Content $env:GITHUB_PATH "C:\Program Files (x86)\NSIS"
+      - name: Verify NSIS
+        run: makensis /VERSION
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
-      - name: Build
+      - name: Build with NSIS
         run: wails build -nsis -ldflags "-X main.AppVersion=${{ github.ref_name }}"
       - name: List build output
-        run: ls -la build/bin/
+        run: Get-ChildItem build\bin\
       - name: Create portable zip
-        working-directory: build/bin
-        run: 7z a -tzip "../../SyslogStudio-${{ github.ref_name }}-windows-amd64.zip" SyslogStudio.exe
+        run: Compress-Archive -Path build\bin\SyslogStudio.exe -DestinationPath "SyslogStudio-${{ github.ref_name }}-windows-amd64.zip"
       - name: Rename installer
-        run: mv build/bin/*installer*.exe "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
+        run: Move-Item -Path "build\bin\*installer*.exe" -Destination "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
