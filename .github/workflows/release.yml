@@ -36,8 +36,10 @@ jobs:
         run: 7z a -tzip "../../SyslogStudio-${{ github.ref_name }}-windows-amd64.zip" SyslogStudio.exe
       - name: Build NSIS installer
         run: wails build -nsis -ldflags "-X main.AppVersion=${{ github.ref_name }}"
+      - name: List build output
+        run: ls -la build/bin/
       - name: Rename installer
-        run: mv "build/bin/SyslogStudio-amd64-installer.exe" "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
+        run: mv build/bin/*installer*.exe "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
