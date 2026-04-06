@@ -16,7 +16,9 @@
     "rate": "Débit de messages",
     "buffer": "Utilisation du tampon",
     "dbMessages": "Messages stockés",
-    "dbSize": "Taille de la base"
+    "dbSize": "Taille de la base",
+    "dbLoading": "Chargement de la base...",
+    "dbIndexing": "Indexation..."
   },
   "server": {
     "start": "Démarrer",
@@ -202,5 +204,40 @@
     "deleteFailed": "Échec de la suppression de la règle",
     "toggleFailed": "Échec de la modification de la règle",
     "clearFailed": "Échec de l'effacement de l'historique"
+  },
+  "encryption": {
+    "title": "Chiffrement",
+    "enableEncryption": "Chiffrer la base de données au repos",
+    "hint": "Lorsque activé, la base de données est chiffrée à la fermeture et déchiffrée au démarrage avec votre mot de passe.",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "currentPassword": "Mot de passe actuel",
+    "enable": "Activer le chiffrement",
+    "disable": "Désactiver le chiffrement",
+    "passwordMismatch": "Les mots de passe ne correspondent pas.",
+    "passwordRequired": "Le mot de passe est requis.",
+    "wrongPassword": "Mot de passe incorrect. Veuillez réessayer.",
+    "wrongPasswordAttempts": "Mot de passe incorrect. {remaining} tentative(s) restante(s).",
+    "lockedOut": "Trop de tentatives échouées. L'application va se fermer.",
+    "enableSuccess": "Chiffrement activé. La base sera chiffrée à la fermeture de l'application.",
+    "disableSuccess": "Chiffrement désactivé.",
+    "unlockTitle": "Base de données verrouillée",
+    "unlockMessage": "La base de données est chiffrée. Entrez votre mot de passe pour la déverrouiller.",
+    "unlock": "Déverrouiller",
+    "unlocking": "Déverrouillage...",
+    "warningTitle": "Important — Lisez attentivement",
+    "warningMessage": "Le mot de passe de chiffrement n'est jamais enregistré sur le disque. Il n'existe qu'en mémoire pendant l'exécution de l'application.",
+    "warningPoint1": "Si vous oubliez votre mot de passe, votre base de logs sera définitivement inaccessible.",
+    "warningPoint2": "Il n'existe aucun mécanisme de récupération — les données sont chiffrées en AES-256.",
+    "warningPoint3": "Assurez-vous de retenir votre mot de passe ou de le stocker dans un gestionnaire de mots de passe.",
+    "warningCancel": "Annuler",
+    "warningConfirm": "Je comprends, activer le chiffrement",
+    "progressReading": "Lecture de la base chiffrée...",
+    "progressDeriving": "Vérification du mot de passe...",
+    "progressDecrypting": "Déchiffrement...",
+    "progressWriting": "Écriture de la base...",
+    "progressInitializing": "Ouverture de la base...",
+    "progressIndexing": "Reconstruction de l'index de recherche...",
+    "progressDone": "Terminé"
   }
 }

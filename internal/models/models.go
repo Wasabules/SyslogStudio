@@ -169,11 +169,12 @@ type FilterCriteria struct {
 
 // StorageConfig holds persistence settings.
 type StorageConfig struct {
-	Enabled       bool   `json:"enabled"`
-	Path          string `json:"path"`
-	RetentionDays int    `json:"retentionDays"`
-	MaxMessages   int    `json:"maxMessages"`
-	MaxSizeMB     int    `json:"maxSizeMB"`
+	Enabled           bool   `json:"enabled"`
+	Path              string `json:"path"`
+	RetentionDays     int    `json:"retentionDays"`
+	MaxMessages       int    `json:"maxMessages"`
+	MaxSizeMB         int    `json:"maxSizeMB"`
+	EncryptionEnabled bool   `json:"encryptionEnabled"`
 }
 
 // StorageStats provides database information.

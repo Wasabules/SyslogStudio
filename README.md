@@ -86,16 +86,18 @@ A lightweight, cross-platform desktop application for receiving and analyzing sy
 - **Real-time log viewer** — virtualized list with auto-scroll, sortable columns, and group-by (severity, hostname, app, source IP)
 - **Advanced filtering** — severity, facility, hostname, app name, source IP, date range, and 3 search modes (see below)
 - **Log persistence** — SQLite database with configurable retention (by age, count, or size). Browse historical logs with pagination even after restart
+- **Database encryption** — AES-256-GCM at-rest encryption with Argon2id key derivation. Database is encrypted on exit and decrypted on launch with a user password. Brute-force protection (5 attempts then lockout). Progress reporting for large databases
 - **Alert system** — configurable rules (pattern, severity threshold, hostname/app filter, cooldown) with system notifications
 - **TLS / PKI assistant** — generate CA and server certificates from the UI, mutual TLS support, certificate export
 - **Statistics dashboard** — message rates, severity distribution, top sources, buffer usage
 - **Log export** — CSV and plain text formats
-- **Settings panel** — theme, language, storage retention policy, database management (compact, clear), size estimations
+- **Settings panel** — theme, language, storage retention policy, database management (compact, clear), encryption toggle, size estimations
 - **Light & dark themes** — persisted across sessions
 - **8 languages** — English, French, German, Spanish, Portuguese, Italian, Japanese, Chinese
 - **Full persistence** — server config, alert rules, and logs saved across restarts
+- **Cross-platform** — Windows (portable + NSIS installer), macOS (universal .app + .dmg), Linux (portable + .deb)
 - **Auto-update check** — notifies when a new version is available on GitHub
-- **Memory-efficient** — in-memory ring buffer for live view, SQLite for history, bounded worker pool
+- **Memory-efficient** — in-memory ring buffer for live view, SQLite for history, bounded worker pool, async FTS indexing
 
 ### Search Modes
 
@@ -164,6 +166,7 @@ wails build -ldflags "-X main.AppVersion=v1.0.0"
 6. **Filter** — use the filter bar to narrow by severity, hostname, source IP, date range, or regex
 7. **Alerts** — configure alert rules to get notified when specific patterns or severities are detected
 8. **Settings** — configure retention policy (days, max messages, max DB size), theme, language
+9. **Encryption** (optional) — enable at-rest encryption in Settings > Storage to protect stored logs with a password
 9. **Export** — export filtered logs as CSV or TXT
 
 ### Testing with the Generator
@@ -207,6 +210,23 @@ Messages are persisted in a local SQLite database with configurable retention:
 | Max DB size | 100 MB, 500 MB, 1 GB, 5 GB, unlimited | 500 MB |
 
 Approximate storage: **~560 bytes per message** (1M messages ~ 530 MB).
+
+## Encryption
+
+At-rest encryption protects the log database when the application is closed.
+
+| | Details |
+|---|---|
+| **Algorithm** | AES-256-GCM (authenticated encryption) |
+| **Key derivation** | Argon2id (64 MB memory, 3 iterations, 4 threads) |
+| **What's encrypted** | The SQLite database file (`logs.db`) |
+| **When** | Encrypted on app exit, decrypted on app launch |
+| **Password storage** | Never saved to disk — exists only in memory while the app runs |
+| **Brute-force protection** | 5 attempts per session, then the app closes |
+
+> **Warning:** If you forget your password, the database is permanently inaccessible. There is no recovery mechanism.
+
+Enable encryption in **Settings > Storage > Encrypt database at rest**.
 
 ## Documentation
 

@@ -4,6 +4,7 @@
     import { appLocale, setLocale, SUPPORTED_LOCALES } from '../lib/i18n';
     import { toastSuccess, toastError } from '../lib/toast';
     import { dbStatsVersion, historyResult } from '../lib/stores';
+    import { enableEncryption, disableEncryption, isEncryptionEnabled } from '../lib/api';
 
     export let visible = false;
     export let onClose: () => void = () => {};
@@ -34,6 +35,14 @@
     let storageOldest = '';
     let storageLoading = false;
 
+    // --- Encryption ---
+    let encryptionOn = false;
+    let encryptionToggle = false;
+    let encPassword = '';
+    let encPasswordConfirm = '';
+    let encError = '';
+    let encLoading = false;
+
     // --- About ---
     let appVersion = '';
 
@@ -59,6 +68,15 @@
                 maxDbSize = cfg.maxSizeMB ?? 0;
             }
         } catch {}
+
+        // Load encryption state
+        try {
+            encryptionOn = await isEncryptionEnabled();
+            encryptionToggle = encryptionOn;
+        } catch {
+            encryptionOn = false;
+            encryptionToggle = false;
+        }
 
         // Load storage stats
         await loadStorageStats();
@@ -119,6 +137,69 @@
             dbStatsVersion.update(v => v + 1);
         } catch (e: any) {
             toastError(e?.message || 'Clear failed');
+        }
+    }
+
+    function onEncryptionToggle() {
+        encPassword = '';
+        encPasswordConfirm = '';
+        encError = '';
+    }
+
+    let showEncryptionWarning = false;
+
+    async function handleEnableEncryption() {
+        encError = '';
+        if (!encPassword) {
+            encError = $_('encryption.passwordRequired');
+            return;
+        }
+        if (encPassword !== encPasswordConfirm) {
+            encError = $_('encryption.passwordMismatch');
+            return;
+        }
+        // Show warning before proceeding
+        showEncryptionWarning = true;
+    }
+
+    async function confirmEnableEncryption() {
+        showEncryptionWarning = false;
+        encLoading = true;
+        try {
+            await enableEncryption(encPassword);
+            encryptionOn = true;
+            encryptionToggle = true;
+            encPassword = '';
+            encPasswordConfirm = '';
+            toastSuccess($_('encryption.enableSuccess'));
+        } catch (e: any) {
+            encError = e?.message || 'Failed to enable encryption';
+        } finally {
+            encLoading = false;
+        }
+    }
+
+    function cancelEnableEncryption() {
+        showEncryptionWarning = false;
+    }
+
+    async function handleDisableEncryption() {
+        encError = '';
+        if (!encPassword) {
+            encError = $_('encryption.passwordRequired');
+            return;
+        }
+        encLoading = true;
+        try {
+            await disableEncryption(encPassword);
+            encryptionOn = false;
+            encryptionToggle = false;
+            encPassword = '';
+            toastSuccess($_('encryption.disableSuccess'));
+        } catch (e: any) {
+            encError = $_('encryption.wrongPassword');
+        } finally {
+            encLoading = false;
         }
     }
 
@@ -334,6 +415,75 @@
                         {/if}
                     </div>
 
+                    <div class="encryption-section">
+                        <h4>{$_('encryption.title')}</h4>
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" bind:checked={encryptionToggle}
+                                       on:change={onEncryptionToggle}
+                                       disabled={encLoading} />
+                                {$_('encryption.enableEncryption')}
+                            </label>
+                        </div>
+                        <span class="hint encryption-hint">{$_('encryption.hint')}</span>
+
+                        {#if encryptionToggle && !encryptionOn}
+                            <div class="enc-fields">
+                                <input type="password" bind:value={encPassword}
+                                       placeholder={$_('encryption.password')}
+                                       disabled={encLoading} />
+                                <input type="password" bind:value={encPasswordConfirm}
+                                       placeholder={$_('encryption.confirmPassword')}
+                                       disabled={encLoading} />
+                                {#if encError}
+                                    <div class="enc-error">{encError}</div>
+                                {/if}
+                                <button class="action-btn compact-btn" on:click={handleEnableEncryption}
+                                        disabled={encLoading}>
+                                    {$_('encryption.enable')}
+                                </button>
+                            </div>
+                        {/if}
+
+                        {#if !encryptionToggle && encryptionOn}
+                            <div class="enc-fields">
+                                <input type="password" bind:value={encPassword}
+                                       placeholder={$_('encryption.password')}
+                                       disabled={encLoading} />
+                                {#if encError}
+                                    <div class="enc-error">{encError}</div>
+                                {/if}
+                                <button class="action-btn danger-btn" on:click={handleDisableEncryption}
+                                        disabled={encLoading}>
+                                    {$_('encryption.disable')}
+                                </button>
+                            </div>
+                        {/if}
+                    </div>
+
+                    {#if showEncryptionWarning}
+                        <div class="enc-warning-overlay" on:click|self={cancelEnableEncryption}>
+                            <div class="enc-warning-card">
+                                <div class="enc-warning-icon">&#9888;</div>
+                                <h4>{$_('encryption.warningTitle')}</h4>
+                                <p>{$_('encryption.warningMessage')}</p>
+                                <ul class="enc-warning-list">
+                                    <li>{$_('encryption.warningPoint1')}</li>
+                                    <li>{$_('encryption.warningPoint2')}</li>
+                                    <li>{$_('encryption.warningPoint3')}</li>
+                                </ul>
+                                <div class="enc-warning-actions">
+                                    <button class="action-btn" on:click={cancelEnableEncryption}>
+                                        {$_('encryption.warningCancel')}
+                                    </button>
+                                    <button class="action-btn danger-btn" on:click={confirmEnableEncryption}>
+                                        {$_('encryption.warningConfirm')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {/if}
+
                     <div class="db-info-section">
                         <h4>{$_('settings.databaseInfo')}</h4>
                         {#if storageLoading}
@@ -548,6 +698,115 @@
 
     .checkbox-group input[type="checkbox"] {
         accent-color: var(--accent);
+    }
+
+    /* --- Encryption section --- */
+    .encryption-section {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .encryption-section h4 {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .encryption-hint {
+        padding-left: 0;
+    }
+
+    .enc-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 4px;
+    }
+
+    .enc-fields input[type="password"] {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .enc-fields input[type="password"]:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
+
+    .enc-error {
+        color: var(--danger);
+        font-size: 11px;
+    }
+
+    .enc-warning-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 500;
+    }
+
+    .enc-warning-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--danger);
+        border-radius: 10px;
+        padding: 24px;
+        width: 400px;
+        max-width: 90vw;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .enc-warning-icon {
+        font-size: 32px;
+        text-align: center;
+        color: var(--danger);
+    }
+
+    .enc-warning-card h4 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--danger);
+        text-align: center;
+    }
+
+    .enc-warning-card p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-primary);
+        line-height: 1.5;
+    }
+
+    .enc-warning-list {
+        margin: 0;
+        padding-left: 20px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.8;
+    }
+
+    .enc-warning-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 4px;
     }
 
     /* --- DB Info section --- */

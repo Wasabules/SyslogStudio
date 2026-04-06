@@ -122,6 +122,7 @@ export interface StorageConfig {
     retentionDays: number;
     maxMessages: number;
     maxSizeMB: number;
+    encryptionEnabled: boolean;
 }
 
 export interface StorageStats {

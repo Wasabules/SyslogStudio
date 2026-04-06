@@ -13,13 +13,15 @@
     import Settings from './components/Settings.svelte';
     import ToastContainer from './components/ToastContainer.svelte';
     import AlertConfig from './components/AlertConfig.svelte';
-    import { checkForUpdate } from './lib/api';
+    import UnlockScreen from './components/UnlockScreen.svelte';
+    import { checkForUpdate, isEncryptionLocked } from './lib/api';
     import { toastInfo } from './lib/toast';
 
     let showTLSConfig = false;
     let showSettings = false;
+    let dbLocked = false;
 
-    onMount(() => {
+    function startApp() {
         initEventListeners();
         // Check for updates if enabled
         const autoUpdate = localStorage.getItem('syslogstudio-autoupdate') !== 'false';
@@ -30,6 +32,22 @@
                 }
             }).catch(() => {});
         }
+    }
+
+    function onUnlocked() {
+        dbLocked = false;
+        startApp();
+    }
+
+    onMount(async () => {
+        try {
+            const locked = await isEncryptionLocked();
+            if (locked) {
+                dbLocked = true;
+                return;
+            }
+        } catch {}
+        startApp();
     });
 
     onDestroy(() => {
@@ -37,6 +55,9 @@
     });
 </script>
 
+{#if dbLocked}
+    <UnlockScreen onUnlocked={onUnlocked} />
+{:else}
 <div class="app-layout">
     <nav class="sidebar">
         <div class="sidebar-top">
@@ -151,6 +172,7 @@
 />
 
 <ToastContainer />
+{/if}
 
 <style>
     .app-layout {

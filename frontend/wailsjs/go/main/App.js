@@ -6,6 +6,10 @@ export function AddAlertRule(arg1) {
   return window['go']['main']['App']['AddAlertRule'](arg1);
 }
 
+export function ChangeEncryptionPassword(arg1, arg2) {
+  return window['go']['main']['App']['ChangeEncryptionPassword'](arg1, arg2);
+}
+
 export function CheckForUpdate() {
   return window['go']['main']['App']['CheckForUpdate']();
 }
@@ -28,6 +32,14 @@ export function CompactDatabase() {
 
 export function DeleteAlertRule(arg1) {
   return window['go']['main']['App']['DeleteAlertRule'](arg1);
+}
+
+export function DisableEncryption(arg1) {
+  return window['go']['main']['App']['DisableEncryption'](arg1);
+}
+
+export function EnableEncryption(arg1) {
+  return window['go']['main']['App']['EnableEncryption'](arg1);
 }
 
 export function ExportCACertificate() {
@@ -114,6 +126,22 @@ export function GetStorageStats() {
   return window['go']['main']['App']['GetStorageStats']();
 }
 
+export function GetUnlockAttemptsRemaining() {
+  return window['go']['main']['App']['GetUnlockAttemptsRemaining']();
+}
+
+export function IsEncryptionEnabled() {
+  return window['go']['main']['App']['IsEncryptionEnabled']();
+}
+
+export function IsEncryptionLocked() {
+  return window['go']['main']['App']['IsEncryptionLocked']();
+}
+
+export function IsStorageReady() {
+  return window['go']['main']['App']['IsStorageReady']();
+}
+
 export function QueryMessageGroups(arg1, arg2) {
   return window['go']['main']['App']['QueryMessageGroups'](arg1, arg2);
 }
@@ -144,6 +172,10 @@ export function StartServer(arg1) {
 
 export function StopServer() {
   return window['go']['main']['App']['StopServer']();
+}
+
+export function UnlockDatabase(arg1) {
+  return window['go']['main']['App']['UnlockDatabase'](arg1);
 }
 
 export function UpdateAlertRule(arg1) {

@@ -16,7 +16,9 @@
     "rate": "Message rate",
     "buffer": "Ring buffer usage",
     "dbMessages": "Stored messages",
-    "dbSize": "Database size"
+    "dbSize": "Database size",
+    "dbLoading": "Loading database...",
+    "dbIndexing": "Indexing..."
   },
   "server": {
     "start": "Start",
@@ -202,5 +204,40 @@
     "deleteFailed": "Failed to delete rule",
     "toggleFailed": "Failed to toggle rule",
     "clearFailed": "Failed to clear history"
+  },
+  "encryption": {
+    "title": "Encryption",
+    "enableEncryption": "Encrypt database at rest",
+    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "currentPassword": "Current password",
+    "enable": "Enable Encryption",
+    "disable": "Disable Encryption",
+    "passwordMismatch": "Passwords do not match.",
+    "passwordRequired": "Password is required.",
+    "wrongPassword": "Incorrect password. Please try again.",
+    "wrongPasswordAttempts": "Incorrect password. {remaining} attempt(s) remaining.",
+    "lockedOut": "Too many failed attempts. The application will close.",
+    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
+    "disableSuccess": "Encryption disabled.",
+    "unlockTitle": "Database Locked",
+    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
+    "unlock": "Unlock",
+    "unlocking": "Unlocking...",
+    "warningTitle": "Important — Read carefully",
+    "warningMessage": "The encryption password is never stored on disk. It exists only in memory while the app is running.",
+    "warningPoint1": "If you forget your password, your log database will be permanently inaccessible.",
+    "warningPoint2": "There is no recovery mechanism — the data is encrypted with AES-256.",
+    "warningPoint3": "Make sure to remember your password or store it in a password manager.",
+    "warningCancel": "Cancel",
+    "warningConfirm": "I understand, enable encryption",
+    "progressReading": "Reading encrypted database...",
+    "progressDeriving": "Verifying password...",
+    "progressDecrypting": "Decrypting...",
+    "progressWriting": "Writing database...",
+    "progressInitializing": "Opening database...",
+    "progressIndexing": "Rebuilding search index...",
+    "progressDone": "Done"
   }
 }

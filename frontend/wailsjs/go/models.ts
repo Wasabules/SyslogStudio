@@ -1,4 +1,4 @@
-export namespace main {
+export namespace models {
 	
 	export class AlertEvent {
 	    id: string;
@@ -466,6 +466,7 @@ export namespace main {
 	    retentionDays: number;
 	    maxMessages: number;
 	    maxSizeMB: number;
+	    encryptionEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new StorageConfig(source);
@@ -478,6 +479,7 @@ export namespace main {
 	        this.retentionDays = source["retentionDays"];
 	        this.maxMessages = source["maxMessages"];
 	        this.maxSizeMB = source["maxSizeMB"];
+	        this.encryptionEnabled = source["encryptionEnabled"];
 	    }
 	}
 	export class StorageStats {

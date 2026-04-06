@@ -23,6 +23,8 @@
     // DB stats
     let dbSizeMB = 0;
     let dbMessageCount = 0;
+    let dbStatsLoaded = false;
+    let dbIndexing = true; // true until FTS rebuild completes
     let dbInterval: ReturnType<typeof setInterval>;
 
     function formatSize(mb: number): string {
@@ -36,6 +38,14 @@
         try {
             const s = await getStorageStats();
             if (s) { dbSizeMB = s.databaseSizeMB ?? 0; dbMessageCount = s.messageCount ?? 0; }
+            dbStatsLoaded = true;
+        } catch {}
+    }
+
+    async function checkStorageReady() {
+        try {
+            const ready = await (window as any).go?.main?.App?.IsStorageReady?.();
+            if (ready) dbIndexing = false;
         } catch {}
     }
 
@@ -45,23 +55,23 @@
 
     function refreshDbStatsThrottled() {
         const now = Date.now();
-        if (now - lastDbRefresh < 2000) return; // max once per 2s
+        if (now - lastDbRefresh < 2000) return;
         lastDbRefresh = now;
         refreshDbStats();
     }
 
     onMount(() => {
         refreshDbStats();
+        checkStorageReady();
         dbInterval = setInterval(refreshDbStats, 5000);
         dbUnsub = dbStatsVersion.subscribe(() => {
-            lastDbRefresh = 0; // force immediate refresh
+            lastDbRefresh = 0;
             refreshDbStats();
             if ($logViewMode === 'history') {
                 groups = [];
                 expandedState = new Map();
             }
         });
-        // Refresh DB count when new messages arrive (throttled)
         msgUnsub = messages.subscribe(() => refreshDbStatsThrottled());
 
         // Listen for query progress events
@@ -70,11 +80,19 @@
                 queryProgress = data;
                 showProgress = !data.done && data.total > 0;
             }, -1);
+            // Listen for storage ready (FTS rebuild complete)
+            window.runtime.EventsOnMultiple('syslog:storageReady', () => {
+                dbIndexing = false;
+                refreshDbStats();
+            }, -1);
         }
     });
     onDestroy(() => {
         clearInterval(dbInterval); dbUnsub?.(); msgUnsub?.();
-        if (window.runtime?.EventsOff) window.runtime.EventsOff('syslog:queryProgress');
+        if (window.runtime?.EventsOff) {
+            window.runtime.EventsOff('syslog:queryProgress');
+            window.runtime.EventsOff('syslog:storageReady');
+        }
     });
 
     // --- Grouping ---
@@ -494,17 +512,31 @@
                 <span class="footer-stat" title={$_('statusBar.rate')}>{$stats.messagesPerSec.toFixed(1)} msg/s</span>
                 <span class="footer-sep">|</span>
             {/if}
-            <span class="footer-stat" title={$_('statusBar.dbMessages')}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-                </svg>
-                {dbMessageCount.toLocaleString()}
-            </span>
-            <span class="footer-sep">|</span>
-            <span class="footer-stat" title={$_('statusBar.dbSize')}>{formatSize(dbSizeMB)}</span>
+            {#if dbStatsLoaded}
+                <span class="footer-stat" title={$_('statusBar.dbMessages')}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                    </svg>
+                    {dbMessageCount.toLocaleString()}
+                </span>
+                <span class="footer-sep">|</span>
+                <span class="footer-stat" title={$_('statusBar.dbSize')}>{formatSize(dbSizeMB)}</span>
+                {#if dbIndexing}
+                    <span class="footer-sep">|</span>
+                    <span class="footer-stat footer-loading">
+                        <span class="loading-dot"></span>
+                        {$_('statusBar.dbIndexing')}
+                    </span>
+                {/if}
+            {:else}
+                <span class="footer-stat footer-loading">
+                    <span class="loading-dot"></span>
+                    {$_('statusBar.dbLoading')}
+                </span>
+            {/if}
         </div>
     </div>
 </div>
@@ -640,4 +672,16 @@
     .footer-sep { color: var(--border-color); font-size: 10px; }
     .footer-stat { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-muted); }
     .footer-stat svg { color: var(--text-muted); }
+    .footer-loading { gap: 5px; }
+    .loading-dot {
+        display: inline-block;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
 </style>

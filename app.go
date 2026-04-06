@@ -26,7 +26,12 @@ type App struct {
 	tlsManager  *pki.TLSManager
 	configStore *storage.ConfigStore
 	logStore    *storage.LogStore
+
+	encryptionPassword string // in-memory only for session
+	unlockAttempts     int
 }
+
+const maxUnlockAttempts = 5
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
@@ -105,6 +110,14 @@ func (a *App) ClearMessages() {
 
 func (a *App) GetStats() models.ServerStats {
 	return a.server.GetStats()
+}
+
+// IsStorageReady returns true if the database is fully initialized (FTS index built).
+func (a *App) IsStorageReady() bool {
+	if a.logStore == nil {
+		return false
+	}
+	return a.logStore.IsReady()
 }
 
 // --- Storage Methods ---
@@ -314,6 +327,107 @@ func (a *App) GetAlertHistory() []models.AlertEvent {
 
 func (a *App) ClearAlertHistory() {
 	a.server.AlertManager.ClearHistory()
+}
+
+// --- Encryption Methods ---
+
+// GetUnlockAttemptsRemaining returns how many unlock attempts are left.
+func (a *App) GetUnlockAttemptsRemaining() int {
+	return maxUnlockAttempts - a.unlockAttempts
+}
+
+// IsEncryptionEnabled returns whether encryption is configured.
+func (a *App) IsEncryptionEnabled() bool {
+	return a.configStore.LoadStorage().EncryptionEnabled
+}
+
+// IsEncryptionLocked returns true if the database is encrypted and not yet unlocked.
+func (a *App) IsEncryptionLocked() bool {
+	return a.logStore != nil && a.logStore.IsLocked()
+}
+
+// UnlockDatabase decrypts the database with the given password and opens it.
+// After maxUnlockAttempts failed attempts, the application is closed.
+func (a *App) UnlockDatabase(password string) error {
+	if a.logStore == nil {
+		return fmt.Errorf("log store not initialized")
+	}
+	if a.unlockAttempts >= maxUnlockAttempts {
+		go func() {
+			wailsRuntime.Quit(a.ctx)
+		}()
+		return fmt.Errorf("too many failed attempts")
+	}
+	if err := a.logStore.UnlockAndOpen(password); err != nil {
+		a.unlockAttempts++
+		remaining := maxUnlockAttempts - a.unlockAttempts
+		slog.Warn("unlock failed", "attempt", a.unlockAttempts, "remaining", remaining)
+		if a.unlockAttempts >= maxUnlockAttempts {
+			slog.Error("max unlock attempts reached, shutting down")
+			go func() {
+				wailsRuntime.Quit(a.ctx)
+			}()
+			return fmt.Errorf("too many failed attempts — application will close")
+		}
+		return fmt.Errorf("wrong password (%d attempts remaining)", remaining)
+	}
+	a.unlockAttempts = 0
+	a.encryptionPassword = password
+	a.server.LogStore = a.logStore
+
+	// Restore alert rules now that the store is available
+	rules := a.configStore.LoadAlertRules()
+	if len(rules) > 0 {
+		a.server.AlertManager.SetRules(rules)
+	}
+	return nil
+}
+
+// EnableEncryption enables at-rest encryption with the given password.
+func (a *App) EnableEncryption(password string) error {
+	if password == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+	cfg := a.configStore.LoadStorage()
+	cfg.EncryptionEnabled = true
+	a.configStore.SaveStorage(cfg)
+	a.encryptionPassword = password
+	if a.logStore != nil {
+		a.logStore.SetEncryptionPassword(password)
+		a.logStore.UpdateConfig(cfg)
+	}
+	return nil
+}
+
+// DisableEncryption disables at-rest encryption after verifying the password.
+func (a *App) DisableEncryption(password string) error {
+	if a.encryptionPassword != "" && password != a.encryptionPassword {
+		return fmt.Errorf("incorrect password")
+	}
+	cfg := a.configStore.LoadStorage()
+	cfg.EncryptionEnabled = false
+	a.configStore.SaveStorage(cfg)
+	a.encryptionPassword = ""
+	if a.logStore != nil {
+		a.logStore.SetEncryptionPassword("")
+		a.logStore.UpdateConfig(cfg)
+	}
+	return nil
+}
+
+// ChangeEncryptionPassword changes the encryption password.
+func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
+	if oldPassword != a.encryptionPassword {
+		return fmt.Errorf("incorrect current password")
+	}
+	if newPassword == "" {
+		return fmt.Errorf("new password cannot be empty")
+	}
+	a.encryptionPassword = newPassword
+	if a.logStore != nil {
+		a.logStore.SetEncryptionPassword(newPassword)
+	}
+	return nil
 }
 
 // --- Update Check ---

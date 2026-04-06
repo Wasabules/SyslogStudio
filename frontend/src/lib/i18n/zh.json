@@ -197,5 +197,24 @@
     "deleteFailed": "删除规则失败",
     "toggleFailed": "切换规则状态失败",
     "clearFailed": "清除历史记录失败"
+  },
+  "encryption": {
+    "title": "Encryption",
+    "enableEncryption": "Encrypt database at rest",
+    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "currentPassword": "Current password",
+    "enable": "Enable Encryption",
+    "disable": "Disable Encryption",
+    "passwordMismatch": "Passwords do not match.",
+    "passwordRequired": "Password is required.",
+    "wrongPassword": "Incorrect password. Please try again.",
+    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
+    "disableSuccess": "Encryption disabled.",
+    "unlockTitle": "Database Locked",
+    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
+    "unlock": "Unlock",
+    "unlocking": "Unlocking..."
   }
 }

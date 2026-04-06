@@ -33,9 +33,16 @@ type LogStore struct {
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
+
+	ftsReady   bool          // true when FTS index rebuild is complete
+	ftsReadyCh chan struct{} // closed when FTS rebuild completes
+
+	locked             bool   // true if encrypted db exists but not yet unlocked
+	encryptionPassword string // in-memory only, set when unlocked or encryption enabled
 }
 
 // NewLogStore creates and initializes a LogStore.
+// If an encrypted database exists, the store is returned in locked mode (db == nil).
 func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogStore, error) {
 	if !config.Enabled {
 		return &LogStore{config: config}, nil
@@ -50,18 +57,28 @@ func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogS
 		return nil, fmt.Errorf("failed to create DB directory: %w", err)
 	}
 
+	// If encrypted file exists, return a locked store awaiting password
+	if EncryptedFileExists(dbPath) {
+		slog.Info("encrypted database found, awaiting unlock", "path", dbPath+".enc")
+		return &LogStore{config: config, emitter: emitter, locked: true}, nil
+	}
+
+	return openDatabase(dbPath, config, emitter)
+}
+
+// openDatabase opens the SQLite database and starts background goroutines.
+func openDatabase(dbPath string, config models.StorageConfig, emitter event.EventEmitter) (*LogStore, error) {
 	db, err := sql.Open("sqlite", dbPath+
 		"?_pragma=journal_mode(wal)"+
 		"&_pragma=synchronous(normal)"+
 		"&_pragma=busy_timeout(5000)"+
-		"&_pragma=cache_size(-64000)"+  // 64 MB cache (vs 2 MB default)
-		"&_pragma=mmap_size(268435456)"+ // 256 MB memory-mapped I/O
-		"&_pragma=temp_store(memory)")   // temp tables in RAM
+		"&_pragma=cache_size(-64000)"+  // 64 MB cache
+		"&_pragma=mmap_size(268435456)"+ // 256 MB mmap
+		"&_pragma=temp_store(memory)")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// WAL mode allows concurrent readers, only writes need serialization
 	db.SetMaxOpenConns(4)
 
 	if err := initSchema(db); err != nil {
@@ -70,12 +87,16 @@ func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogS
 	}
 
 	ls := &LogStore{
-		db:      db,
-		config:  config,
-		buffer:  make([]models.SyslogMessage, 0, 256),
-		emitter: emitter,
-		stopCh:  make(chan struct{}),
+		db:         db,
+		config:     config,
+		buffer:     make([]models.SyslogMessage, 0, 256),
+		emitter:    emitter,
+		stopCh:     make(chan struct{}),
+		ftsReadyCh: make(chan struct{}),
 	}
+
+	// FTS rebuild in background — app becomes usable immediately
+	go ls.rebuildFTS()
 
 	ls.wg.Add(2)
 	go ls.flushLoop()
@@ -83,6 +104,98 @@ func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogS
 
 	slog.Info("log store initialized", "path", dbPath)
 	return ls, nil
+}
+
+// UnlockAndOpen decrypts the database with the given password and opens it.
+func (ls *LogStore) UnlockAndOpen(password string) error {
+	dbPath, err := ResolveDBPath(ls.config.Path)
+	if err != nil {
+		return fmt.Errorf("resolve path: %w", err)
+	}
+
+	encPath := dbPath + ".enc"
+
+	// Decrypt with progress rescaled to 0-70% of total unlock
+	scaledProgress := func(p CryptoProgress) {
+		p.Percent = p.Percent * 0.70
+		ls.emitCryptoProgress(p)
+	}
+	if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
+		return err
+	}
+
+	// Decryption succeeded — remove encrypted file
+	os.Remove(encPath)
+
+	// Phase: opening database (70-75%)
+	ls.emitCryptoProgress(CryptoProgress{Phase: "initializing", Percent: 72})
+
+	db, err := sql.Open("sqlite", dbPath+
+		"?_pragma=journal_mode(wal)"+
+		"&_pragma=synchronous(normal)"+
+		"&_pragma=busy_timeout(5000)"+
+		"&_pragma=cache_size(-64000)"+
+		"&_pragma=mmap_size(268435456)"+
+		"&_pragma=temp_store(memory)")
+	if err != nil {
+		return fmt.Errorf("open database after decrypt: %w", err)
+	}
+	db.SetMaxOpenConns(4)
+
+	// Phase: initializing schema (75-90%)
+	ls.emitCryptoProgress(CryptoProgress{Phase: "initializing", Percent: 80})
+
+	if err := initSchema(db); err != nil {
+		db.Close()
+		return fmt.Errorf("init schema after decrypt: %w", err)
+	}
+
+	ls.emitCryptoProgress(CryptoProgress{Phase: "done", Percent: 100})
+
+	ls.mu.Lock()
+	ls.db = db
+	ls.buffer = make([]models.SyslogMessage, 0, 256)
+	ls.stopCh = make(chan struct{})
+	ls.locked = false
+	ls.encryptionPassword = password
+	ls.ftsReadyCh = make(chan struct{})
+	ls.mu.Unlock()
+
+	// FTS rebuild in background — app becomes usable immediately
+	go ls.rebuildFTS()
+
+	ls.wg.Add(2)
+	go ls.flushLoop()
+	go ls.cleanupLoop()
+
+	slog.Info("database unlocked and opened", "path", dbPath)
+	return nil
+}
+
+// emitCryptoProgress sends encrypt/decrypt progress to the frontend.
+func (ls *LogStore) emitCryptoProgress(p CryptoProgress) {
+	if ls.emitter != nil {
+		ls.emitter.Emit("syslog:cryptoProgress", p)
+	}
+}
+
+// IsReady returns true if the database is fully initialized (FTS index built).
+func (ls *LogStore) IsReady() bool {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.ftsReady
+}
+
+// IsLocked returns true if the database is encrypted and not yet unlocked.
+func (ls *LogStore) IsLocked() bool {
+	return ls.locked
+}
+
+// SetEncryptionPassword sets the in-memory password for encrypting on Close.
+func (ls *LogStore) SetEncryptionPassword(password string) {
+	ls.mu.Lock()
+	ls.encryptionPassword = password
+	ls.mu.Unlock()
 }
 
 // ResolveDBPath returns the database file path, using the default location if configPath is empty.
@@ -141,22 +254,37 @@ func initSchema(db *sql.DB) error {
 	END;
 	`
 	_, err := db.Exec(schema)
-	if err != nil {
-		return err
+	return err
+}
+
+// rebuildFTS rebuilds the FTS5 index in the background.
+// Signals completion by setting ftsReady and closing ftsReadyCh.
+func (ls *LogStore) rebuildFTS() {
+	defer func() {
+		ls.mu.Lock()
+		ls.ftsReady = true
+		ls.mu.Unlock()
+		if ls.ftsReadyCh != nil {
+			close(ls.ftsReadyCh)
+		}
+		if ls.emitter != nil {
+			ls.emitter.Emit("syslog:storageReady")
+		}
+	}()
+
+	if ls.db == nil {
+		return
 	}
 
-	// Rebuild FTS index at startup to ensure sync with main table.
-	// This is idempotent and fast (~1s per 100k messages).
 	var msgCount int64
-	db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
+	ls.db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
 	if msgCount > 0 {
 		slog.Info("rebuilding FTS index", "messages", msgCount)
-		if _, err = db.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); err != nil {
+		if _, err := ls.db.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); err != nil {
 			slog.Warn("FTS rebuild failed, text search may be slow", "error", err)
 		}
+		slog.Info("FTS index ready", "messages", msgCount)
 	}
-
-	return nil
 }
 
 // BufferMessage adds a message to the write buffer (non-blocking).
@@ -672,14 +800,48 @@ func (ls *LogStore) UpdateConfig(config models.StorageConfig) {
 	ls.mu.Unlock()
 }
 
-// Close flushes remaining messages and closes the database.
+// Close flushes remaining messages, closes the database, and encrypts if enabled.
 func (ls *LogStore) Close() {
 	if ls.db == nil {
 		return
 	}
+
+	// Wait for background FTS rebuild to finish before closing
+	if ls.ftsReadyCh != nil {
+		<-ls.ftsReadyCh
+	}
+
 	close(ls.stopCh)
 	ls.wg.Wait()
 	ls.Compact()
 	ls.db.Close()
+	ls.db = nil
+
+	// Encrypt at rest if enabled
+	slog.Info("log store: close encryption check",
+		"encryptionEnabled", ls.config.EncryptionEnabled,
+		"hasPassword", ls.encryptionPassword != "")
+	if ls.config.EncryptionEnabled && ls.encryptionPassword != "" {
+		dbPath, err := ResolveDBPath(ls.config.Path)
+		if err != nil {
+			slog.Error("encrypt: failed to resolve DB path", "error", err)
+			return
+		}
+
+		// Clean up WAL/SHM (VACUUM already consolidated them)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+
+		encPath := dbPath + ".enc"
+		if err := EncryptFileWithProgress(dbPath, encPath, ls.encryptionPassword, ls.emitCryptoProgress); err != nil {
+			slog.Error("failed to encrypt database, leaving plaintext", "error", err)
+			return
+		}
+
+		// Only delete plaintext after successful encryption
+		os.Remove(dbPath)
+		slog.Info("database encrypted at rest", "path", encPath)
+	}
+
 	slog.Info("log store closed")
 }

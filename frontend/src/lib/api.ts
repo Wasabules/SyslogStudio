@@ -77,6 +77,14 @@ export const queryMessageGroups = (filter: FilterCriteria, groupField: string): 
 export const compactDatabase = (): Promise<void> => callGo('CompactDatabase');
 export const clearDatabase = (): Promise<void> => callGo('ClearDatabase');
 
+// --- Encryption ---
+export const isEncryptionEnabled = (): Promise<boolean> => callGo('IsEncryptionEnabled');
+export const isEncryptionLocked = (): Promise<boolean> => callGo('IsEncryptionLocked');
+export const unlockDatabase = (password: string): Promise<void> => callGo('UnlockDatabase', password);
+export const enableEncryption = (password: string): Promise<void> => callGo('EnableEncryption', password);
+export const disableEncryption = (password: string): Promise<void> => callGo('DisableEncryption', password);
+export const changeEncryptionPassword = (oldPw: string, newPw: string): Promise<void> => callGo('ChangeEncryptionPassword', oldPw, newPw);
+
 // --- Update Check ---
 export interface UpdateInfo {
     currentVersion: string;
