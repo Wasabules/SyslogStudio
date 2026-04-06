@@ -6,6 +6,15 @@
 
 A lightweight, cross-platform desktop application for receiving and analyzing syslog messages in real time. Built with [Wails](https://wails.io/) (Go + Svelte).
 
+<p align="center">
+  <a href="https://github.com/Wasabules/SyslogStudio/actions/workflows/ci.yml"><img src="https://github.com/Wasabules/SyslogStudio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Wasabules/SyslogStudio/releases/latest"><img src="https://img.shields.io/github/v/release/Wasabules/SyslogStudio?include_prereleases&label=release" alt="Release"></a>
+  <a href="https://github.com/Wasabules/SyslogStudio/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Wasabules/SyslogStudio" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/Svelte-3-FF3E00?logo=svelte&logoColor=white" alt="Svelte">
+</p>
+
 ## Screenshots
 
 ### Live Log Viewer
