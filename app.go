@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/csv"
 	"fmt"
 	"log/slog"
@@ -401,10 +402,20 @@ func (a *App) EnableEncryption(password string) error {
 
 // DisableEncryption disables at-rest encryption after verifying the password.
 func (a *App) DisableEncryption(password string) error {
-	if a.encryptionPassword != "" && password != a.encryptionPassword {
-		return fmt.Errorf("incorrect password")
-	}
 	cfg := a.configStore.LoadStorage()
+	if cfg.EncryptionEnabled {
+		// If the session password is not present (e.g. fresh start with a
+		// still-locked database), require an unlock first. Previously an
+		// empty session password caused the verification to be skipped
+		// entirely, allowing encryption to be disabled without knowing
+		// the password.
+		if a.encryptionPassword == "" {
+			return fmt.Errorf("database must be unlocked before disabling encryption")
+		}
+		if subtle.ConstantTimeCompare([]byte(password), []byte(a.encryptionPassword)) != 1 {
+			return fmt.Errorf("incorrect password")
+		}
+	}
 	cfg.EncryptionEnabled = false
 	a.configStore.SaveStorage(cfg)
 	a.encryptionPassword = ""
@@ -417,7 +428,10 @@ func (a *App) DisableEncryption(password string) error {
 
 // ChangeEncryptionPassword changes the encryption password.
 func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
-	if oldPassword != a.encryptionPassword {
+	if a.encryptionPassword == "" {
+		return fmt.Errorf("database must be unlocked before changing the password")
+	}
+	if subtle.ConstantTimeCompare([]byte(oldPassword), []byte(a.encryptionPassword)) != 1 {
 		return fmt.Errorf("incorrect current password")
 	}
 	if newPassword == "" {
