@@ -72,6 +72,9 @@ type SyslogServer struct {
 	// Connection-limit semaphore for TCP/TLS (created per Start)
 	connSem chan struct{}
 
+	// Compiled source allowlist (nil/empty = allow all)
+	allowNets []*net.IPNet
+
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
 }
@@ -122,6 +125,15 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	s.running = true
 	s.workCh = make(chan func(), maxWorkers*4)
 	s.connSem = make(chan struct{}, maxTCPConnections)
+
+	// Compile the source allowlist. Config was validated above, so
+	// parse errors are not expected here; skip defensively regardless.
+	s.allowNets = nil
+	for _, entry := range config.AllowedSources {
+		if ipNet, err := models.ParseSourceEntry(entry); err == nil {
+			s.allowNets = append(s.allowNets, ipNet)
+		}
+	}
 	s.mu.Unlock()
 
 	// Start worker pool
@@ -361,6 +373,11 @@ func (s *SyslogServer) listenUDP(ctx context.Context) {
 			}
 		}
 
+		if !s.sourceAllowed(addr.IP) {
+			slog.Debug("UDP message dropped: source not in allowlist", "source", addr.IP)
+			continue
+		}
+
 		raw := make([]byte, n)
 		copy(raw, buf[:n])
 		sourceIP := addr.IP.String()
@@ -406,6 +423,12 @@ func (s *SyslogServer) listenTCP(ctx context.Context) {
 			}
 		}
 
+		if !s.remoteAllowed(conn) {
+			slog.Debug("TCP connection rejected: source not in allowlist", "remote", conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+
 		sem := s.acquireConnSlot()
 		if sem == nil {
 			slog.Warn("TCP connection rejected: connection limit reached", "remote", conn.RemoteAddr(), "limit", maxTCPConnections)
@@ -447,6 +470,12 @@ func (s *SyslogServer) listenTLS(ctx context.Context) {
 			}
 		}
 
+		if !s.remoteAllowed(conn) {
+			slog.Debug("TLS connection rejected: source not in allowlist", "remote", conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+
 		sem := s.acquireConnSlot()
 		if sem == nil {
 			slog.Warn("TLS connection rejected: connection limit reached", "remote", conn.RemoteAddr(), "limit", maxTCPConnections)
@@ -458,6 +487,35 @@ func (s *SyslogServer) listenTLS(ctx context.Context) {
 		s.wg.Add(1)
 		go s.handleTCPConnection(ctx, conn, "TLS", sem)
 	}
+}
+
+// sourceAllowed reports whether a source IP passes the allowlist.
+// An empty allowlist admits all sources.
+func (s *SyslogServer) sourceAllowed(ip net.IP) bool {
+	s.mu.RLock()
+	nets := s.allowNets
+	s.mu.RUnlock()
+	if len(nets) == 0 {
+		return true
+	}
+	if ip == nil {
+		return false
+	}
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// remoteAllowed applies the source allowlist to a connection's remote address.
+func (s *SyslogServer) remoteAllowed(conn net.Conn) bool {
+	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		return s.sourceAllowed(tcpAddr.IP)
+	}
+	// Unknown address type: only admit when no allowlist is configured.
+	return s.sourceAllowed(nil)
 }
 
 // acquireConnSlot reserves a slot in the connection-limit semaphore.

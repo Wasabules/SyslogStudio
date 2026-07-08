@@ -54,6 +54,7 @@ export interface ServerConfig {
     tcpPort: number;
     tlsPort: number;
     bindAddress: string;
+    allowedSources: string[];
     maxBuffer: number;
     certFile: string;
     keyFile: string;

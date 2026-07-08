@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -124,14 +125,20 @@ type ServerConfig struct {
 	// Empty means all interfaces. Restricting the bind address is
 	// recommended on multi-homed hosts (e.g. a laptop attached to both
 	// an office and a control-system network).
-	BindAddress   string      `json:"bindAddress"`
-	MaxBuffer     int         `json:"maxBuffer"`
-	CertFile      string      `json:"certFile"`
-	KeyFile       string      `json:"keyFile"`
-	UseSelfSigned bool        `json:"useSelfSigned"`
-	CertOptions   CertOptions `json:"certOptions"`
-	MutualTLS     bool        `json:"mutualTLS"`
-	CAFile        string      `json:"caFile"`
+	BindAddress string `json:"bindAddress"`
+	// AllowedSources restricts which source IPs may deliver messages.
+	// Entries are IP literals or CIDR ranges. Empty means allow all.
+	// Note: UDP source addresses are trivially spoofable; this is a
+	// hygiene filter, not an authentication mechanism — use TLS with
+	// mutual authentication where senders must be authenticated.
+	AllowedSources []string    `json:"allowedSources"`
+	MaxBuffer      int         `json:"maxBuffer"`
+	CertFile       string      `json:"certFile"`
+	KeyFile        string      `json:"keyFile"`
+	UseSelfSigned  bool        `json:"useSelfSigned"`
+	CertOptions    CertOptions `json:"certOptions"`
+	MutualTLS      bool        `json:"mutualTLS"`
+	CAFile         string      `json:"caFile"`
 }
 
 // ServerStatus describes the current state of the server.
@@ -375,6 +382,12 @@ func ValidateServerConfig(c ServerConfig) error {
 		}
 	}
 
+	for _, src := range c.AllowedSources {
+		if _, err := ParseSourceEntry(src); err != nil {
+			return err
+		}
+	}
+
 	checkPort := func(name string, port int) error {
 		if port < 1 || port > 65535 {
 			return fmt.Errorf("%s port %d is out of range (1-65535)", name, port)
@@ -451,6 +464,31 @@ func SafeCompileRegex(pattern string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("regex pattern too long (max %d characters)", MaxRegexLen)
 	}
 	return regexp.Compile("(?i)" + pattern)
+}
+
+// ParseSourceEntry parses an allowed-source entry (IP literal or CIDR)
+// into a *net.IPNet. A bare IP becomes a /32 (IPv4) or /128 (IPv6) network.
+func ParseSourceEntry(entry string) (*net.IPNet, error) {
+	entry = strings.TrimSpace(entry)
+	if entry == "" {
+		return nil, fmt.Errorf("allowed source entry is empty")
+	}
+	if strings.Contains(entry, "/") {
+		_, ipNet, err := net.ParseCIDR(entry)
+		if err != nil {
+			return nil, fmt.Errorf("allowed source %q is not a valid CIDR: %w", entry, err)
+		}
+		return ipNet, nil
+	}
+	ip := net.ParseIP(entry)
+	if ip == nil {
+		return nil, fmt.Errorf("allowed source %q is not a valid IP address or CIDR", entry)
+	}
+	bits := 32
+	if ip.To4() == nil {
+		bits = 128
+	}
+	return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}, nil
 }
 
 // ParseFilterDate parses a date string in RFC 3339 or "YYYY-MM-DD" format.

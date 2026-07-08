@@ -24,7 +24,9 @@
     "tlsConfig": "TLS 設定",
     "error": "エラー: {error}",
     "allInterfaces": "すべてのインターフェース",
-    "bindAddressHint": "バインドアドレス：待ち受けるローカルIP。空欄＝すべてのインターフェース。"
+    "bindAddressHint": "バインドアドレス：待ち受けるローカルIP。空欄＝すべてのインターフェース。",
+    "allowedSources": "許可された送信元",
+    "allowedSourcesHint": "許可された送信元：IPまたはCIDR範囲、カンマ区切り。空欄＝すべて許可。注意：UDPの送信元は偽装可能です。"
   },
   "filter": {
     "severity": "重大度",

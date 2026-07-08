@@ -26,7 +26,9 @@
     "tlsConfig": "TLS Config",
     "error": "Error: {error}",
     "allInterfaces": "All interfaces",
-    "bindAddressHint": "Bind address: local IP to listen on. Empty = all interfaces."
+    "bindAddressHint": "Bind address: local IP to listen on. Empty = all interfaces.",
+    "allowedSources": "Allowed sources",
+    "allowedSourcesHint": "Allowed sources: IPs or CIDR ranges, comma-separated. Empty = allow all. Note: UDP sources can be spoofed."
   },
   "filter": {
     "severity": "Severity",

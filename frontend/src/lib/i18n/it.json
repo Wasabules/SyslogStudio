@@ -24,7 +24,9 @@
     "tlsConfig": "Configurazione TLS",
     "error": "Errore: {error}",
     "allInterfaces": "Tutte le interfacce",
-    "bindAddressHint": "Indirizzo di ascolto: IP locale su cui ascoltare. Vuoto = tutte le interfacce."
+    "bindAddressHint": "Indirizzo di ascolto: IP locale su cui ascoltare. Vuoto = tutte le interfacce.",
+    "allowedSources": "Origini consentite",
+    "allowedSourcesHint": "Origini consentite: IP o intervalli CIDR, separati da virgole. Vuoto = consenti tutti. Nota: le origini UDP possono essere contraffatte."
   },
   "filter": {
     "severity": "Gravità",

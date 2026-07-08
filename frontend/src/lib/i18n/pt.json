@@ -24,7 +24,9 @@
     "tlsConfig": "Configuração TLS",
     "error": "Erro: {error}",
     "allInterfaces": "Todas as interfaces",
-    "bindAddressHint": "Endereço de escuta: IP local no qual escutar. Vazio = todas as interfaces."
+    "bindAddressHint": "Endereço de escuta: IP local no qual escutar. Vazio = todas as interfaces.",
+    "allowedSources": "Fontes permitidas",
+    "allowedSourcesHint": "Fontes permitidas: IPs ou faixas CIDR, separados por vírgulas. Vazio = permitir todos. Nota: fontes UDP podem ser falsificadas."
   },
   "filter": {
     "severity": "Severidade",

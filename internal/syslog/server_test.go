@@ -1,6 +1,7 @@
 package syslog
 
 import (
+	"net"
 	"sync"
 	"testing"
 
@@ -731,5 +732,43 @@ func TestAcquireConnSlot_NilSemaphore(t *testing.T) {
 	// Server never started: connSem is nil.
 	if got := s.acquireConnSlot(); got != nil {
 		t.Fatal("acquireConnSlot must return nil when server is not running")
+	}
+}
+
+func TestSourceAllowed(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+
+	// Empty allowlist admits everything.
+	if !s.sourceAllowed(net.ParseIP("203.0.113.7")) {
+		t.Error("empty allowlist must admit all sources")
+	}
+
+	for _, entry := range []string{"10.0.0.0/8", "192.168.1.5"} {
+		ipNet, err := models.ParseSourceEntry(entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.allowNets = append(s.allowNets, ipNet)
+	}
+
+	tests := []struct {
+		ip   string
+		want bool
+	}{
+		{"10.1.2.3", true},
+		{"10.255.255.255", true},
+		{"192.168.1.5", true},
+		{"192.168.1.6", false},
+		{"203.0.113.7", false},
+	}
+	for _, tt := range tests {
+		if got := s.sourceAllowed(net.ParseIP(tt.ip)); got != tt.want {
+			t.Errorf("sourceAllowed(%s) = %v, want %v", tt.ip, got, tt.want)
+		}
+	}
+
+	// Nil IP with a configured allowlist must be rejected.
+	if s.sourceAllowed(nil) {
+		t.Error("nil IP must be rejected when an allowlist is configured")
 	}
 }

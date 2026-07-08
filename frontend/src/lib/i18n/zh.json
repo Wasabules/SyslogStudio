@@ -24,7 +24,9 @@
     "tlsConfig": "TLS 配置",
     "error": "错误：{error}",
     "allInterfaces": "所有接口",
-    "bindAddressHint": "绑定地址：监听的本地IP。留空=所有接口。"
+    "bindAddressHint": "绑定地址：监听的本地IP。留空=所有接口。",
+    "allowedSources": "允许的来源",
+    "allowedSourcesHint": "允许的来源：IP或CIDR范围，逗号分隔。留空=允许所有。注意：UDP来源可能被伪造。"
   },
   "filter": {
     "severity": "严重程度",
