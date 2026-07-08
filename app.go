@@ -515,6 +515,24 @@ func (a *App) ExportLogs(filter models.FilterCriteria, format string) (string, e
 	return path, nil
 }
 
+// sanitizeCSVField neutralizes spreadsheet formula injection (CWE-1236).
+// Syslog message content is attacker-controlled; a message starting with
+// '=', '+', '-' or '@' would be interpreted as a formula when the exported
+// CSV is opened in Excel or LibreOffice. Prefixing a single quote forces
+// the cell to be treated as text. Leading tab/CR are stripped as they can
+// be used to smuggle a formula prefix past naive checks.
+func sanitizeCSVField(s string) string {
+	trimmed := strings.TrimLeft(s, "\t\r")
+	if trimmed == "" {
+		return s
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + s
+	}
+	return s
+}
+
 func writeCSV(path string, messages []models.SyslogMessage) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -537,10 +555,10 @@ func writeCSV(path string, messages []models.SyslogMessage) error {
 			msg.Timestamp.Format("2006-01-02 15:04:05"),
 			msg.SeverityLabel,
 			msg.FacilityLabel,
-			msg.Hostname,
-			msg.AppName,
-			msg.ProcID,
-			msg.Message,
+			sanitizeCSVField(msg.Hostname),
+			sanitizeCSVField(msg.AppName),
+			sanitizeCSVField(msg.ProcID),
+			sanitizeCSVField(msg.Message),
 			msg.SourceIP,
 			msg.Protocol,
 		})
