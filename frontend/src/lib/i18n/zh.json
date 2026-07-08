@@ -219,6 +219,7 @@
     "unlockTitle": "Database Locked",
     "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
     "unlock": "Unlock",
-    "unlocking": "Unlocking..."
+    "unlocking": "Unlocking...",
+    "lockedOutSeconds": "失败次数过多。已锁定{seconds}秒。"
   }
 }

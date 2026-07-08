@@ -1,16 +1,16 @@
 <script lang="ts">
-    import { onDestroy } from 'svelte';
+    import { onDestroy, onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
-    import { unlockDatabase } from '../lib/api';
+    import { unlockDatabase, getUnlockLockoutSeconds } from '../lib/api';
 
     export let onUnlocked: () => void = () => {};
 
-    const maxAttempts = 5;
     let password = '';
     let error = '';
     let loading = false;
-    let attempts = 0;
     let lockedOut = false;
+    let lockoutSeconds = 0;
+    let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
     // Progress state from syslog:cryptoProgress events
     let progressPhase = '';
@@ -48,6 +48,32 @@
 
     onDestroy(() => {
         if (unsubProgress) unsubProgress();
+        if (countdownTimer) clearInterval(countdownTimer);
+    });
+
+    function startLockoutCountdown(seconds: number) {
+        lockoutSeconds = seconds;
+        lockedOut = seconds > 0;
+        if (countdownTimer) clearInterval(countdownTimer);
+        if (seconds <= 0) return;
+        countdownTimer = setInterval(() => {
+            lockoutSeconds--;
+            if (lockoutSeconds <= 0) {
+                lockedOut = false;
+                error = '';
+                if (countdownTimer) clearInterval(countdownTimer);
+            }
+        }, 1000);
+    }
+
+    onMount(async () => {
+        try {
+            const secs = await getUnlockLockoutSeconds();
+            if (secs > 0) {
+                startLockoutCountdown(secs);
+                error = $_('encryption.lockedOutSeconds', { values: { seconds: secs } });
+            }
+        } catch {}
     });
 
     async function handleUnlock() {
@@ -60,16 +86,21 @@
             await unlockDatabase(password);
             onUnlocked();
         } catch (e: any) {
-            attempts++;
             progressPhase = '';
             progressPercent = 0;
-            const remaining = maxAttempts - attempts;
-            if (remaining <= 0) {
-                lockedOut = true;
-                error = $_('encryption.lockedOut');
-            } else {
-                error = $_('encryption.wrongPasswordAttempts', { values: { remaining } });
-                password = '';
+            password = '';
+            // The backend returns the authoritative message, including any
+            // lockout duration. Re-query the lockout window to drive the UI.
+            try {
+                const secs = await getUnlockLockoutSeconds();
+                if (secs > 0) {
+                    startLockoutCountdown(secs);
+                    error = $_('encryption.lockedOutSeconds', { values: { seconds: secs } });
+                } else {
+                    error = e?.message || $_('encryption.wrongPassword');
+                }
+            } catch {
+                error = e?.message || $_('encryption.wrongPassword');
             }
         } finally {
             loading = false;

@@ -242,6 +242,7 @@
     "progressWriting": "Écriture de la base...",
     "progressInitializing": "Ouverture de la base...",
     "progressIndexing": "Reconstruction de l'index de recherche...",
-    "progressDone": "Terminé"
+    "progressDone": "Terminé",
+    "lockedOutSeconds": "Trop d'échecs. Verrouillé pour {seconds}s."
   }
 }

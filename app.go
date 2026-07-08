@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
@@ -29,10 +30,18 @@ type App struct {
 	logStore    *storage.LogStore
 
 	encryptionPassword string // in-memory only for session
-	unlockAttempts     int
 }
 
-const maxUnlockAttempts = 5
+const (
+	// unlockAttemptsBeforeBackoff is how many failed unlock attempts are
+	// allowed before a backoff delay begins.
+	unlockAttemptsBeforeBackoff = 5
+	// baseLockoutBackoff is the delay imposed at the first backoff step;
+	// it doubles with each subsequent failed attempt.
+	baseLockoutBackoff = 30 * time.Second
+	// maxLockoutBackoff caps the backoff delay.
+	maxLockoutBackoff = 15 * time.Minute
+)
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
@@ -332,9 +341,29 @@ func (a *App) ClearAlertHistory() {
 
 // --- Encryption Methods ---
 
-// GetUnlockAttemptsRemaining returns how many unlock attempts are left.
+// GetUnlockAttemptsRemaining returns how many unlock attempts remain
+// before the next backoff delay is applied.
 func (a *App) GetUnlockAttemptsRemaining() int {
-	return maxUnlockAttempts - a.unlockAttempts
+	state := a.configStore.LoadLockout()
+	remaining := unlockAttemptsBeforeBackoff - (state.FailedAttempts % unlockAttemptsBeforeBackoff)
+	if remaining < 0 {
+		remaining = 0
+	}
+	return remaining
+}
+
+// GetUnlockLockoutSeconds returns the number of seconds remaining in the
+// current lockout window, or 0 if unlock attempts are currently allowed.
+func (a *App) GetUnlockLockoutSeconds() int {
+	state := a.configStore.LoadLockout()
+	if state.LockedUntilUnix == 0 {
+		return 0
+	}
+	remaining := state.LockedUntilUnix - time.Now().Unix()
+	if remaining < 0 {
+		return 0
+	}
+	return int(remaining)
 }
 
 // IsEncryptionEnabled returns whether encryption is configured.
@@ -347,32 +376,52 @@ func (a *App) IsEncryptionLocked() bool {
 	return a.logStore != nil && a.logStore.IsLocked()
 }
 
+// lockoutBackoff returns the delay to impose after failedAttempts
+// consecutive failures. No delay until the threshold is reached, then an
+// exponentially growing delay capped at maxLockoutBackoff.
+func lockoutBackoff(failedAttempts int) time.Duration {
+	if failedAttempts < unlockAttemptsBeforeBackoff {
+		return 0
+	}
+	steps := failedAttempts - unlockAttemptsBeforeBackoff // 0, 1, 2, ...
+	delay := baseLockoutBackoff << steps
+	if delay > maxLockoutBackoff || delay <= 0 {
+		delay = maxLockoutBackoff
+	}
+	return delay
+}
+
 // UnlockDatabase decrypts the database with the given password and opens it.
-// After maxUnlockAttempts failed attempts, the application is closed.
+// Failed attempts accumulate in persisted state; after a threshold, an
+// exponentially growing backoff delay is enforced that survives restarts,
+// so relaunching the app cannot be used to reset the counter or bypass
+// the delay.
 func (a *App) UnlockDatabase(password string) error {
 	if a.logStore == nil {
 		return fmt.Errorf("log store not initialized")
 	}
-	if a.unlockAttempts >= maxUnlockAttempts {
-		go func() {
-			wailsRuntime.Quit(a.ctx)
-		}()
-		return fmt.Errorf("too many failed attempts")
+
+	state := a.configStore.LoadLockout()
+	if wait := state.LockedUntilUnix - time.Now().Unix(); state.LockedUntilUnix != 0 && wait > 0 {
+		return fmt.Errorf("too many failed attempts — locked for %d more seconds", wait)
 	}
+
 	if err := a.logStore.UnlockAndOpen(password); err != nil {
-		a.unlockAttempts++
-		remaining := maxUnlockAttempts - a.unlockAttempts
-		slog.Warn("unlock failed", "attempt", a.unlockAttempts, "remaining", remaining)
-		if a.unlockAttempts >= maxUnlockAttempts {
-			slog.Error("max unlock attempts reached, shutting down")
-			go func() {
-				wailsRuntime.Quit(a.ctx)
-			}()
-			return fmt.Errorf("too many failed attempts — application will close")
+		state.FailedAttempts++
+		if backoff := lockoutBackoff(state.FailedAttempts); backoff > 0 {
+			state.LockedUntilUnix = time.Now().Add(backoff).Unix()
+			a.configStore.SaveLockout(state)
+			slog.Warn("unlock failed, backoff enforced", "attempts", state.FailedAttempts, "backoffSeconds", int(backoff.Seconds()))
+			return fmt.Errorf("wrong password — locked for %d seconds after %d failed attempts", int(backoff.Seconds()), state.FailedAttempts)
 		}
-		return fmt.Errorf("wrong password (%d attempts remaining)", remaining)
+		a.configStore.SaveLockout(state)
+		remaining := unlockAttemptsBeforeBackoff - state.FailedAttempts
+		slog.Warn("unlock failed", "attempts", state.FailedAttempts, "remaining", remaining)
+		return fmt.Errorf("wrong password (%d attempts remaining before lockout)", remaining)
 	}
-	a.unlockAttempts = 0
+
+	// Success: clear persisted lockout state.
+	a.configStore.SaveLockout(models.LockoutState{})
 	a.encryptionPassword = password
 	a.server.LogStore = a.logStore
 

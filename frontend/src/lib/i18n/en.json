@@ -242,6 +242,7 @@
     "progressWriting": "Writing database...",
     "progressInitializing": "Opening database...",
     "progressIndexing": "Rebuilding search index...",
-    "progressDone": "Done"
+    "progressDone": "Done",
+    "lockedOutSeconds": "Too many failed attempts. Locked for {seconds}s."
   }
 }

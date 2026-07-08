@@ -132,3 +132,15 @@ func (cs *ConfigStore) SaveAlertRules(rules []models.AlertRule) {
 	all.Alerts = rules
 	cs.saveAll(all)
 }
+
+// LoadLockout reads the persisted unlock-lockout state.
+func (cs *ConfigStore) LoadLockout() models.LockoutState {
+	return cs.loadAll().Lockout
+}
+
+// SaveLockout writes the unlock-lockout state.
+func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
+	all := cs.loadAll()
+	all.Lockout = state
+	cs.saveAll(all)
+}

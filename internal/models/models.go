@@ -250,6 +250,17 @@ type AppConfig struct {
 	Server  ServerConfig  `json:"server"`
 	Storage StorageConfig `json:"storage"`
 	Alerts  []AlertRule   `json:"alerts"`
+	Lockout LockoutState  `json:"lockout"`
+}
+
+// LockoutState persists failed unlock attempts across restarts so that a
+// brute-force attacker cannot reset the counter by relaunching the app.
+type LockoutState struct {
+	// FailedAttempts is the number of consecutive failed unlock attempts.
+	FailedAttempts int `json:"failedAttempts"`
+	// LockedUntilUnix is the Unix time (seconds) until which further
+	// unlock attempts are refused. Zero means not currently locked out.
+	LockedUntilUnix int64 `json:"lockedUntilUnix"`
 }
 
 // UpdateInfo contains information about an available update.
