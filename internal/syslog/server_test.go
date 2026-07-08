@@ -4,6 +4,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
@@ -770,5 +771,59 @@ func TestSourceAllowed(t *testing.T) {
 	// Nil IP with a configured allowlist must be rejected.
 	if s.sourceAllowed(nil) {
 		t.Error("nil IP must be rejected when an allowlist is configured")
+	}
+}
+
+func TestStop_ClosesIdleTCPConnection(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	cfg := models.DefaultServerConfig()
+	cfg.UDPEnabled = false
+	cfg.TCPEnabled = true
+	cfg.TCPPort = 0 // ask the OS for a free port
+	if err := s.Start(cfg); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	// Discover the actual listen address.
+	s.mu.RLock()
+	ln := s.tcpListener
+	s.mu.RUnlock()
+	if ln == nil {
+		t.Fatal("tcp listener not created")
+	}
+	addr := ln.Addr().String()
+
+	// Open a connection and keep it idle (no newline sent), which parks
+	// the handler in scanner.Scan() under the read deadline.
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Give the accept loop a moment to register the connection.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.connsMu.Lock()
+		n := len(s.conns)
+		s.connsMu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Stop must return promptly, well under tcpReadTimeout (5 minutes).
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop did not return promptly with an idle TCP connection")
 	}
 }

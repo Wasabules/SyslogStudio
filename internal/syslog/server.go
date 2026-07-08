@@ -75,6 +75,11 @@ type SyslogServer struct {
 	// Compiled source allowlist (nil/empty = allow all)
 	allowNets []*net.IPNet
 
+	// Active TCP/TLS connections, tracked so Stop can close them
+	// immediately instead of waiting for idle read deadlines to elapse.
+	conns   map[net.Conn]struct{}
+	connsMu sync.Mutex
+
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
 }
@@ -125,6 +130,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	s.running = true
 	s.workCh = make(chan func(), maxWorkers*4)
 	s.connSem = make(chan struct{}, maxTCPConnections)
+	s.conns = make(map[net.Conn]struct{})
 
 	// Compile the source allowlist. Config was validated above, so
 	// parse errors are not expected here; skip defensively regardless.
@@ -270,6 +276,16 @@ func (s *SyslogServer) Stop() error {
 	s.workCh = nil
 	s.connSem = nil
 	s.mu.Unlock()
+
+	// Close all active TCP/TLS connections so their handler goroutines
+	// unblock from any in-progress read instead of waiting out the read
+	// deadline. Without this, Stop could block for up to tcpReadTimeout.
+	s.connsMu.Lock()
+	for c := range s.conns {
+		c.Close()
+	}
+	s.conns = nil
+	s.connsMu.Unlock()
 
 	if workCh != nil {
 		close(workCh)
@@ -537,10 +553,37 @@ func (s *SyslogServer) acquireConnSlot() chan struct{} {
 	}
 }
 
+// trackConn registers an active connection. Returns false if the server
+// is already stopping (conns map cleared), in which case the caller
+// should close the connection and return.
+func (s *SyslogServer) trackConn(conn net.Conn) bool {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	if s.conns == nil {
+		return false
+	}
+	s.conns[conn] = struct{}{}
+	return true
+}
+
+// untrackConn removes a connection from the active set.
+func (s *SyslogServer) untrackConn(conn net.Conn) {
+	s.connsMu.Lock()
+	if s.conns != nil {
+		delete(s.conns, conn)
+	}
+	s.connsMu.Unlock()
+}
+
 func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string, sem chan struct{}) {
 	defer s.wg.Done()
 	defer conn.Close()
 	defer func() { <-sem }()
+
+	if !s.trackConn(conn) {
+		return // server is stopping
+	}
+	defer s.untrackConn(conn)
 
 	var sourceIP string
 	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
