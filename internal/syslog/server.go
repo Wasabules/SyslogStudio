@@ -29,6 +29,9 @@ const (
 	tcpAcceptTimeout = 1 * time.Second
 	tcpReadTimeout   = 5 * time.Minute
 	maxWorkers       = 256
+	// maxTCPConnections caps concurrent TCP+TLS connections to bound
+	// goroutine and memory usage under connection flooding.
+	maxTCPConnections = 512
 )
 
 // listenAddr builds a listen address from an optional bind IP and a port.
@@ -65,6 +68,9 @@ type SyslogServer struct {
 
 	// Worker pool
 	workCh chan func()
+
+	// Connection-limit semaphore for TCP/TLS (created per Start)
+	connSem chan struct{}
 
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
@@ -115,6 +121,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	s.cancel = cancel
 	s.running = true
 	s.workCh = make(chan func(), maxWorkers*4)
+	s.connSem = make(chan struct{}, maxTCPConnections)
 	s.mu.Unlock()
 
 	// Start worker pool
@@ -249,6 +256,7 @@ func (s *SyslogServer) Stop() error {
 	}
 	workCh := s.workCh
 	s.workCh = nil
+	s.connSem = nil
 	s.mu.Unlock()
 
 	if workCh != nil {
@@ -398,9 +406,16 @@ func (s *SyslogServer) listenTCP(ctx context.Context) {
 			}
 		}
 
+		sem := s.acquireConnSlot()
+		if sem == nil {
+			slog.Warn("TCP connection rejected: connection limit reached", "remote", conn.RemoteAddr(), "limit", maxTCPConnections)
+			conn.Close()
+			continue
+		}
+
 		slog.Debug("TCP connection accepted", "remote", conn.RemoteAddr())
 		s.wg.Add(1)
-		go s.handleTCPConnection(ctx, conn, "TCP")
+		go s.handleTCPConnection(ctx, conn, "TCP", sem)
 	}
 }
 
@@ -432,15 +447,42 @@ func (s *SyslogServer) listenTLS(ctx context.Context) {
 			}
 		}
 
+		sem := s.acquireConnSlot()
+		if sem == nil {
+			slog.Warn("TLS connection rejected: connection limit reached", "remote", conn.RemoteAddr(), "limit", maxTCPConnections)
+			conn.Close()
+			continue
+		}
+
 		slog.Debug("TLS connection accepted", "remote", conn.RemoteAddr())
 		s.wg.Add(1)
-		go s.handleTCPConnection(ctx, conn, "TLS")
+		go s.handleTCPConnection(ctx, conn, "TLS", sem)
 	}
 }
 
-func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string) {
+// acquireConnSlot reserves a slot in the connection-limit semaphore.
+// Returns the semaphore channel on success (so the handler releases into
+// the same channel even if the server is restarted meanwhile), or nil if
+// the limit is reached.
+func (s *SyslogServer) acquireConnSlot() chan struct{} {
+	s.mu.RLock()
+	sem := s.connSem
+	s.mu.RUnlock()
+	if sem == nil {
+		return nil
+	}
+	select {
+	case sem <- struct{}{}:
+		return sem
+	default:
+		return nil
+	}
+}
+
+func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string, sem chan struct{}) {
 	defer s.wg.Done()
 	defer conn.Close()
+	defer func() { <-sem }()
 
 	var sourceIP string
 	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {

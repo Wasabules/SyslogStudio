@@ -702,3 +702,34 @@ func TestProcessMessage_Integration(t *testing.T) {
 		t.Errorf("expected protocol 'TCP', got %q", msg.Protocol)
 	}
 }
+
+func TestAcquireConnSlot_LimitEnforced(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	s.connSem = make(chan struct{}, 2)
+
+	sem1 := s.acquireConnSlot()
+	if sem1 == nil {
+		t.Fatal("first slot should be granted")
+	}
+	sem2 := s.acquireConnSlot()
+	if sem2 == nil {
+		t.Fatal("second slot should be granted")
+	}
+	if got := s.acquireConnSlot(); got != nil {
+		t.Fatal("third slot should be rejected at limit 2")
+	}
+
+	// Releasing one slot makes room again.
+	<-sem1
+	if got := s.acquireConnSlot(); got == nil {
+		t.Fatal("slot should be granted after release")
+	}
+}
+
+func TestAcquireConnSlot_NilSemaphore(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	// Server never started: connSem is nil.
+	if got := s.acquireConnSlot(); got != nil {
+		t.Fatal("acquireConnSlot must return nil when server is not running")
+	}
+}
