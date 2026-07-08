@@ -290,6 +290,42 @@ func (t *TLSManager) HasCA() bool {
 	return len(t.caCertPEM) > 0 && len(t.caKeyPEM) > 0
 }
 
+// GetCAMaterial returns the stored CA certificate and key PEM blocks.
+// Used for persistence; returns an error if no CA is present.
+func (t *TLSManager) GetCAMaterial() (certPEM, keyPEM []byte, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.caCertPEM) == 0 || len(t.caKeyPEM) == 0 {
+		return nil, nil, fmt.Errorf("no CA certificate available")
+	}
+	// Return copies so callers cannot mutate internal state.
+	c := make([]byte, len(t.caCertPEM))
+	k := make([]byte, len(t.caKeyPEM))
+	copy(c, t.caCertPEM)
+	copy(k, t.caKeyPEM)
+	return c, k, nil
+}
+
+// LoadCAMaterial installs a previously persisted CA certificate and key,
+// after validating that they parse and form a usable key pair.
+func (t *TLSManager) LoadCAMaterial(certPEM, keyPEM []byte) error {
+	caBlock, _ := pem.Decode(certPEM)
+	if caBlock == nil {
+		return fmt.Errorf("failed to decode CA certificate PEM")
+	}
+	if _, err := x509.ParseCertificate(caBlock.Bytes); err != nil {
+		return fmt.Errorf("invalid CA certificate: %w", err)
+	}
+	if _, err := parsePrivateKey(keyPEM); err != nil {
+		return fmt.Errorf("invalid CA key: %w", err)
+	}
+	t.mu.Lock()
+	t.caCertPEM = certPEM
+	t.caKeyPEM = keyPEM
+	t.mu.Unlock()
+	return nil
+}
+
 // HasServerCert returns true if a server certificate is available.
 func (t *TLSManager) HasServerCert() bool {
 	t.mu.Lock()

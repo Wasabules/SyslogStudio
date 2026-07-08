@@ -31,6 +31,12 @@ func (cs *ConfigStore) path() string {
 	return filepath.Join(cs.dir, configFileName)
 }
 
+// Dir returns the directory used for persisted configuration, or an empty
+// string if configuration persistence is unavailable.
+func (cs *ConfigStore) Dir() string {
+	return cs.dir
+}
+
 func (cs *ConfigStore) loadAll() models.AppConfig {
 	if cs.dir == "" {
 		return models.AppConfig{Server: models.DefaultServerConfig(), Storage: models.DefaultStorageConfig()}
