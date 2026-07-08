@@ -22,7 +22,9 @@
     "start": "Avvia",
     "stop": "Arresta",
     "tlsConfig": "Configurazione TLS",
-    "error": "Errore: {error}"
+    "error": "Errore: {error}",
+    "allInterfaces": "Tutte le interfacce",
+    "bindAddressHint": "Indirizzo di ascolto: IP locale su cui ascoltare. Vuoto = tutte le interfacce."
   },
   "filter": {
     "severity": "Gravità",

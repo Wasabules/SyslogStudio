@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 	"time"
@@ -113,12 +114,17 @@ type CertInfo struct {
 
 // ServerConfig holds user-configurable server parameters.
 type ServerConfig struct {
-	UDPEnabled    bool        `json:"udpEnabled"`
-	TCPEnabled    bool        `json:"tcpEnabled"`
-	TLSEnabled    bool        `json:"tlsEnabled"`
-	UDPPort       int         `json:"udpPort"`
-	TCPPort       int         `json:"tcpPort"`
-	TLSPort       int         `json:"tlsPort"`
+	UDPEnabled bool `json:"udpEnabled"`
+	TCPEnabled bool `json:"tcpEnabled"`
+	TLSEnabled bool `json:"tlsEnabled"`
+	UDPPort    int  `json:"udpPort"`
+	TCPPort    int  `json:"tcpPort"`
+	TLSPort    int  `json:"tlsPort"`
+	// BindAddress is the local IP address the listeners bind to.
+	// Empty means all interfaces. Restricting the bind address is
+	// recommended on multi-homed hosts (e.g. a laptop attached to both
+	// an office and a control-system network).
+	BindAddress   string      `json:"bindAddress"`
 	MaxBuffer     int         `json:"maxBuffer"`
 	CertFile      string      `json:"certFile"`
 	KeyFile       string      `json:"keyFile"`
@@ -361,6 +367,12 @@ func DefaultServerConfig() ServerConfig {
 func ValidateServerConfig(c ServerConfig) error {
 	if !c.UDPEnabled && !c.TCPEnabled && !c.TLSEnabled {
 		return fmt.Errorf("at least one protocol (UDP, TCP, or TLS) must be enabled")
+	}
+
+	if c.BindAddress != "" {
+		if net.ParseIP(c.BindAddress) == nil {
+			return fmt.Errorf("bind address %q is not a valid IP address", c.BindAddress)
+		}
 	}
 
 	checkPort := func(name string, port int) error {

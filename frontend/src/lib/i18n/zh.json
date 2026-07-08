@@ -22,7 +22,9 @@
     "start": "启动",
     "stop": "停止",
     "tlsConfig": "TLS 配置",
-    "error": "错误：{error}"
+    "error": "错误：{error}",
+    "allInterfaces": "所有接口",
+    "bindAddressHint": "绑定地址：监听的本地IP。留空=所有接口。"
   },
   "filter": {
     "severity": "严重程度",

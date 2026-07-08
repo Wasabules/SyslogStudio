@@ -22,7 +22,9 @@
     "start": "Iniciar",
     "stop": "Parar",
     "tlsConfig": "Configuração TLS",
-    "error": "Erro: {error}"
+    "error": "Erro: {error}",
+    "allInterfaces": "Todas as interfaces",
+    "bindAddressHint": "Endereço de escuta: IP local no qual escutar. Vazio = todas as interfaces."
   },
   "filter": {
     "severity": "Severidade",

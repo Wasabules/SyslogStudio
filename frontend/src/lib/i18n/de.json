@@ -22,7 +22,9 @@
     "start": "Starten",
     "stop": "Stoppen",
     "tlsConfig": "TLS-Konfiguration",
-    "error": "Fehler: {error}"
+    "error": "Fehler: {error}",
+    "allInterfaces": "Alle Schnittstellen",
+    "bindAddressHint": "Bind-Adresse: lokale IP, auf der gelauscht wird. Leer = alle Schnittstellen."
   },
   "filter": {
     "severity": "Schweregrad",

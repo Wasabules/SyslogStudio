@@ -24,7 +24,9 @@
     "start": "Démarrer",
     "stop": "Arrêter",
     "tlsConfig": "Config TLS",
-    "error": "Erreur : {error}"
+    "error": "Erreur : {error}",
+    "allInterfaces": "Toutes les interfaces",
+    "bindAddressHint": "Adresse d'écoute : IP locale sur laquelle écouter. Vide = toutes les interfaces."
   },
   "filter": {
     "severity": "Sévérité",

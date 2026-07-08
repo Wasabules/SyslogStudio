@@ -22,7 +22,9 @@
     "start": "開始",
     "stop": "停止",
     "tlsConfig": "TLS 設定",
-    "error": "エラー: {error}"
+    "error": "エラー: {error}",
+    "allInterfaces": "すべてのインターフェース",
+    "bindAddressHint": "バインドアドレス：待ち受けるローカルIP。空欄＝すべてのインターフェース。"
   },
   "filter": {
     "severity": "重大度",

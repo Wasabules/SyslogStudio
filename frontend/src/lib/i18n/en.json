@@ -24,7 +24,9 @@
     "start": "Start",
     "stop": "Stop",
     "tlsConfig": "TLS Config",
-    "error": "Error: {error}"
+    "error": "Error: {error}",
+    "allInterfaces": "All interfaces",
+    "bindAddressHint": "Bind address: local IP to listen on. Empty = all interfaces."
   },
   "filter": {
     "severity": "Severity",

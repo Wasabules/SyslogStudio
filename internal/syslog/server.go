@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,12 @@ const (
 	tcpReadTimeout   = 5 * time.Minute
 	maxWorkers       = 256
 )
+
+// listenAddr builds a listen address from an optional bind IP and a port.
+// An empty bindAddress binds to all interfaces (previous behavior).
+func listenAddr(bindAddress string, port int) string {
+	return net.JoinHostPort(bindAddress, strconv.Itoa(port))
+}
 
 // SyslogServer manages UDP, TCP, and TLS syslog listeners.
 type SyslogServer struct {
@@ -126,7 +133,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	var startErrors []string
 
 	if config.UDPEnabled {
-		if err := s.startUDPListener(ctx, config.UDPPort); err != nil {
+		if err := s.startUDPListener(ctx, config); err != nil {
 			slog.Error("failed to start UDP listener", "port", config.UDPPort, "error", err)
 			startErrors = append(startErrors, err.Error())
 		} else {
@@ -135,7 +142,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	}
 
 	if config.TCPEnabled {
-		if err := s.startTCPListener(ctx, config.TCPPort); err != nil {
+		if err := s.startTCPListener(ctx, config); err != nil {
 			slog.Error("failed to start TCP listener", "port", config.TCPPort, "error", err)
 			startErrors = append(startErrors, err.Error())
 		} else {
@@ -166,14 +173,14 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	return nil
 }
 
-func (s *SyslogServer) startUDPListener(ctx context.Context, port int) error {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
+func (s *SyslogServer) startUDPListener(ctx context.Context, config models.ServerConfig) error {
+	addr, err := net.ResolveUDPAddr("udp", listenAddr(config.BindAddress, config.UDPPort))
 	if err != nil {
 		return fmt.Errorf("UDP resolve: %v", err)
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return fmt.Errorf("UDP listen on port %d: %v", port, err)
+		return fmt.Errorf("UDP listen on port %d: %v", config.UDPPort, err)
 	}
 	s.mu.Lock()
 	s.udpConn = conn
@@ -183,10 +190,10 @@ func (s *SyslogServer) startUDPListener(ctx context.Context, port int) error {
 	return nil
 }
 
-func (s *SyslogServer) startTCPListener(ctx context.Context, port int) error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func (s *SyslogServer) startTCPListener(ctx context.Context, config models.ServerConfig) error {
+	listener, err := net.Listen("tcp", listenAddr(config.BindAddress, config.TCPPort))
 	if err != nil {
-		return fmt.Errorf("TCP listen on port %d: %v", port, err)
+		return fmt.Errorf("TCP listen on port %d: %v", config.TCPPort, err)
 	}
 	s.mu.Lock()
 	s.tcpListener = listener
@@ -205,7 +212,7 @@ func (s *SyslogServer) startTLSListener(ctx context.Context, config models.Serve
 	s.tlsConfig = tlsCfg
 	s.mu.Unlock()
 
-	listener, err := tls.Listen("tcp", fmt.Sprintf(":%d", config.TLSPort), tlsCfg)
+	listener, err := tls.Listen("tcp", listenAddr(config.BindAddress, config.TLSPort), tlsCfg)
 	if err != nil {
 		return fmt.Errorf("TLS listen on port %d: %v", config.TLSPort, err)
 	}
