@@ -594,6 +594,7 @@ func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, p
 
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 0, tcpScanBufSize), tcpScanBufSize)
+	scanner.Split(syslogFrameSplit)
 
 	for {
 		select {
