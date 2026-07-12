@@ -9,16 +9,18 @@
 
     let config: ServerConfig = {
         udpEnabled: true, tcpEnabled: false, tlsEnabled: false,
-        udpPort: 514, tcpPort: 514, tlsPort: 6514,
+        udpPort: 514, tcpPort: 514, tlsPort: 6514, bindAddress: '', allowedSources: [],
         maxBuffer: 10000, certFile: '', keyFile: '', useSelfSigned: false,
         certOptions: { algorithm: 'ECDSA-P256', validityDays: 365, commonName: 'SyslogStudio', organization: 'SyslogStudio', dnsNames: ['localhost'], ipAddresses: ['127.0.0.1', '::1'] },
         mutualTLS: false, caFile: '',
     };
     let error = '';
+    let allowedSourcesText = '';
 
     onMount(async () => {
         try {
             config = await getDefaultConfig();
+            allowedSourcesText = (config.allowedSources || []).join(', ');
             const status = await getServerStatus();
             serverStatus.set(status);
         } catch (e: any) {
@@ -42,6 +44,10 @@
             if ($serverStatus.running) {
                 await stopServer();
             } else {
+                config.allowedSources = allowedSourcesText
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0);
                 await startServer(config as any);
             }
             const status = await getServerStatus();
@@ -179,6 +185,14 @@
     .port-input {
         width: 60px;
         text-align: center;
+    }
+
+    .bind-input {
+        width: 110px;
+    }
+
+    .sources-input {
+        width: 180px;
     }
 
     .tls-btn {

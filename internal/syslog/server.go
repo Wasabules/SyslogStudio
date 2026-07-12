@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +29,16 @@ const (
 	tcpAcceptTimeout = 1 * time.Second
 	tcpReadTimeout   = 5 * time.Minute
 	maxWorkers       = 256
+	// maxTCPConnections caps concurrent TCP+TLS connections to bound
+	// goroutine and memory usage under connection flooding.
+	maxTCPConnections = 512
 )
+
+// listenAddr builds a listen address from an optional bind IP and a port.
+// An empty bindAddress binds to all interfaces (previous behavior).
+func listenAddr(bindAddress string, port int) string {
+	return net.JoinHostPort(bindAddress, strconv.Itoa(port))
+}
 
 // SyslogServer manages UDP, TCP, and TLS syslog listeners.
 type SyslogServer struct {
@@ -58,6 +68,17 @@ type SyslogServer struct {
 
 	// Worker pool
 	workCh chan func()
+
+	// Connection-limit semaphore for TCP/TLS (created per Start)
+	connSem chan struct{}
+
+	// Compiled source allowlist (nil/empty = allow all)
+	allowNets []*net.IPNet
+
+	// Active TCP/TLS connections, tracked so Stop can close them
+	// immediately instead of waiting for idle read deadlines to elapse.
+	conns   map[net.Conn]struct{}
+	connsMu sync.Mutex
 
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
@@ -108,6 +129,17 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	s.cancel = cancel
 	s.running = true
 	s.workCh = make(chan func(), maxWorkers*4)
+	s.connSem = make(chan struct{}, maxTCPConnections)
+	s.conns = make(map[net.Conn]struct{})
+
+	// Compile the source allowlist. Config was validated above, so
+	// parse errors are not expected here; skip defensively regardless.
+	s.allowNets = nil
+	for _, entry := range config.AllowedSources {
+		if ipNet, err := models.ParseSourceEntry(entry); err == nil {
+			s.allowNets = append(s.allowNets, ipNet)
+		}
+	}
 	s.mu.Unlock()
 
 	// Start worker pool
@@ -126,7 +158,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	var startErrors []string
 
 	if config.UDPEnabled {
-		if err := s.startUDPListener(ctx, config.UDPPort); err != nil {
+		if err := s.startUDPListener(ctx, config); err != nil {
 			slog.Error("failed to start UDP listener", "port", config.UDPPort, "error", err)
 			startErrors = append(startErrors, err.Error())
 		} else {
@@ -135,7 +167,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	}
 
 	if config.TCPEnabled {
-		if err := s.startTCPListener(ctx, config.TCPPort); err != nil {
+		if err := s.startTCPListener(ctx, config); err != nil {
 			slog.Error("failed to start TCP listener", "port", config.TCPPort, "error", err)
 			startErrors = append(startErrors, err.Error())
 		} else {
@@ -166,14 +198,14 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	return nil
 }
 
-func (s *SyslogServer) startUDPListener(ctx context.Context, port int) error {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
+func (s *SyslogServer) startUDPListener(ctx context.Context, config models.ServerConfig) error {
+	addr, err := net.ResolveUDPAddr("udp", listenAddr(config.BindAddress, config.UDPPort))
 	if err != nil {
 		return fmt.Errorf("UDP resolve: %v", err)
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return fmt.Errorf("UDP listen on port %d: %v", port, err)
+		return fmt.Errorf("UDP listen on port %d: %v", config.UDPPort, err)
 	}
 	s.mu.Lock()
 	s.udpConn = conn
@@ -183,10 +215,10 @@ func (s *SyslogServer) startUDPListener(ctx context.Context, port int) error {
 	return nil
 }
 
-func (s *SyslogServer) startTCPListener(ctx context.Context, port int) error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func (s *SyslogServer) startTCPListener(ctx context.Context, config models.ServerConfig) error {
+	listener, err := net.Listen("tcp", listenAddr(config.BindAddress, config.TCPPort))
 	if err != nil {
-		return fmt.Errorf("TCP listen on port %d: %v", port, err)
+		return fmt.Errorf("TCP listen on port %d: %v", config.TCPPort, err)
 	}
 	s.mu.Lock()
 	s.tcpListener = listener
@@ -205,7 +237,7 @@ func (s *SyslogServer) startTLSListener(ctx context.Context, config models.Serve
 	s.tlsConfig = tlsCfg
 	s.mu.Unlock()
 
-	listener, err := tls.Listen("tcp", fmt.Sprintf(":%d", config.TLSPort), tlsCfg)
+	listener, err := tls.Listen("tcp", listenAddr(config.BindAddress, config.TLSPort), tlsCfg)
 	if err != nil {
 		return fmt.Errorf("TLS listen on port %d: %v", config.TLSPort, err)
 	}
@@ -242,7 +274,18 @@ func (s *SyslogServer) Stop() error {
 	}
 	workCh := s.workCh
 	s.workCh = nil
+	s.connSem = nil
 	s.mu.Unlock()
+
+	// Close all active TCP/TLS connections so their handler goroutines
+	// unblock from any in-progress read instead of waiting out the read
+	// deadline. Without this, Stop could block for up to tcpReadTimeout.
+	s.connsMu.Lock()
+	for c := range s.conns {
+		c.Close()
+	}
+	s.conns = nil
+	s.connsMu.Unlock()
 
 	if workCh != nil {
 		close(workCh)
@@ -346,6 +389,11 @@ func (s *SyslogServer) listenUDP(ctx context.Context) {
 			}
 		}
 
+		if !s.sourceAllowed(addr.IP) {
+			slog.Debug("UDP message dropped: source not in allowlist", "source", addr.IP)
+			continue
+		}
+
 		raw := make([]byte, n)
 		copy(raw, buf[:n])
 		sourceIP := addr.IP.String()
@@ -391,9 +439,22 @@ func (s *SyslogServer) listenTCP(ctx context.Context) {
 			}
 		}
 
+		if !s.remoteAllowed(conn) {
+			slog.Debug("TCP connection rejected: source not in allowlist", "remote", conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+
+		sem := s.acquireConnSlot()
+		if sem == nil {
+			slog.Warn("TCP connection rejected: connection limit reached", "remote", conn.RemoteAddr(), "limit", maxTCPConnections)
+			conn.Close()
+			continue
+		}
+
 		slog.Debug("TCP connection accepted", "remote", conn.RemoteAddr())
 		s.wg.Add(1)
-		go s.handleTCPConnection(ctx, conn, "TCP")
+		go s.handleTCPConnection(ctx, conn, "TCP", sem)
 	}
 }
 
@@ -425,15 +486,104 @@ func (s *SyslogServer) listenTLS(ctx context.Context) {
 			}
 		}
 
+		if !s.remoteAllowed(conn) {
+			slog.Debug("TLS connection rejected: source not in allowlist", "remote", conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+
+		sem := s.acquireConnSlot()
+		if sem == nil {
+			slog.Warn("TLS connection rejected: connection limit reached", "remote", conn.RemoteAddr(), "limit", maxTCPConnections)
+			conn.Close()
+			continue
+		}
+
 		slog.Debug("TLS connection accepted", "remote", conn.RemoteAddr())
 		s.wg.Add(1)
-		go s.handleTCPConnection(ctx, conn, "TLS")
+		go s.handleTCPConnection(ctx, conn, "TLS", sem)
 	}
 }
 
-func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string) {
+// sourceAllowed reports whether a source IP passes the allowlist.
+// An empty allowlist admits all sources.
+func (s *SyslogServer) sourceAllowed(ip net.IP) bool {
+	s.mu.RLock()
+	nets := s.allowNets
+	s.mu.RUnlock()
+	if len(nets) == 0 {
+		return true
+	}
+	if ip == nil {
+		return false
+	}
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// remoteAllowed applies the source allowlist to a connection's remote address.
+func (s *SyslogServer) remoteAllowed(conn net.Conn) bool {
+	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		return s.sourceAllowed(tcpAddr.IP)
+	}
+	// Unknown address type: only admit when no allowlist is configured.
+	return s.sourceAllowed(nil)
+}
+
+// acquireConnSlot reserves a slot in the connection-limit semaphore.
+// Returns the semaphore channel on success (so the handler releases into
+// the same channel even if the server is restarted meanwhile), or nil if
+// the limit is reached.
+func (s *SyslogServer) acquireConnSlot() chan struct{} {
+	s.mu.RLock()
+	sem := s.connSem
+	s.mu.RUnlock()
+	if sem == nil {
+		return nil
+	}
+	select {
+	case sem <- struct{}{}:
+		return sem
+	default:
+		return nil
+	}
+}
+
+// trackConn registers an active connection. Returns false if the server
+// is already stopping (conns map cleared), in which case the caller
+// should close the connection and return.
+func (s *SyslogServer) trackConn(conn net.Conn) bool {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	if s.conns == nil {
+		return false
+	}
+	s.conns[conn] = struct{}{}
+	return true
+}
+
+// untrackConn removes a connection from the active set.
+func (s *SyslogServer) untrackConn(conn net.Conn) {
+	s.connsMu.Lock()
+	if s.conns != nil {
+		delete(s.conns, conn)
+	}
+	s.connsMu.Unlock()
+}
+
+func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string, sem chan struct{}) {
 	defer s.wg.Done()
 	defer conn.Close()
+	defer func() { <-sem }()
+
+	if !s.trackConn(conn) {
+		return // server is stopping
+	}
+	defer s.untrackConn(conn)
 
 	var sourceIP string
 	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
@@ -444,6 +594,7 @@ func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, p
 
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 0, tcpScanBufSize), tcpScanBufSize)
+	scanner.Split(syslogFrameSplit)
 
 	for {
 		select {

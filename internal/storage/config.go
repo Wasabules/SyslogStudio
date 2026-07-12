@@ -31,6 +31,12 @@ func (cs *ConfigStore) path() string {
 	return filepath.Join(cs.dir, configFileName)
 }
 
+// Dir returns the directory used for persisted configuration, or an empty
+// string if configuration persistence is unavailable.
+func (cs *ConfigStore) Dir() string {
+	return cs.dir
+}
+
 func (cs *ConfigStore) loadAll() models.AppConfig {
 	if cs.dir == "" {
 		return models.AppConfig{Server: models.DefaultServerConfig(), Storage: models.DefaultStorageConfig()}
@@ -130,5 +136,17 @@ func (cs *ConfigStore) LoadAlertRules() []models.AlertRule {
 func (cs *ConfigStore) SaveAlertRules(rules []models.AlertRule) {
 	all := cs.loadAll()
 	all.Alerts = rules
+	cs.saveAll(all)
+}
+
+// LoadLockout reads the persisted unlock-lockout state.
+func (cs *ConfigStore) LoadLockout() models.LockoutState {
+	return cs.loadAll().Lockout
+}
+
+// SaveLockout writes the unlock-lockout state.
+func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
+	all := cs.loadAll()
+	all.Lockout = state
 	cs.saveAll(all)
 }

@@ -24,7 +24,11 @@
     "start": "Démarrer",
     "stop": "Arrêter",
     "tlsConfig": "Config TLS",
-    "error": "Erreur : {error}"
+    "error": "Erreur : {error}",
+    "allInterfaces": "Toutes les interfaces",
+    "bindAddressHint": "Adresse d'écoute : IP locale sur laquelle écouter. Vide = toutes les interfaces.",
+    "allowedSources": "Sources autorisées",
+    "allowedSourcesHint": "Sources autorisées : IP ou plages CIDR, séparées par des virgules. Vide = tout autoriser. Remarque : les sources UDP peuvent être usurpées."
   },
   "filter": {
     "severity": "Sévérité",
@@ -238,6 +242,7 @@
     "progressWriting": "Écriture de la base...",
     "progressInitializing": "Ouverture de la base...",
     "progressIndexing": "Reconstruction de l'index de recherche...",
-    "progressDone": "Terminé"
+    "progressDone": "Terminé",
+    "lockedOutSeconds": "Trop d'échecs. Verrouillé pour {seconds}s."
   }
 }

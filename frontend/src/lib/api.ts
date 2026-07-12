@@ -81,6 +81,7 @@ export const clearDatabase = (): Promise<void> => callGo('ClearDatabase');
 export const isEncryptionEnabled = (): Promise<boolean> => callGo('IsEncryptionEnabled');
 export const isEncryptionLocked = (): Promise<boolean> => callGo('IsEncryptionLocked');
 export const unlockDatabase = (password: string): Promise<void> => callGo('UnlockDatabase', password);
+export const getUnlockLockoutSeconds = (): Promise<number> => callGo('GetUnlockLockoutSeconds');
 export const enableEncryption = (password: string): Promise<void> => callGo('EnableEncryption', password);
 export const disableEncryption = (password: string): Promise<void> => callGo('DisableEncryption', password);
 export const changeEncryptionPassword = (oldPw: string, newPw: string): Promise<void> => callGo('ChangeEncryptionPassword', oldPw, newPw);
