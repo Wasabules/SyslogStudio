@@ -318,6 +318,8 @@ export namespace models {
 	    udpPort: number;
 	    tcpPort: number;
 	    tlsPort: number;
+	    bindAddress: string;
+	    allowedSources: string[];
 	    maxBuffer: number;
 	    certFile: string;
 	    keyFile: string;
@@ -338,6 +340,8 @@ export namespace models {
 	        this.udpPort = source["udpPort"];
 	        this.tcpPort = source["tcpPort"];
 	        this.tlsPort = source["tlsPort"];
+	        this.bindAddress = source["bindAddress"];
+	        this.allowedSources = source["allowedSources"];
 	        this.maxBuffer = source["maxBuffer"];
 	        this.certFile = source["certFile"];
 	        this.keyFile = source["keyFile"];

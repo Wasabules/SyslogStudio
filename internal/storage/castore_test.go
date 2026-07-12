@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -69,13 +70,16 @@ func TestCAStore_PlaintextRoundtrip(t *testing.T) {
 		t.Fatal("plaintext save must not be flagged encrypted")
 	}
 
-	// Key file must be 0600.
-	info, err := os.Stat(filepath.Join(dir, caStoreFileName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm != 0600 {
-		t.Errorf("CA bundle perm = %o, want 0600", perm)
+	// Key file must be 0600 — but only on POSIX systems. Windows does not
+	// map Unix permission bits, so os.Stat reports 0666 there regardless.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filepath.Join(dir, caStoreFileName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm != 0600 {
+			t.Errorf("CA bundle perm = %o, want 0600", perm)
+		}
 	}
 
 	gotCert, gotKey, err := cs.Load("")

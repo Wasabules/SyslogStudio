@@ -88,6 +88,17 @@
             </label>
         </div>
 
+        <div class="net-group">
+            <input type="text" bind:value={config.bindAddress}
+                   placeholder={$_('server.allInterfaces')}
+                   title={$_('server.bindAddressHint')}
+                   disabled={$serverStatus.running} class="bind-input" />
+            <input type="text" bind:value={allowedSourcesText}
+                   placeholder={$_('server.allowedSources')}
+                   title={$_('server.allowedSourcesHint')}
+                   disabled={$serverStatus.running} class="sources-input" />
+        </div>
+
         {#if config.tlsEnabled}
             <button class="tls-btn" on:click={onTLSConfig} disabled={$serverStatus.running}>
                 {$_('server.tlsConfig')}
@@ -172,6 +183,12 @@
         display: flex;
         align-items: center;
         gap: 10px;
+    }
+
+    .net-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
     .proto-check {

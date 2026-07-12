@@ -779,7 +779,11 @@ func TestStop_ClosesIdleTCPConnection(t *testing.T) {
 	cfg := models.DefaultServerConfig()
 	cfg.UDPEnabled = false
 	cfg.TCPEnabled = true
-	cfg.TCPPort = 0 // ask the OS for a free port
+	// ValidateServerConfig (called by Start) rejects port 0, so reserve a
+	// concrete free port from the OS instead. Bind to loopback to keep the
+	// test off external interfaces (and avoid a Windows firewall prompt).
+	cfg.BindAddress = "127.0.0.1"
+	cfg.TCPPort = freeTCPPort(t)
 	if err := s.Start(cfg); err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -826,4 +830,16 @@ func TestStop_ClosesIdleTCPConnection(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Stop did not return promptly with an idle TCP connection")
 	}
+}
+
+// freeTCPPort asks the OS for an unused TCP port on loopback and releases
+// it immediately, returning the port number so a listener can rebind it.
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve free port: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
 }
