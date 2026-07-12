@@ -20,6 +20,8 @@ export function DeleteAlertRule(arg1:string):Promise<boolean>;
 
 export function DisableEncryption(arg1:string):Promise<void>;
 
+export function DownloadAndApplyUpdate():Promise<void>;
+
 export function EnableEncryption(arg1:string):Promise<void>;
 
 export function ExportCACertificate():Promise<string>;
@@ -68,6 +70,8 @@ export function GetUnlockAttemptsRemaining():Promise<number>;
 
 export function GetUnlockLockoutSeconds():Promise<number>;
 
+export function GetUpdateConfig():Promise<models.UpdateConfig>;
+
 export function IsEncryptionEnabled():Promise<boolean>;
 
 export function IsEncryptionLocked():Promise<boolean>;
@@ -75,6 +79,8 @@ export function IsEncryptionLocked():Promise<boolean>;
 export function IsStorageReady():Promise<boolean>;
 
 export function LoadPersistedCA():Promise<void>;
+
+export function OpenURL(arg1:string):Promise<void>;
 
 export function QueryMessageGroups(arg1:models.FilterCriteria,arg2:string):Promise<Array<models.GroupSummary>>;
 
@@ -87,6 +93,10 @@ export function SelectCertFile():Promise<string>;
 export function SelectKeyFile():Promise<string>;
 
 export function SetStorageConfig(arg1:models.StorageConfig):Promise<void>;
+
+export function SetUpdateConfig(arg1:models.UpdateConfig):Promise<void>;
+
+export function SkipUpdateVersion(arg1:string):Promise<void>;
 
 export function StartServer(arg1:models.ServerConfig):Promise<void>;
 

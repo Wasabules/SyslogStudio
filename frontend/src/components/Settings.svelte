@@ -4,7 +4,8 @@
     import { appLocale, setLocale, SUPPORTED_LOCALES } from '../lib/i18n';
     import { toastSuccess, toastError } from '../lib/toast';
     import { dbStatsVersion, historyResult } from '../lib/stores';
-    import { enableEncryption, disableEncryption, isEncryptionEnabled } from '../lib/api';
+    import { enableEncryption, disableEncryption, isEncryptionEnabled, getUpdateConfig, setUpdateConfig } from '../lib/api';
+    import { updateStore } from '../lib/updateStore';
 
     export let visible = false;
     export let onClose: () => void = () => {};
@@ -15,13 +16,44 @@
     // --- General ---
     let enableNotifications = false;
     let autoUpdateCheck = true;
+    let updateIntervalHours = 24;
+    let updateChecking = false;
 
-    function initGeneralSettings() {
-        autoUpdateCheck = localStorage.getItem('syslogstudio-autoupdate') !== 'false';
+    async function initGeneralSettings() {
+        try {
+            const cfg = await getUpdateConfig();
+            autoUpdateCheck = cfg.autoCheck;
+            updateIntervalHours = cfg.intervalHours;
+        } catch {
+            /* ignore */
+        }
     }
 
-    function onAutoUpdateChange() {
-        localStorage.setItem('syslogstudio-autoupdate', autoUpdateCheck ? 'true' : 'false');
+    async function saveUpdatePrefs() {
+        try {
+            const cfg = await getUpdateConfig();
+            cfg.autoCheck = autoUpdateCheck;
+            cfg.intervalHours = updateIntervalHours;
+            await setUpdateConfig(cfg);
+        } catch {
+            /* ignore */
+        }
+    }
+
+    async function checkNow() {
+        updateChecking = true;
+        try {
+            const info = await updateStore.check({ silent: false });
+            if (info?.hasUpdate) {
+                toastSuccess($_('update.available', { values: { version: info.latestVersion } }));
+            } else {
+                toastSuccess($_('settings.upToDate'));
+            }
+        } catch (e: any) {
+            toastError($_('settings.updateCheckFailed', { values: { error: e?.message || String(e) } }));
+        } finally {
+            updateChecking = false;
+        }
     }
 
     // --- Storage ---
@@ -342,9 +374,27 @@
                     <div class="form-group checkbox-group">
                         <label>
                             <input type="checkbox" bind:checked={autoUpdateCheck}
-                                   on:change={onAutoUpdateChange} />
+                                   on:change={saveUpdatePrefs} />
                             {$_('settings.autoUpdateCheck')}
                         </label>
+                    </div>
+
+                    {#if autoUpdateCheck}
+                        <div class="form-group">
+                            <label for="settings-update-interval">{$_('settings.updateInterval')}</label>
+                            <select id="settings-update-interval" bind:value={updateIntervalHours}
+                                    on:change={saveUpdatePrefs}>
+                                <option value={0}>{$_('settings.intervalStartup')}</option>
+                                <option value={24}>{$_('settings.intervalDaily')}</option>
+                                <option value={168}>{$_('settings.intervalWeekly')}</option>
+                            </select>
+                        </div>
+                    {/if}
+
+                    <div class="form-group">
+                        <button on:click={checkNow} disabled={updateChecking}>
+                            {updateChecking ? $_('settings.checkingUpdates') : $_('settings.checkNow')}
+                        </button>
                     </div>
 
                 {:else if activeTab === 'storage'}

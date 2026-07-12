@@ -171,7 +171,15 @@
     "version": "Versión",
     "license": "Licencia",
     "bufferSize": "Tamaño del búfer en tiempo real",
-    "messagesApprox": "mensajes"
+    "messagesApprox": "mensajes",
+    "updateInterval": "Frecuencia de comprobación",
+    "intervalStartup": "En cada inicio",
+    "intervalDaily": "Diaria",
+    "intervalWeekly": "Semanal",
+    "checkNow": "Buscar actualizaciones",
+    "checkingUpdates": "Comprobando…",
+    "upToDate": "Ya tienes la última versión.",
+    "updateCheckFailed": "Error al buscar actualizaciones: {error}"
   },
   "alerts": {
     "rules": "Reglas de alerta",
@@ -221,5 +229,14 @@
     "unlock": "Unlock",
     "unlocking": "Unlocking...",
     "lockedOutSeconds": "Demasiados intentos fallidos. Bloqueado durante {seconds}s."
+  },
+  "update": {
+    "available": "SyslogStudio {version} está disponible",
+    "releaseNotes": "Notas de la versión",
+    "downloading": "Descargando",
+    "install": "Instalar y reiniciar",
+    "download": "Descargar",
+    "skip": "Omitir esta versión",
+    "later": "Más tarde"
   }
 }

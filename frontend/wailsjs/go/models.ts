@@ -503,11 +503,35 @@ export namespace models {
 	    }
 	}
 	
+	export class UpdateConfig {
+	    autoCheck: boolean;
+	    intervalHours: number;
+	    skipVersion: string;
+	    lastCheckUnix: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.autoCheck = source["autoCheck"];
+	        this.intervalHours = source["intervalHours"];
+	        this.skipVersion = source["skipVersion"];
+	        this.lastCheckUnix = source["lastCheckUnix"];
+	    }
+	}
 	export class UpdateInfo {
 	    currentVersion: string;
 	    latestVersion: string;
 	    updateUrl: string;
 	    hasUpdate: boolean;
+	    releaseNotes: string;
+	    releaseUrl: string;
+	    publishedAt: string;
+	    assetName: string;
+	    assetUrl: string;
+	    canSelfApply: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateInfo(source);
@@ -519,6 +543,12 @@ export namespace models {
 	        this.latestVersion = source["latestVersion"];
 	        this.updateUrl = source["updateUrl"];
 	        this.hasUpdate = source["hasUpdate"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.publishedAt = source["publishedAt"];
+	        this.assetName = source["assetName"];
+	        this.assetUrl = source["assetUrl"];
+	        this.canSelfApply = source["canSelfApply"];
 	    }
 	}
 

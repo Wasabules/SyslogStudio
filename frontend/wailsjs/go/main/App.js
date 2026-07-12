@@ -38,6 +38,10 @@ export function DisableEncryption(arg1) {
   return window['go']['main']['App']['DisableEncryption'](arg1);
 }
 
+export function DownloadAndApplyUpdate() {
+  return window['go']['main']['App']['DownloadAndApplyUpdate']();
+}
+
 export function EnableEncryption(arg1) {
   return window['go']['main']['App']['EnableEncryption'](arg1);
 }
@@ -134,6 +138,10 @@ export function GetUnlockLockoutSeconds() {
   return window['go']['main']['App']['GetUnlockLockoutSeconds']();
 }
 
+export function GetUpdateConfig() {
+  return window['go']['main']['App']['GetUpdateConfig']();
+}
+
 export function IsEncryptionEnabled() {
   return window['go']['main']['App']['IsEncryptionEnabled']();
 }
@@ -148,6 +156,10 @@ export function IsStorageReady() {
 
 export function LoadPersistedCA() {
   return window['go']['main']['App']['LoadPersistedCA']();
+}
+
+export function OpenURL(arg1) {
+  return window['go']['main']['App']['OpenURL'](arg1);
 }
 
 export function QueryMessageGroups(arg1, arg2) {
@@ -172,6 +184,14 @@ export function SelectKeyFile() {
 
 export function SetStorageConfig(arg1) {
   return window['go']['main']['App']['SetStorageConfig'](arg1);
+}
+
+export function SetUpdateConfig(arg1) {
+  return window['go']['main']['App']['SetUpdateConfig'](arg1);
+}
+
+export function SkipUpdateVersion(arg1) {
+  return window['go']['main']['App']['SkipUpdateVersion'](arg1);
 }
 
 export function StartServer(arg1) {
