@@ -29,6 +29,7 @@ type App struct {
 	configStore *storage.ConfigStore
 	caStore     *storage.CAStore
 	logStore    *storage.LogStore
+	updater     *updater.Service
 
 	encryptionPassword string // in-memory only for session
 }
@@ -51,12 +52,14 @@ func NewApp() *App {
 		tlsManager:  pki.NewTLSManager(),
 		configStore: cs,
 		caStore:     storage.NewCAStore(cs.Dir()),
+		updater:     updater.NewService("Wasabules", "SyslogStudio"),
 	}
 }
 
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.updater.SetContext(ctx)
 	emitter := event.NewWailsEventEmitter(ctx)
 	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)
 
@@ -565,14 +568,54 @@ func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 	return nil
 }
 
-// --- Update Check ---
+// --- Update Methods ---
 
-func (a *App) CheckForUpdate() models.UpdateInfo {
-	return updater.CheckForUpdate()
+// CheckForUpdate queries GitHub for the latest release. Errors are logged and
+// returned so the frontend can surface them (e.g. on a manual check).
+func (a *App) CheckForUpdate() (models.UpdateInfo, error) {
+	info, err := a.updater.CheckForUpdate()
+	if err != nil {
+		slog.Warn("update check failed", "error", err)
+		return info, err
+	}
+	// Record the successful check time (used to throttle auto-checks).
+	cfg := a.configStore.LoadUpdateConfig()
+	cfg.LastCheckUnix = time.Now().Unix()
+	a.configStore.SaveUpdateConfig(cfg)
+	return info, nil
 }
 
+// DownloadAndApplyUpdate downloads the pending update, verifies it, and applies
+// it (self-replace + relaunch, run the installer, or open the browser).
+func (a *App) DownloadAndApplyUpdate() error {
+	return a.updater.DownloadAndApply()
+}
+
+// GetAppVersion returns the current application version string.
 func (a *App) GetAppVersion() string {
-	return updater.AppVersion
+	return updater.GetAppVersion()
+}
+
+// OpenURL opens a URL in the user's default browser.
+func (a *App) OpenURL(url string) {
+	wailsRuntime.BrowserOpenURL(a.ctx, url)
+}
+
+// GetUpdateConfig returns the persisted update-check preferences.
+func (a *App) GetUpdateConfig() models.UpdateConfig {
+	return a.configStore.LoadUpdateConfig()
+}
+
+// SetUpdateConfig persists update-check preferences.
+func (a *App) SetUpdateConfig(cfg models.UpdateConfig) {
+	a.configStore.SaveUpdateConfig(cfg)
+}
+
+// SkipUpdateVersion records a release version the user chose to skip.
+func (a *App) SkipUpdateVersion(version string) {
+	cfg := a.configStore.LoadUpdateConfig()
+	cfg.SkipVersion = version
+	a.configStore.SaveUpdateConfig(cfg)
 }
 
 // --- File Selection Dialogs ---

@@ -1,0 +1,223 @@
+package updater
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/minio/selfupdate"
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+const progressEvent = "update:progress"
+
+// DownloadAndApply downloads the pending update, verifies its checksum (and,
+// when enforced, the manifest signature), and applies it according to the
+// resolved mode. Requires a prior successful CheckForUpdate.
+func (s *Service) DownloadAndApply() error {
+	s.mu.Lock()
+	p := s.pending
+	ctx := s.ctx
+	s.mu.Unlock()
+	if p == nil {
+		return fmt.Errorf("no pending update; check for updates first")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if p.mode == applyBrowser {
+		wruntime.BrowserOpenURL(ctx, p.assetURL)
+		return nil
+	}
+
+	if p.checksumURL == "" {
+		return fmt.Errorf("release is missing the checksums manifest; cannot verify the update")
+	}
+	wantSum, err := s.verifiedChecksum(ctx, p.checksumURL, p.checksumSigURL, p.assetName)
+	if err != nil {
+		return err
+	}
+
+	tmpPath, gotSum, err := s.download(ctx, p.assetURL, p.assetName)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpPath)
+
+	if !strings.EqualFold(gotSum, wantSum) {
+		return fmt.Errorf("checksum mismatch for %s: expected %s, got %s", p.assetName, wantSum, gotSum)
+	}
+
+	switch p.mode {
+	case applyInstaller:
+		return s.runInstaller(ctx, tmpPath)
+	default:
+		return s.applyBinary(ctx, tmpPath)
+	}
+}
+
+// verifiedChecksum fetches the checksums manifest, verifies its signature when
+// enforced, and returns the expected SHA-256 for asset.
+func (s *Service) verifiedChecksum(ctx context.Context, checksumURL, sigURL, asset string) (string, error) {
+	manifest, err := s.fetchBytes(ctx, checksumURL)
+	if err != nil {
+		return "", fmt.Errorf("fetch checksums: %w", err)
+	}
+	if signatureEnforced() {
+		if sigURL == "" {
+			return "", fmt.Errorf("release checksums are not signed but a signature is required")
+		}
+		sig, err := s.fetchBytes(ctx, sigURL)
+		if err != nil {
+			return "", fmt.Errorf("fetch checksums signature: %w", err)
+		}
+		if err := verifyManifestSignature(manifest, sig); err != nil {
+			return "", err
+		}
+	}
+	return parseChecksum(manifest, asset)
+}
+
+// download streams the asset to a temp file, returning its path and the
+// hex SHA-256 computed on the fly. It emits progress events while downloading.
+func (s *Service) download(ctx context.Context, url, asset string) (path, sum string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("download: unexpected status %d", resp.StatusCode)
+	}
+
+	f, err := os.CreateTemp("", "syslogstudio-update-*-"+asset)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	pr := &progressReader{ctx: ctx, reader: resp.Body, total: resp.ContentLength}
+	if _, err := io.Copy(io.MultiWriter(f, h), pr); err != nil {
+		os.Remove(f.Name())
+		return "", "", err
+	}
+	wruntime.EventsEmit(ctx, progressEvent, 100)
+	return f.Name(), hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// fetchBytes downloads a small file (checksums/signature) fully into memory,
+// capped at 1 MiB.
+func (s *Service) fetchBytes(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+}
+
+// parseChecksum finds asset's SHA-256 in a `sha256sum`-format manifest
+// ("<hex>␠␠<name>" per line), tolerating the "*" binary-mode marker.
+func parseChecksum(manifest []byte, asset string) (string, error) {
+	for _, line := range strings.Split(string(manifest), "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) != 2 {
+			continue
+		}
+		name := strings.TrimPrefix(fields[1], "*")
+		if filepath.Base(name) == asset {
+			return fields[0], nil
+		}
+	}
+	return "", fmt.Errorf("no checksum for %q in manifest", asset)
+}
+
+// applyBinary self-replaces the running executable with the downloaded binary
+// and relaunches.
+func (s *Service) applyBinary(ctx context.Context, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := selfupdate.Apply(f, selfupdate.Options{}); err != nil {
+		if rerr := selfupdate.RollbackError(err); rerr != nil {
+			return fmt.Errorf("update failed and rollback failed: %v (rollback: %v)", err, rerr)
+		}
+		return fmt.Errorf("applying update: %w", err)
+	}
+	s.relaunch(ctx)
+	return nil
+}
+
+// runInstaller launches the downloaded installer and quits the app so the
+// installer can replace files in place.
+func (s *Service) runInstaller(ctx context.Context, path string) error {
+	target := path
+	if !strings.EqualFold(filepath.Ext(path), ".exe") {
+		target = path + ".exe"
+		if err := os.Rename(path, target); err != nil {
+			return fmt.Errorf("prepare installer: %w", err)
+		}
+	}
+	if err := exec.Command(target).Start(); err != nil {
+		return fmt.Errorf("launch installer: %w", err)
+	}
+	wruntime.Quit(ctx)
+	return nil
+}
+
+// relaunch starts a fresh copy of the (now updated) executable and quits.
+func (s *Service) relaunch(ctx context.Context) {
+	if exe, err := os.Executable(); err == nil {
+		_ = exec.Command(exe).Start()
+	}
+	time.Sleep(300 * time.Millisecond)
+	wruntime.Quit(ctx)
+}
+
+// progressReader wraps the download body and emits throttled integer-percent
+// update:progress events.
+type progressReader struct {
+	ctx      context.Context
+	reader   io.Reader
+	total    int64
+	read     int64
+	lastPct  int
+	lastEmit time.Time
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.reader.Read(p)
+	pr.read += int64(n)
+	if pr.total > 0 {
+		pct := int(pr.read * 100 / pr.total)
+		if pct != pr.lastPct && time.Since(pr.lastEmit) > 100*time.Millisecond {
+			pr.lastPct = pct
+			pr.lastEmit = time.Now()
+			wruntime.EventsEmit(pr.ctx, progressEvent, pct)
+		}
+	}
+	return n, err
+}
