@@ -1,8 +1,10 @@
 package syslog
 
 import (
+	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
@@ -701,4 +703,143 @@ func TestProcessMessage_Integration(t *testing.T) {
 	if msg.Protocol != "TCP" {
 		t.Errorf("expected protocol 'TCP', got %q", msg.Protocol)
 	}
+}
+
+func TestAcquireConnSlot_LimitEnforced(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	s.connSem = make(chan struct{}, 2)
+
+	sem1 := s.acquireConnSlot()
+	if sem1 == nil {
+		t.Fatal("first slot should be granted")
+	}
+	sem2 := s.acquireConnSlot()
+	if sem2 == nil {
+		t.Fatal("second slot should be granted")
+	}
+	if got := s.acquireConnSlot(); got != nil {
+		t.Fatal("third slot should be rejected at limit 2")
+	}
+
+	// Releasing one slot makes room again.
+	<-sem1
+	if got := s.acquireConnSlot(); got == nil {
+		t.Fatal("slot should be granted after release")
+	}
+}
+
+func TestAcquireConnSlot_NilSemaphore(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	// Server never started: connSem is nil.
+	if got := s.acquireConnSlot(); got != nil {
+		t.Fatal("acquireConnSlot must return nil when server is not running")
+	}
+}
+
+func TestSourceAllowed(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+
+	// Empty allowlist admits everything.
+	if !s.sourceAllowed(net.ParseIP("203.0.113.7")) {
+		t.Error("empty allowlist must admit all sources")
+	}
+
+	for _, entry := range []string{"10.0.0.0/8", "192.168.1.5"} {
+		ipNet, err := models.ParseSourceEntry(entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.allowNets = append(s.allowNets, ipNet)
+	}
+
+	tests := []struct {
+		ip   string
+		want bool
+	}{
+		{"10.1.2.3", true},
+		{"10.255.255.255", true},
+		{"192.168.1.5", true},
+		{"192.168.1.6", false},
+		{"203.0.113.7", false},
+	}
+	for _, tt := range tests {
+		if got := s.sourceAllowed(net.ParseIP(tt.ip)); got != tt.want {
+			t.Errorf("sourceAllowed(%s) = %v, want %v", tt.ip, got, tt.want)
+		}
+	}
+
+	// Nil IP with a configured allowlist must be rejected.
+	if s.sourceAllowed(nil) {
+		t.Error("nil IP must be rejected when an allowlist is configured")
+	}
+}
+
+func TestStop_ClosesIdleTCPConnection(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	cfg := models.DefaultServerConfig()
+	cfg.UDPEnabled = false
+	cfg.TCPEnabled = true
+	// ValidateServerConfig (called by Start) rejects port 0, so reserve a
+	// concrete free port from the OS instead. Bind to loopback to keep the
+	// test off external interfaces (and avoid a Windows firewall prompt).
+	cfg.BindAddress = "127.0.0.1"
+	cfg.TCPPort = freeTCPPort(t)
+	if err := s.Start(cfg); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	// Discover the actual listen address.
+	s.mu.RLock()
+	ln := s.tcpListener
+	s.mu.RUnlock()
+	if ln == nil {
+		t.Fatal("tcp listener not created")
+	}
+	addr := ln.Addr().String()
+
+	// Open a connection and keep it idle (no newline sent), which parks
+	// the handler in scanner.Scan() under the read deadline.
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Give the accept loop a moment to register the connection.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.connsMu.Lock()
+		n := len(s.conns)
+		s.connsMu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Stop must return promptly, well under tcpReadTimeout (5 minutes).
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop did not return promptly with an idle TCP connection")
+	}
+}
+
+// freeTCPPort asks the OS for an unused TCP port on loopback and releases
+// it immediately, returning the port number so a listener can rebind it.
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve free port: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
 }

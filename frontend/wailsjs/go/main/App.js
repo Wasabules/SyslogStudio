@@ -130,6 +130,10 @@ export function GetUnlockAttemptsRemaining() {
   return window['go']['main']['App']['GetUnlockAttemptsRemaining']();
 }
 
+export function GetUnlockLockoutSeconds() {
+  return window['go']['main']['App']['GetUnlockLockoutSeconds']();
+}
+
 export function IsEncryptionEnabled() {
   return window['go']['main']['App']['IsEncryptionEnabled']();
 }
@@ -140,6 +144,10 @@ export function IsEncryptionLocked() {
 
 export function IsStorageReady() {
   return window['go']['main']['App']['IsStorageReady']();
+}
+
+export function LoadPersistedCA() {
+  return window['go']['main']['App']['LoadPersistedCA']();
 }
 
 export function QueryMessageGroups(arg1, arg2) {

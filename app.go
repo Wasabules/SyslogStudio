@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/csv"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
@@ -25,19 +27,30 @@ type App struct {
 	server      *syslog.SyslogServer
 	tlsManager  *pki.TLSManager
 	configStore *storage.ConfigStore
+	caStore     *storage.CAStore
 	logStore    *storage.LogStore
 
 	encryptionPassword string // in-memory only for session
-	unlockAttempts     int
 }
 
-const maxUnlockAttempts = 5
+const (
+	// unlockAttemptsBeforeBackoff is how many failed unlock attempts are
+	// allowed before a backoff delay begins.
+	unlockAttemptsBeforeBackoff = 5
+	// baseLockoutBackoff is the delay imposed at the first backoff step;
+	// it doubles with each subsequent failed attempt.
+	baseLockoutBackoff = 30 * time.Second
+	// maxLockoutBackoff caps the backoff delay.
+	maxLockoutBackoff = 15 * time.Minute
+)
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
+	cs := storage.NewConfigStore()
 	return &App{
 		tlsManager:  pki.NewTLSManager(),
-		configStore: storage.NewConfigStore(),
+		configStore: cs,
+		caStore:     storage.NewCAStore(cs.Dir()),
 	}
 }
 
@@ -62,6 +75,18 @@ func (a *App) startup(ctx context.Context) {
 	if len(rules) > 0 {
 		a.server.AlertManager.SetRules(rules)
 		slog.Info("restored alert rules", "count", len(rules))
+	}
+
+	// Restore a persisted CA if one exists and is not encrypted. An
+	// encrypted CA is loaded after the database is unlocked.
+	if a.caStore != nil && a.caStore.Exists() && !a.caStore.IsEncrypted() {
+		if certPEM, keyPEM, err := a.caStore.Load(""); err == nil && len(certPEM) > 0 {
+			if err := a.tlsManager.LoadCAMaterial(certPEM, keyPEM); err != nil {
+				slog.Warn("failed to load persisted CA", "error", err)
+			} else {
+				slog.Info("restored persisted CA")
+			}
+		}
 	}
 }
 
@@ -178,7 +203,49 @@ func (a *App) ClearDatabase() error {
 // --- PKI / Certificate Methods ---
 
 func (a *App) GenerateCA(opts models.CertOptions) (models.CertInfo, error) {
-	return a.tlsManager.GenerateCA(opts)
+	info, err := a.tlsManager.GenerateCA(opts)
+	if err != nil {
+		return info, err
+	}
+	a.persistCA()
+	return info, nil
+}
+
+// persistCA saves the current CA to disk, encrypting it with the session
+// password when encryption is enabled. Failures are logged but do not
+// abort CA generation, since an in-memory CA is still usable this session.
+func (a *App) persistCA() {
+	if a.caStore == nil {
+		return
+	}
+	certPEM, keyPEM, err := a.tlsManager.GetCAMaterial()
+	if err != nil {
+		return
+	}
+	if err := a.caStore.Save(certPEM, keyPEM, a.encryptionPassword); err != nil {
+		slog.Warn("failed to persist CA", "error", err)
+		return
+	}
+	if a.encryptionPassword == "" {
+		slog.Warn("CA private key persisted unencrypted (0600); enable encryption to protect it at rest")
+	}
+}
+
+// LoadPersistedCA loads an encrypted persisted CA using the current
+// session password. Called after the database is unlocked. Returns nil if
+// there is no encrypted CA to load.
+func (a *App) LoadPersistedCA() error {
+	if a.caStore == nil || !a.caStore.Exists() || !a.caStore.IsEncrypted() {
+		return nil
+	}
+	certPEM, keyPEM, err := a.caStore.Load(a.encryptionPassword)
+	if err != nil {
+		return err
+	}
+	if len(certPEM) == 0 {
+		return nil
+	}
+	return a.tlsManager.LoadCAMaterial(certPEM, keyPEM)
 }
 
 func (a *App) GenerateServerCert(opts models.CertOptions) (models.CertInfo, error) {
@@ -331,9 +398,29 @@ func (a *App) ClearAlertHistory() {
 
 // --- Encryption Methods ---
 
-// GetUnlockAttemptsRemaining returns how many unlock attempts are left.
+// GetUnlockAttemptsRemaining returns how many unlock attempts remain
+// before the next backoff delay is applied.
 func (a *App) GetUnlockAttemptsRemaining() int {
-	return maxUnlockAttempts - a.unlockAttempts
+	state := a.configStore.LoadLockout()
+	remaining := unlockAttemptsBeforeBackoff - (state.FailedAttempts % unlockAttemptsBeforeBackoff)
+	if remaining < 0 {
+		remaining = 0
+	}
+	return remaining
+}
+
+// GetUnlockLockoutSeconds returns the number of seconds remaining in the
+// current lockout window, or 0 if unlock attempts are currently allowed.
+func (a *App) GetUnlockLockoutSeconds() int {
+	state := a.configStore.LoadLockout()
+	if state.LockedUntilUnix == 0 {
+		return 0
+	}
+	remaining := state.LockedUntilUnix - time.Now().Unix()
+	if remaining < 0 {
+		return 0
+	}
+	return int(remaining)
 }
 
 // IsEncryptionEnabled returns whether encryption is configured.
@@ -346,32 +433,52 @@ func (a *App) IsEncryptionLocked() bool {
 	return a.logStore != nil && a.logStore.IsLocked()
 }
 
+// lockoutBackoff returns the delay to impose after failedAttempts
+// consecutive failures. No delay until the threshold is reached, then an
+// exponentially growing delay capped at maxLockoutBackoff.
+func lockoutBackoff(failedAttempts int) time.Duration {
+	if failedAttempts < unlockAttemptsBeforeBackoff {
+		return 0
+	}
+	steps := failedAttempts - unlockAttemptsBeforeBackoff // 0, 1, 2, ...
+	delay := baseLockoutBackoff << steps
+	if delay > maxLockoutBackoff || delay <= 0 {
+		delay = maxLockoutBackoff
+	}
+	return delay
+}
+
 // UnlockDatabase decrypts the database with the given password and opens it.
-// After maxUnlockAttempts failed attempts, the application is closed.
+// Failed attempts accumulate in persisted state; after a threshold, an
+// exponentially growing backoff delay is enforced that survives restarts,
+// so relaunching the app cannot be used to reset the counter or bypass
+// the delay.
 func (a *App) UnlockDatabase(password string) error {
 	if a.logStore == nil {
 		return fmt.Errorf("log store not initialized")
 	}
-	if a.unlockAttempts >= maxUnlockAttempts {
-		go func() {
-			wailsRuntime.Quit(a.ctx)
-		}()
-		return fmt.Errorf("too many failed attempts")
+
+	state := a.configStore.LoadLockout()
+	if wait := state.LockedUntilUnix - time.Now().Unix(); state.LockedUntilUnix != 0 && wait > 0 {
+		return fmt.Errorf("too many failed attempts — locked for %d more seconds", wait)
 	}
+
 	if err := a.logStore.UnlockAndOpen(password); err != nil {
-		a.unlockAttempts++
-		remaining := maxUnlockAttempts - a.unlockAttempts
-		slog.Warn("unlock failed", "attempt", a.unlockAttempts, "remaining", remaining)
-		if a.unlockAttempts >= maxUnlockAttempts {
-			slog.Error("max unlock attempts reached, shutting down")
-			go func() {
-				wailsRuntime.Quit(a.ctx)
-			}()
-			return fmt.Errorf("too many failed attempts — application will close")
+		state.FailedAttempts++
+		if backoff := lockoutBackoff(state.FailedAttempts); backoff > 0 {
+			state.LockedUntilUnix = time.Now().Add(backoff).Unix()
+			a.configStore.SaveLockout(state)
+			slog.Warn("unlock failed, backoff enforced", "attempts", state.FailedAttempts, "backoffSeconds", int(backoff.Seconds()))
+			return fmt.Errorf("wrong password — locked for %d seconds after %d failed attempts", int(backoff.Seconds()), state.FailedAttempts)
 		}
-		return fmt.Errorf("wrong password (%d attempts remaining)", remaining)
+		a.configStore.SaveLockout(state)
+		remaining := unlockAttemptsBeforeBackoff - state.FailedAttempts
+		slog.Warn("unlock failed", "attempts", state.FailedAttempts, "remaining", remaining)
+		return fmt.Errorf("wrong password (%d attempts remaining before lockout)", remaining)
 	}
-	a.unlockAttempts = 0
+
+	// Success: clear persisted lockout state.
+	a.configStore.SaveLockout(models.LockoutState{})
 	a.encryptionPassword = password
 	a.server.LogStore = a.logStore
 
@@ -379,6 +486,11 @@ func (a *App) UnlockDatabase(password string) error {
 	rules := a.configStore.LoadAlertRules()
 	if len(rules) > 0 {
 		a.server.AlertManager.SetRules(rules)
+	}
+
+	// Load an encrypted persisted CA now that the password is available.
+	if err := a.LoadPersistedCA(); err != nil {
+		slog.Warn("failed to load persisted CA after unlock", "error", err)
 	}
 	return nil
 }
@@ -396,15 +508,28 @@ func (a *App) EnableEncryption(password string) error {
 		a.logStore.SetEncryptionPassword(password)
 		a.logStore.UpdateConfig(cfg)
 	}
+	if a.caStore != nil && a.tlsManager.HasCA() {
+		a.persistCA()
+	}
 	return nil
 }
 
 // DisableEncryption disables at-rest encryption after verifying the password.
 func (a *App) DisableEncryption(password string) error {
-	if a.encryptionPassword != "" && password != a.encryptionPassword {
-		return fmt.Errorf("incorrect password")
-	}
 	cfg := a.configStore.LoadStorage()
+	if cfg.EncryptionEnabled {
+		// If the session password is not present (e.g. fresh start with a
+		// still-locked database), require an unlock first. Previously an
+		// empty session password caused the verification to be skipped
+		// entirely, allowing encryption to be disabled without knowing
+		// the password.
+		if a.encryptionPassword == "" {
+			return fmt.Errorf("database must be unlocked before disabling encryption")
+		}
+		if subtle.ConstantTimeCompare([]byte(password), []byte(a.encryptionPassword)) != 1 {
+			return fmt.Errorf("incorrect password")
+		}
+	}
 	cfg.EncryptionEnabled = false
 	a.configStore.SaveStorage(cfg)
 	a.encryptionPassword = ""
@@ -412,12 +537,18 @@ func (a *App) DisableEncryption(password string) error {
 		a.logStore.SetEncryptionPassword("")
 		a.logStore.UpdateConfig(cfg)
 	}
+	if a.caStore != nil && a.tlsManager.HasCA() {
+		a.persistCA()
+	}
 	return nil
 }
 
 // ChangeEncryptionPassword changes the encryption password.
 func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
-	if oldPassword != a.encryptionPassword {
+	if a.encryptionPassword == "" {
+		return fmt.Errorf("database must be unlocked before changing the password")
+	}
+	if subtle.ConstantTimeCompare([]byte(oldPassword), []byte(a.encryptionPassword)) != 1 {
 		return fmt.Errorf("incorrect current password")
 	}
 	if newPassword == "" {
@@ -426,6 +557,10 @@ func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 	a.encryptionPassword = newPassword
 	if a.logStore != nil {
 		a.logStore.SetEncryptionPassword(newPassword)
+	}
+	// Re-persist the CA (if any) under the new password.
+	if a.caStore != nil && a.tlsManager.HasCA() {
+		a.persistCA()
 	}
 	return nil
 }
@@ -515,6 +650,24 @@ func (a *App) ExportLogs(filter models.FilterCriteria, format string) (string, e
 	return path, nil
 }
 
+// sanitizeCSVField neutralizes spreadsheet formula injection (CWE-1236).
+// Syslog message content is attacker-controlled; a message starting with
+// '=', '+', '-' or '@' would be interpreted as a formula when the exported
+// CSV is opened in Excel or LibreOffice. Prefixing a single quote forces
+// the cell to be treated as text. Leading tab/CR are stripped as they can
+// be used to smuggle a formula prefix past naive checks.
+func sanitizeCSVField(s string) string {
+	trimmed := strings.TrimLeft(s, "\t\r")
+	if trimmed == "" {
+		return s
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + s
+	}
+	return s
+}
+
 func writeCSV(path string, messages []models.SyslogMessage) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -537,10 +690,10 @@ func writeCSV(path string, messages []models.SyslogMessage) error {
 			msg.Timestamp.Format("2006-01-02 15:04:05"),
 			msg.SeverityLabel,
 			msg.FacilityLabel,
-			msg.Hostname,
-			msg.AppName,
-			msg.ProcID,
-			msg.Message,
+			sanitizeCSVField(msg.Hostname),
+			sanitizeCSVField(msg.AppName),
+			sanitizeCSVField(msg.ProcID),
+			sanitizeCSVField(msg.Message),
 			msg.SourceIP,
 			msg.Protocol,
 		})

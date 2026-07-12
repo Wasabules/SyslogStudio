@@ -22,7 +22,11 @@
     "start": "Starten",
     "stop": "Stoppen",
     "tlsConfig": "TLS-Konfiguration",
-    "error": "Fehler: {error}"
+    "error": "Fehler: {error}",
+    "allInterfaces": "Alle Schnittstellen",
+    "bindAddressHint": "Bind-Adresse: lokale IP, auf der gelauscht wird. Leer = alle Schnittstellen.",
+    "allowedSources": "Erlaubte Quellen",
+    "allowedSourcesHint": "Erlaubte Quellen: IPs oder CIDR-Bereiche, kommagetrennt. Leer = alle erlauben. Hinweis: UDP-Quellen können gefälscht sein."
   },
   "filter": {
     "severity": "Schweregrad",
@@ -215,6 +219,7 @@
     "unlockTitle": "Database Locked",
     "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
     "unlock": "Unlock",
-    "unlocking": "Unlocking..."
+    "unlocking": "Unlocking...",
+    "lockedOutSeconds": "Zu viele Fehlversuche. Gesperrt für {seconds}s."
   }
 }

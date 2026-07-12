@@ -53,6 +53,8 @@ export interface ServerConfig {
     udpPort: number;
     tcpPort: number;
     tlsPort: number;
+    bindAddress: string;
+    allowedSources: string[];
     maxBuffer: number;
     certFile: string;
     keyFile: string;
@@ -149,7 +151,7 @@ export const serverStatus = writable<ServerStatus>({
     tlsRunning: false,
     config: {
         udpEnabled: true, tcpEnabled: false, tlsEnabled: false,
-        udpPort: 514, tcpPort: 514, tlsPort: 6514,
+        udpPort: 514, tcpPort: 514, tlsPort: 6514, bindAddress: '', allowedSources: [],
         maxBuffer: 10000, certFile: '', keyFile: '', useSelfSigned: false,
         certOptions: { algorithm: 'ECDSA-P256', validityDays: 365, commonName: 'SyslogStudio', organization: 'SyslogStudio', dnsNames: ['localhost'], ipAddresses: ['127.0.0.1', '::1'] },
         mutualTLS: false, caFile: '',

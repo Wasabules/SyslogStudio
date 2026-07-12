@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,7 +63,9 @@ func CheckForUpdate() models.UpdateInfo {
 	return info
 }
 
-// isNewer returns true if latest > current using simple string comparison on semver tags.
+// isNewer returns true if latest > current, comparing semver-style tags
+// (e.g. "v1.10.0") component-wise as integers. A lexicographic comparison
+// would incorrectly consider "1.10.0" older than "1.9.0".
 func isNewer(latest, current string) bool {
 	latest = strings.TrimPrefix(latest, "v")
 	current = strings.TrimPrefix(current, "v")
@@ -74,10 +77,23 @@ func isNewer(latest, current string) bool {
 	cParts := strings.Split(current, ".")
 
 	for i := 0; i < len(lParts) && i < len(cParts); i++ {
-		if lParts[i] > cParts[i] {
+		l, lErr := strconv.Atoi(strings.TrimSpace(lParts[i]))
+		c, cErr := strconv.Atoi(strings.TrimSpace(cParts[i]))
+		if lErr != nil || cErr != nil {
+			// Non-numeric component (e.g. pre-release suffix):
+			// fall back to string comparison for this component.
+			if lParts[i] > cParts[i] {
+				return true
+			}
+			if lParts[i] < cParts[i] {
+				return false
+			}
+			continue
+		}
+		if l > c {
 			return true
 		}
-		if lParts[i] < cParts[i] {
+		if l < c {
 			return false
 		}
 	}

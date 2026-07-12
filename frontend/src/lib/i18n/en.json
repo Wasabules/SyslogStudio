@@ -24,7 +24,11 @@
     "start": "Start",
     "stop": "Stop",
     "tlsConfig": "TLS Config",
-    "error": "Error: {error}"
+    "error": "Error: {error}",
+    "allInterfaces": "All interfaces",
+    "bindAddressHint": "Bind address: local IP to listen on. Empty = all interfaces.",
+    "allowedSources": "Allowed sources",
+    "allowedSourcesHint": "Allowed sources: IPs or CIDR ranges, comma-separated. Empty = allow all. Note: UDP sources can be spoofed."
   },
   "filter": {
     "severity": "Severity",
@@ -238,6 +242,7 @@
     "progressWriting": "Writing database...",
     "progressInitializing": "Opening database...",
     "progressIndexing": "Rebuilding search index...",
-    "progressDone": "Done"
+    "progressDone": "Done",
+    "lockedOutSeconds": "Too many failed attempts. Locked for {seconds}s."
   }
 }

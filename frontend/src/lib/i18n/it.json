@@ -22,7 +22,11 @@
     "start": "Avvia",
     "stop": "Arresta",
     "tlsConfig": "Configurazione TLS",
-    "error": "Errore: {error}"
+    "error": "Errore: {error}",
+    "allInterfaces": "Tutte le interfacce",
+    "bindAddressHint": "Indirizzo di ascolto: IP locale su cui ascoltare. Vuoto = tutte le interfacce.",
+    "allowedSources": "Origini consentite",
+    "allowedSourcesHint": "Origini consentite: IP o intervalli CIDR, separati da virgole. Vuoto = consenti tutti. Nota: le origini UDP possono essere contraffatte."
   },
   "filter": {
     "severity": "Gravità",
@@ -215,6 +219,7 @@
     "unlockTitle": "Database Locked",
     "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
     "unlock": "Unlock",
-    "unlocking": "Unlocking..."
+    "unlocking": "Unlocking...",
+    "lockedOutSeconds": "Troppi tentativi falliti. Bloccato per {seconds}s."
   }
 }

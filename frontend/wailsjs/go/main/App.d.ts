@@ -66,11 +66,15 @@ export function GetStorageStats():Promise<models.StorageStats>;
 
 export function GetUnlockAttemptsRemaining():Promise<number>;
 
+export function GetUnlockLockoutSeconds():Promise<number>;
+
 export function IsEncryptionEnabled():Promise<boolean>;
 
 export function IsEncryptionLocked():Promise<boolean>;
 
 export function IsStorageReady():Promise<boolean>;
+
+export function LoadPersistedCA():Promise<void>;
 
 export function QueryMessageGroups(arg1:models.FilterCriteria,arg2:string):Promise<Array<models.GroupSummary>>;
 

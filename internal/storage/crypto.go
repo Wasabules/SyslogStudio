@@ -275,6 +275,66 @@ func writeChunked(f *os.File, data []byte, onProgress func(pct float64)) error {
 	return nil
 }
 
+// EncryptBytes encrypts plaintext with AES-256-GCM using a key derived
+// from password via Argon2id. Output format matches the file format:
+// [1 byte version][16 bytes salt][12 bytes nonce][ciphertext + GCM tag].
+func EncryptBytes(plaintext []byte, password string) ([]byte, error) {
+	salt := make([]byte, saltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, fmt.Errorf("generate salt: %w", err)
+	}
+	nonce := make([]byte, nonceLen)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("generate nonce: %w", err)
+	}
+	key := DeriveKey(password, salt)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("create cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create GCM: %w", err)
+	}
+
+	out := make([]byte, 0, headerLen+len(plaintext)+gcm.Overhead())
+	out = append(out, encFileVersion)
+	out = append(out, salt...)
+	out = append(out, nonce...)
+	out = gcm.Seal(out, nonce, plaintext, nil)
+	return out, nil
+}
+
+// DecryptBytes reverses EncryptBytes. Returns ErrWrongPassword if the
+// password is wrong or the data was tampered with, ErrInvalidFile if the
+// header is malformed.
+func DecryptBytes(data []byte, password string) ([]byte, error) {
+	if len(data) < headerLen {
+		return nil, ErrInvalidFile
+	}
+	if data[0] != encFileVersion {
+		return nil, fmt.Errorf("%w: unsupported version %d", ErrInvalidFile, data[0])
+	}
+	salt := data[1 : 1+saltLen]
+	nonce := data[1+saltLen : headerLen]
+	ciphertext := data[headerLen:]
+
+	key := DeriveKey(password, salt)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("create cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create GCM: %w", err)
+	}
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, ErrWrongPassword
+	}
+	return plaintext, nil
+}
+
 // EncryptedFileExists checks if an encrypted version of dbPath exists.
 func EncryptedFileExists(dbPath string) bool {
 	_, err := os.Stat(dbPath + ".enc")
