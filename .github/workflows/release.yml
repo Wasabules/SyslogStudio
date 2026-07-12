@@ -32,6 +32,17 @@ jobs:
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
+      - name: Set product version from tag
+        shell: bash
+        run: |
+          # Propagate the release tag into wails.json so NSIS embeds the real
+          # version in the Add/Remove Programs registry (DisplayVersion) and in
+          # the exe's VERSIONINFO. Without this, Wails falls back to its default
+          # "1.0.0" regardless of the tag (issue #3).
+          v="${GITHUB_REF_NAME#v}"
+          tmp="$(mktemp)"
+          jq --arg v "$v" '.info.productVersion = $v' wails.json > "$tmp" && mv "$tmp" wails.json
+          echo "wails.json info.productVersion set to $v"
       - name: Build with NSIS
         run: wails build -nsis -ldflags "-X main.AppVersion=${{ github.ref_name }}"
       - name: List build output
@@ -65,6 +76,16 @@ jobs:
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
+      - name: Set product version from tag
+        shell: bash
+        run: |
+          # Same as the Windows job: propagate the tag into wails.json so the
+          # macOS bundle's CFBundleShortVersionString reflects the real version
+          # instead of Wails's default "1.0.0".
+          v="${GITHUB_REF_NAME#v}"
+          tmp="$(mktemp)"
+          jq --arg v "$v" '.info.productVersion = $v' wails.json > "$tmp" && mv "$tmp" wails.json
+          echo "wails.json info.productVersion set to $v"
       - name: Build
         run: wails build -platform darwin/universal -ldflags "-X main.AppVersion=${{ github.ref_name }}"
       - name: Create portable zip
