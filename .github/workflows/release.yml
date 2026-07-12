@@ -7,6 +7,18 @@ on:
 permissions:
   contents: write
 
+# Asset names are FIXED (no version in the filename) so the in-app updater can
+# match them by constant name across releases:
+#   SyslogStudio-windows-amd64.exe          raw exe   (self-update, portable)
+#   SyslogStudio-windows-amd64-setup.exe    NSIS installer
+#   SyslogStudio-windows-amd64.zip          portable zip (manual download)
+#   SyslogStudio-macos-universal.dmg        DMG (manual download / macOS update)
+#   SyslogStudio-macos-universal.zip        zipped .app
+#   SyslogStudio-linux-amd64                raw binary (self-update, portable)
+#   SyslogStudio-linux-amd64.deb            Debian package
+#   SyslogStudio-linux-amd64.tar.gz         portable tarball
+#   SyslogStudio-checksums.txt(.sig)        SHA-256 manifest + Ed25519 signature
+
 jobs:
   build-windows:
     name: Windows (amd64)
@@ -44,19 +56,20 @@ jobs:
           jq --arg v "$v" '.info.productVersion = $v' wails.json > "$tmp" && mv "$tmp" wails.json
           echo "wails.json info.productVersion set to $v"
       - name: Build with NSIS
-        run: wails build -nsis -ldflags "-X main.AppVersion=${{ github.ref_name }}"
-      - name: List build output
-        run: Get-ChildItem build\bin\
-      - name: Create portable zip
-        run: Compress-Archive -Path build\bin\SyslogStudio.exe -DestinationPath "SyslogStudio-${{ github.ref_name }}-windows-amd64.zip"
-      - name: Rename installer
-        run: Move-Item -Path "build\bin\*installer*.exe" -Destination "SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe"
+        run: wails build -nsis -ldflags "-X SyslogStudio/internal/updater.AppVersion=${{ github.ref_name }}"
+      - name: Package assets
+        shell: bash
+        run: |
+          cp build/bin/SyslogStudio.exe SyslogStudio-windows-amd64.exe
+          mv build/bin/*installer*.exe SyslogStudio-windows-amd64-setup.exe
+          powershell -Command "Compress-Archive -Path build/bin/SyslogStudio.exe -DestinationPath SyslogStudio-windows-amd64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
           path: |
-            SyslogStudio-${{ github.ref_name }}-windows-amd64.zip
-            SyslogStudio-${{ github.ref_name }}-windows-amd64-setup.exe
+            SyslogStudio-windows-amd64.exe
+            SyslogStudio-windows-amd64-setup.exe
+            SyslogStudio-windows-amd64.zip
 
   build-macos:
     name: macOS (universal)
@@ -87,23 +100,21 @@ jobs:
           jq --arg v "$v" '.info.productVersion = $v' wails.json > "$tmp" && mv "$tmp" wails.json
           echo "wails.json info.productVersion set to $v"
       - name: Build
-        run: wails build -platform darwin/universal -ldflags "-X main.AppVersion=${{ github.ref_name }}"
-      - name: Create portable zip
-        working-directory: build/bin
-        run: zip -r "../../SyslogStudio-${{ github.ref_name }}-macos-universal.zip" SyslogStudio.app
-      - name: Create DMG
+        run: wails build -platform darwin/universal -ldflags "-X SyslogStudio/internal/updater.AppVersion=${{ github.ref_name }}"
+      - name: Package assets
         run: |
+          (cd build/bin && zip -r "../../SyslogStudio-macos-universal.zip" SyslogStudio.app)
           mkdir -p dmg-staging
           cp -r build/bin/SyslogStudio.app dmg-staging/
           ln -s /Applications dmg-staging/Applications
           hdiutil create -volname "SyslogStudio" -srcfolder dmg-staging -ov -format UDZO \
-            "SyslogStudio-${{ github.ref_name }}-macos-universal.dmg"
+            "SyslogStudio-macos-universal.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-universal
           path: |
-            SyslogStudio-${{ github.ref_name }}-macos-universal.zip
-            SyslogStudio-${{ github.ref_name }}-macos-universal.dmg
+            SyslogStudio-macos-universal.zip
+            SyslogStudio-macos-universal.dmg
 
   build-linux:
     name: Linux (amd64)
@@ -126,13 +137,12 @@ jobs:
         run: npm ci
         working-directory: frontend
       - name: Build
-        run: wails build -ldflags "-X main.AppVersion=${{ github.ref_name }}"
-      - name: Create portable tar.gz
-        run: tar -czf "SyslogStudio-${{ github.ref_name }}-linux-amd64.tar.gz" -C build/bin SyslogStudio
-      - name: Create .deb package
+        run: wails build -ldflags "-X SyslogStudio/internal/updater.AppVersion=${{ github.ref_name }}"
+      - name: Package assets
         run: |
-          VERSION="${{ github.ref_name }}"
-          DEB_VERSION="${VERSION#v}"
+          cp build/bin/SyslogStudio SyslogStudio-linux-amd64
+          tar -czf "SyslogStudio-linux-amd64.tar.gz" -C build/bin SyslogStudio
+          DEB_VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p pkg/DEBIAN pkg/usr/bin pkg/usr/share/applications pkg/usr/share/icons/hicolor/256x256/apps
           cp build/bin/SyslogStudio pkg/usr/bin/syslogstudio
           chmod 755 pkg/usr/bin/syslogstudio
@@ -149,23 +159,35 @@ jobs:
            filtering, alerts, and statistics dashboard.
           Depends: libgtk-3-0, libwebkit2gtk-4.0-37
           EOF
-          dpkg-deb --build pkg "SyslogStudio-${VERSION}-linux-amd64.deb"
+          dpkg-deb --build pkg "SyslogStudio-linux-amd64.deb"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-amd64
           path: |
-            SyslogStudio-${{ github.ref_name }}-linux-amd64.tar.gz
-            SyslogStudio-${{ github.ref_name }}-linux-amd64.deb
+            SyslogStudio-linux-amd64
+            SyslogStudio-linux-amd64.deb
+            SyslogStudio-linux-amd64.tar.gz
 
   release:
     name: Create release
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+      - name: Generate checksums
+        working-directory: artifacts
+        run: sha256sum SyslogStudio-windows-* SyslogStudio-macos-* SyslogStudio-linux-* > SyslogStudio-checksums.txt
+      - name: Sign checksums
+        env:
+          UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+        run: go run ./tools/updatersign sign artifacts/SyslogStudio-checksums.txt
       - name: List release assets
         run: ls -lh artifacts/
       - name: Create GitHub Release
