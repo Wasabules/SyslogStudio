@@ -291,6 +291,13 @@ type UpdateConfig struct {
 	LastCheckUnix int64 `json:"lastCheckUnix"`
 }
 
+// NetworkInterface describes a bindable local IPv4 address and the interface
+// it belongs to, for the bind-address selector in the UI.
+type NetworkInterface struct {
+	Name string `json:"name"`
+	IP   string `json:"ip"`
+}
+
 // --- Label converters ---
 
 // SeverityToLabel converts a severity level to its string label.

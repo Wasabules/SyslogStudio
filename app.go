@@ -363,6 +363,34 @@ func (a *App) GetLocalIPs() []string {
 	return ips
 }
 
+// GetNetworkInterfaces lists bindable local IPv4 addresses with their
+// interface name, for the bind-address selector. Interfaces that are down are
+// skipped; loopback is included so the server can be restricted to localhost.
+func (a *App) GetNetworkInterfaces() []models.NetworkInterface {
+	var out []models.NetworkInterface
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return out
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				if ip4 := ipnet.IP.To4(); ip4 != nil {
+					out = append(out, models.NetworkInterface{Name: iface.Name, IP: ip4.String()})
+				}
+			}
+		}
+	}
+	return out
+}
+
 // --- Alert Methods ---
 
 func (a *App) GetAlertRules() []models.AlertRule {

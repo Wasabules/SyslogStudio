@@ -391,10 +391,13 @@
                         </div>
                     {/if}
 
-                    <div class="form-group">
+                    <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
                         <button on:click={checkNow} disabled={updateChecking}>
                             {updateChecking ? $_('settings.checkingUpdates') : $_('settings.checkNow')}
                         </button>
+                        <span style="color: var(--text-secondary); font-size: 12px;">
+                            {$_('settings.version')} {appVersion || '—'}
+                        </span>
                     </div>
 
                 {:else if activeTab === 'storage'}

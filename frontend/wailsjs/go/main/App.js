@@ -110,6 +110,10 @@ export function GetMessages(arg1) {
   return window['go']['main']['App']['GetMessages'](arg1);
 }
 
+export function GetNetworkInterfaces() {
+  return window['go']['main']['App']['GetNetworkInterfaces']();
+}
+
 export function GetServerCertInfo() {
   return window['go']['main']['App']['GetServerCertInfo']();
 }

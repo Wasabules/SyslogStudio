@@ -171,6 +171,20 @@ export namespace models {
 	        this.count = source["count"];
 	    }
 	}
+	export class NetworkInterface {
+	    name: string;
+	    ip: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NetworkInterface(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.ip = source["ip"];
+	    }
+	}
 	export class SyslogMessage {
 	    id: string;
 	    // Go type: time

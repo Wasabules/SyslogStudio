@@ -56,6 +56,8 @@ export function GetLocalIPs():Promise<Array<string>>;
 
 export function GetMessages(arg1:models.FilterCriteria):Promise<Array<models.SyslogMessage>>;
 
+export function GetNetworkInterfaces():Promise<Array<models.NetworkInterface>>;
+
 export function GetServerCertInfo():Promise<models.CertInfo>;
 
 export function GetServerStatus():Promise<models.ServerStatus>;
