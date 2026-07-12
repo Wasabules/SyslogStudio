@@ -129,6 +129,13 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	s.cancel = cancel
 	s.running = true
 	s.workCh = make(chan func(), maxWorkers*4)
+	// Capture the worker channel under the lock. The workers must range over
+	// this local, never s.workCh directly: Stop() sets s.workCh to nil, and a
+	// worker that evaluated `range s.workCh` after that write would range over
+	// a nil channel and block forever, deadlocking shutdown (wg.Wait never
+	// returns). Reading the shared field from the workers would also race with
+	// Stop's write.
+	workCh := s.workCh
 	s.connSem = make(chan struct{}, maxTCPConnections)
 	s.conns = make(map[net.Conn]struct{})
 
@@ -147,7 +154,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			for fn := range s.workCh {
+			for fn := range workCh {
 				fn()
 			}
 		}()
