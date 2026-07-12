@@ -14,8 +14,9 @@
     import ToastContainer from './components/ToastContainer.svelte';
     import AlertConfig from './components/AlertConfig.svelte';
     import UnlockScreen from './components/UnlockScreen.svelte';
-    import { checkForUpdate, isEncryptionLocked } from './lib/api';
-    import { toastInfo } from './lib/toast';
+    import { isEncryptionLocked, getUpdateConfig } from './lib/api';
+    import { updateStore } from './lib/updateStore';
+    import UpdateBanner from './components/UpdateBanner.svelte';
 
     let showTLSConfig = false;
     let showSettings = false;
@@ -23,14 +24,24 @@
 
     function startApp() {
         initEventListeners();
-        // Check for updates if enabled
-        const autoUpdate = localStorage.getItem('syslogstudio-autoupdate') !== 'false';
-        if (autoUpdate) {
-            checkForUpdate().then(info => {
-                if (info?.hasUpdate) {
-                    toastInfo(`${$_('nav.updateAvailable')}: ${info.latestVersion}`);
-                }
-            }).catch(() => {});
+        updateStore.loadVersion();
+        maybeAutoCheck();
+    }
+
+    // maybeAutoCheck runs the automatic update check, honoring the persisted
+    // auto-check toggle and the minimum interval between checks.
+    async function maybeAutoCheck() {
+        try {
+            const cfg = await getUpdateConfig();
+            if (!cfg.autoCheck) return;
+            const now = Math.floor(Date.now() / 1000);
+            const interval = (cfg.intervalHours || 0) * 3600;
+            if (interval > 0 && cfg.lastCheckUnix > 0 && now - cfg.lastCheckUnix < interval) {
+                return; // checked recently
+            }
+            await updateStore.check({ silent: true });
+        } catch {
+            /* ignore */
         }
     }
 
@@ -144,6 +155,7 @@
     </nav>
 
     <div class="main-area">
+        <UpdateBanner />
         <ServerControls onTLSConfig={() => showTLSConfig = true} />
 
         {#if $activeView === 'logs'}

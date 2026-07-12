@@ -82,6 +82,11 @@ func (cs *ConfigStore) loadAll() models.AppConfig {
 		cfg.Storage = models.DefaultStorageConfig()
 	}
 
+	// Update preferences: default to auto-check when nothing was persisted yet.
+	if cfg.Updates == (models.UpdateConfig{}) {
+		cfg.Updates = models.DefaultUpdateConfig()
+	}
+
 	return cfg
 }
 
@@ -148,5 +153,17 @@ func (cs *ConfigStore) LoadLockout() models.LockoutState {
 func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
 	all := cs.loadAll()
 	all.Lockout = state
+	cs.saveAll(all)
+}
+
+// LoadUpdateConfig reads the persisted update-check preferences.
+func (cs *ConfigStore) LoadUpdateConfig() models.UpdateConfig {
+	return cs.loadAll().Updates
+}
+
+// SaveUpdateConfig writes the update-check preferences.
+func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
+	all := cs.loadAll()
+	all.Updates = cfg
 	cs.saveAll(all)
 }

@@ -171,7 +171,15 @@
     "version": "版本",
     "license": "许可证",
     "bufferSize": "实时缓冲区大小",
-    "messagesApprox": "条"
+    "messagesApprox": "条",
+    "updateInterval": "检查频率",
+    "intervalStartup": "每次启动时",
+    "intervalDaily": "每天",
+    "intervalWeekly": "每周",
+    "checkNow": "检查更新",
+    "checkingUpdates": "正在检查…",
+    "upToDate": "您使用的是最新版本。",
+    "updateCheckFailed": "检查更新失败：{error}"
   },
   "alerts": {
     "rules": "告警规则",
@@ -221,5 +229,14 @@
     "unlock": "Unlock",
     "unlocking": "Unlocking...",
     "lockedOutSeconds": "失败次数过多。已锁定{seconds}秒。"
+  },
+  "update": {
+    "available": "SyslogStudio {version} 可用",
+    "releaseNotes": "发行说明",
+    "downloading": "正在下载",
+    "install": "安装并重启",
+    "download": "下载",
+    "skip": "跳过此版本",
+    "later": "稍后"
   }
 }

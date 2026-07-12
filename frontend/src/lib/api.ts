@@ -86,15 +86,32 @@ export const enableEncryption = (password: string): Promise<void> => callGo('Ena
 export const disableEncryption = (password: string): Promise<void> => callGo('DisableEncryption', password);
 export const changeEncryptionPassword = (oldPw: string, newPw: string): Promise<void> => callGo('ChangeEncryptionPassword', oldPw, newPw);
 
-// --- Update Check ---
+// --- Update ---
 export interface UpdateInfo {
     currentVersion: string;
     latestVersion: string;
     updateUrl: string;
     hasUpdate: boolean;
+    releaseNotes: string;
+    releaseUrl: string;
+    publishedAt: string;
+    assetName: string;
+    assetUrl: string;
+    canSelfApply: boolean;
+}
+export interface UpdateConfig {
+    autoCheck: boolean;
+    intervalHours: number;
+    skipVersion: string;
+    lastCheckUnix: number;
 }
 export const checkForUpdate = (): Promise<UpdateInfo> => callGo('CheckForUpdate');
+export const downloadAndApplyUpdate = (): Promise<void> => callGo('DownloadAndApplyUpdate');
 export const getAppVersion = (): Promise<string> => callGo('GetAppVersion');
+export const openUrl = (url: string): Promise<void> => callGo('OpenURL', url);
+export const getUpdateConfig = (): Promise<UpdateConfig> => callGo('GetUpdateConfig');
+export const setUpdateConfig = (cfg: UpdateConfig): Promise<void> => callGo('SetUpdateConfig', cfg);
+export const skipUpdateVersion = (version: string): Promise<void> => callGo('SkipUpdateVersion', version);
 
 // --- Utilities ---
 export const getLocalIPs = (): Promise<string[]> => _GetLocalIPs();

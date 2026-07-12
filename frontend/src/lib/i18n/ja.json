@@ -171,7 +171,15 @@
     "version": "バージョン",
     "license": "ライセンス",
     "bufferSize": "リアルタイムバッファサイズ",
-    "messagesApprox": "件"
+    "messagesApprox": "件",
+    "updateInterval": "確認頻度",
+    "intervalStartup": "起動のたびに",
+    "intervalDaily": "毎日",
+    "intervalWeekly": "毎週",
+    "checkNow": "更新を確認",
+    "checkingUpdates": "確認中…",
+    "upToDate": "最新バージョンを使用しています。",
+    "updateCheckFailed": "更新の確認に失敗しました: {error}"
   },
   "alerts": {
     "rules": "アラートルール",
@@ -221,5 +229,14 @@
     "unlock": "Unlock",
     "unlocking": "Unlocking...",
     "lockedOutSeconds": "試行回数が多すぎます。{seconds}秒間ロックされます。"
+  },
+  "update": {
+    "available": "SyslogStudio {version} が利用可能です",
+    "releaseNotes": "リリースノート",
+    "downloading": "ダウンロード中",
+    "install": "インストールして再起動",
+    "download": "ダウンロード",
+    "skip": "このバージョンをスキップ",
+    "later": "後で"
   }
 }

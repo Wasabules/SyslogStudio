@@ -251,6 +251,7 @@ type AppConfig struct {
 	Storage StorageConfig `json:"storage"`
 	Alerts  []AlertRule   `json:"alerts"`
 	Lockout LockoutState  `json:"lockout"`
+	Updates UpdateConfig  `json:"updates"`
 }
 
 // LockoutState persists failed unlock attempts across restarts so that a
@@ -267,8 +268,27 @@ type LockoutState struct {
 type UpdateInfo struct {
 	CurrentVersion string `json:"currentVersion"`
 	LatestVersion  string `json:"latestVersion"`
-	UpdateURL      string `json:"updateUrl"`
+	UpdateURL      string `json:"updateUrl"` // release page URL (kept for compatibility)
 	HasUpdate      bool   `json:"hasUpdate"`
+	ReleaseNotes   string `json:"releaseNotes"`
+	ReleaseURL     string `json:"releaseUrl"`
+	PublishedAt    string `json:"publishedAt"` // RFC 3339, empty if unknown
+	AssetName      string `json:"assetName"`
+	AssetURL       string `json:"assetUrl"`
+	CanSelfApply   bool   `json:"canSelfApply"` // false ⇒ update opens in the browser
+}
+
+// UpdateConfig persists update-check preferences.
+type UpdateConfig struct {
+	// AutoCheck enables the automatic update check on startup.
+	AutoCheck bool `json:"autoCheck"`
+	// IntervalHours is the minimum number of hours between automatic checks.
+	// Zero checks on every startup.
+	IntervalHours int `json:"intervalHours"`
+	// SkipVersion is a release version the user chose to skip (no prompt).
+	SkipVersion string `json:"skipVersion"`
+	// LastCheckUnix is the Unix time (seconds) of the last successful check.
+	LastCheckUnix int64 `json:"lastCheckUnix"`
 }
 
 // --- Label converters ---
@@ -363,6 +383,12 @@ func DefaultStorageConfig() StorageConfig {
 		MaxMessages:   1000000,
 		MaxSizeMB:     500,
 	}
+}
+
+// DefaultUpdateConfig returns the default update-check preferences: automatic
+// check on startup, at most once every 24 hours.
+func DefaultUpdateConfig() UpdateConfig {
+	return UpdateConfig{AutoCheck: true, IntervalHours: 24}
 }
 
 // DefaultServerConfig returns sensible defaults.
