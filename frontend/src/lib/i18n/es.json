@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "Cerrar",
+    "previousPage": "Página anterior",
+    "nextPage": "Página siguiente",
+    "delete": "Eliminar"
+  },
   "nav": {
     "logs": "Registros",
     "stats": "Estadísticas",
@@ -16,7 +22,9 @@
     "rate": "Tasa de mensajes",
     "buffer": "Uso del búfer circular",
     "dbMessages": "Mensajes almacenados",
-    "dbSize": "Tamaño de la base de datos"
+    "dbSize": "Tamaño de la base de datos",
+    "dbLoading": "Cargando base de datos…",
+    "dbIndexing": "Indexando…"
   },
   "server": {
     "start": "Iniciar",
@@ -47,8 +55,11 @@
     "textExportFailed": "Error al exportar texto",
     "dateFrom": "Desde",
     "dateTo": "Hasta",
-    "regex": "Regex",
-    "regexTitle": "Activar búsqueda con regex"
+    "modeText": "Búsqueda de texto (clic para cambiar a FTS)",
+    "modeFts": "FTS avanzada: OR, AND, NOT, \"frase\", prefijo* (clic para cambiar a Regex)",
+    "modeRegex": "Búsqueda por regex (clic para cambiar a Texto)",
+    "ftsPlaceholder": "error OR fail OR timeout",
+    "regexPlaceholder": "(error|fail|timeout)"
   },
   "log": {
     "severity": "Severidad",
@@ -88,7 +99,8 @@
     "rawMessage": "Mensaje sin procesar",
     "copy": "Copiar",
     "copiedToClipboard": "Copiado al portapapeles",
-    "failedToCopy": "Error al copiar al portapapeles"
+    "failedToCopy": "Error al copiar al portapapeles",
+    "matchesFound": "coincidencias encontradas"
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",
@@ -179,7 +191,8 @@
     "checkNow": "Buscar actualizaciones",
     "checkingUpdates": "Comprobando…",
     "upToDate": "Ya tienes la última versión.",
-    "updateCheckFailed": "Error al buscar actualizaciones: {error}"
+    "updateCheckFailed": "Error al buscar actualizaciones: {error}",
+    "autoUpdateCheck": "Buscar actualizaciones al iniciar"
   },
   "alerts": {
     "rules": "Reglas de alerta",
@@ -211,24 +224,40 @@
     "clearFailed": "Error al limpiar el historial"
   },
   "encryption": {
-    "title": "Encryption",
-    "enableEncryption": "Encrypt database at rest",
-    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
-    "password": "Password",
-    "confirmPassword": "Confirm password",
-    "currentPassword": "Current password",
-    "enable": "Enable Encryption",
-    "disable": "Disable Encryption",
-    "passwordMismatch": "Passwords do not match.",
-    "passwordRequired": "Password is required.",
-    "wrongPassword": "Incorrect password. Please try again.",
-    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
-    "disableSuccess": "Encryption disabled.",
-    "unlockTitle": "Database Locked",
-    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
-    "unlock": "Unlock",
-    "unlocking": "Unlocking...",
-    "lockedOutSeconds": "Demasiados intentos fallidos. Bloqueado durante {seconds}s."
+    "title": "Cifrado",
+    "enableEncryption": "Cifrar la base de datos en reposo",
+    "hint": "Si se activa, la base de datos se cifra al cerrar la app y se descifra al iniciar con tu contraseña.",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "currentPassword": "Contraseña actual",
+    "enable": "Activar cifrado",
+    "disable": "Desactivar cifrado",
+    "passwordMismatch": "Las contraseñas no coinciden.",
+    "passwordRequired": "La contraseña es obligatoria.",
+    "wrongPassword": "Contraseña incorrecta. Inténtalo de nuevo.",
+    "enableSuccess": "Cifrado activado. La base de datos se cifrará al cerrar la app.",
+    "disableSuccess": "Cifrado desactivado.",
+    "unlockTitle": "Base de datos bloqueada",
+    "unlockMessage": "La base de datos de registros está cifrada. Introduce tu contraseña para desbloquear.",
+    "unlock": "Desbloquear",
+    "unlocking": "Desbloqueando…",
+    "lockedOutSeconds": "Demasiados intentos fallidos. Bloqueado durante {seconds}s.",
+    "wrongPasswordAttempts": "Contraseña incorrecta. Quedan {remaining} intento(s).",
+    "lockedOut": "Demasiados intentos fallidos. La aplicación se cerrará.",
+    "warningTitle": "Importante — léelo con atención",
+    "warningMessage": "La contraseña de cifrado nunca se guarda en disco. Solo existe en memoria mientras la app está en ejecución.",
+    "warningPoint1": "Si olvidas tu contraseña, tu base de datos de registros será permanentemente inaccesible.",
+    "warningPoint2": "No hay mecanismo de recuperación: los datos están cifrados con AES-256.",
+    "warningPoint3": "Asegúrate de recordar tu contraseña o guárdala en un gestor de contraseñas.",
+    "warningCancel": "Cancelar",
+    "warningConfirm": "Entiendo, activar cifrado",
+    "progressReading": "Leyendo la base de datos cifrada…",
+    "progressDeriving": "Verificando la contraseña…",
+    "progressDecrypting": "Descifrando…",
+    "progressWriting": "Escribiendo la base de datos…",
+    "progressInitializing": "Abriendo la base de datos…",
+    "progressIndexing": "Reconstruyendo el índice de búsqueda…",
+    "progressDone": "Listo"
   },
   "update": {
     "available": "SyslogStudio {version} está disponible",
@@ -238,5 +267,8 @@
     "download": "Descargar",
     "skip": "Omitir esta versión",
     "later": "Más tarde"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "Advertencia: la clave privada de la autoridad de certificación se almacena sin cifrar en el disco."
   }
 }

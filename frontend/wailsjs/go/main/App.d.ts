@@ -74,6 +74,8 @@ export function GetUnlockLockoutSeconds():Promise<number>;
 
 export function GetUpdateConfig():Promise<models.UpdateConfig>;
 
+export function IsCAKeyUnencrypted():Promise<boolean>;
+
 export function IsEncryptionEnabled():Promise<boolean>;
 
 export function IsEncryptionLocked():Promise<boolean>;

@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "Fechar",
+    "previousPage": "Página anterior",
+    "nextPage": "Próxima página",
+    "delete": "Excluir"
+  },
   "nav": {
     "logs": "Registos",
     "stats": "Estatísticas",
@@ -16,7 +22,9 @@
     "rate": "Taxa de mensagens",
     "buffer": "Utilização do buffer circular",
     "dbMessages": "Mensagens armazenadas",
-    "dbSize": "Tamanho da base de dados"
+    "dbSize": "Tamanho da base de dados",
+    "dbLoading": "Carregando banco de dados…",
+    "dbIndexing": "Indexando…"
   },
   "server": {
     "start": "Iniciar",
@@ -47,8 +55,11 @@
     "textExportFailed": "Falha ao exportar texto",
     "dateFrom": "De",
     "dateTo": "Até",
-    "regex": "Regex",
-    "regexTitle": "Ativar pesquisa com regex"
+    "modeText": "Busca de texto (clique para mudar para FTS)",
+    "modeFts": "FTS avançada: OR, AND, NOT, \"frase\", prefixo* (clique para mudar para Regex)",
+    "modeRegex": "Busca por regex (clique para mudar para Texto)",
+    "ftsPlaceholder": "error OR fail OR timeout",
+    "regexPlaceholder": "(error|fail|timeout)"
   },
   "log": {
     "severity": "Severidade",
@@ -88,7 +99,8 @@
     "rawMessage": "Mensagem em bruto",
     "copy": "Copiar",
     "copiedToClipboard": "Copiado para a área de transferência",
-    "failedToCopy": "Falha ao copiar para a área de transferência"
+    "failedToCopy": "Falha ao copiar para a área de transferência",
+    "matchesFound": "correspondências encontradas"
   },
   "dashboard": {
     "totalMessages": "Total de mensagens",
@@ -179,7 +191,8 @@
     "checkNow": "Procurar atualizações",
     "checkingUpdates": "Verificando…",
     "upToDate": "Você está na versão mais recente.",
-    "updateCheckFailed": "Falha ao procurar atualizações: {error}"
+    "updateCheckFailed": "Falha ao procurar atualizações: {error}",
+    "autoUpdateCheck": "Procurar atualizações ao iniciar"
   },
   "alerts": {
     "rules": "Regras de alerta",
@@ -211,24 +224,40 @@
     "clearFailed": "Falha ao limpar o histórico"
   },
   "encryption": {
-    "title": "Encryption",
-    "enableEncryption": "Encrypt database at rest",
-    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
-    "password": "Password",
-    "confirmPassword": "Confirm password",
-    "currentPassword": "Current password",
-    "enable": "Enable Encryption",
-    "disable": "Disable Encryption",
-    "passwordMismatch": "Passwords do not match.",
-    "passwordRequired": "Password is required.",
-    "wrongPassword": "Incorrect password. Please try again.",
-    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
-    "disableSuccess": "Encryption disabled.",
-    "unlockTitle": "Database Locked",
-    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
-    "unlock": "Unlock",
-    "unlocking": "Unlocking...",
-    "lockedOutSeconds": "Muitas tentativas com falha. Bloqueado por {seconds}s."
+    "title": "Criptografia",
+    "enableEncryption": "Criptografar o banco de dados em repouso",
+    "hint": "Quando ativado, o banco de dados é criptografado ao fechar o app e descriptografado ao iniciar com sua senha.",
+    "password": "Senha",
+    "confirmPassword": "Confirmar senha",
+    "currentPassword": "Senha atual",
+    "enable": "Ativar criptografia",
+    "disable": "Desativar criptografia",
+    "passwordMismatch": "As senhas não coincidem.",
+    "passwordRequired": "A senha é obrigatória.",
+    "wrongPassword": "Senha incorreta. Tente novamente.",
+    "enableSuccess": "Criptografia ativada. O banco de dados será criptografado ao fechar o app.",
+    "disableSuccess": "Criptografia desativada.",
+    "unlockTitle": "Banco de dados bloqueado",
+    "unlockMessage": "O banco de dados de logs está criptografado. Digite sua senha para desbloquear.",
+    "unlock": "Desbloquear",
+    "unlocking": "Desbloqueando…",
+    "lockedOutSeconds": "Muitas tentativas com falha. Bloqueado por {seconds}s.",
+    "wrongPasswordAttempts": "Senha incorreta. Resta(m) {remaining} tentativa(s).",
+    "lockedOut": "Muitas tentativas com falha. O aplicativo será fechado.",
+    "warningTitle": "Importante — leia com atenção",
+    "warningMessage": "A senha de criptografia nunca é armazenada em disco. Ela existe apenas na memória enquanto o app está em execução.",
+    "warningPoint1": "Se você esquecer sua senha, seu banco de dados de logs ficará permanentemente inacessível.",
+    "warningPoint2": "Não há mecanismo de recuperação — os dados são criptografados com AES-256.",
+    "warningPoint3": "Certifique-se de lembrar sua senha ou guarde-a em um gerenciador de senhas.",
+    "warningCancel": "Cancelar",
+    "warningConfirm": "Entendi, ativar criptografia",
+    "progressReading": "Lendo o banco de dados criptografado…",
+    "progressDeriving": "Verificando a senha…",
+    "progressDecrypting": "Descriptografando…",
+    "progressWriting": "Gravando o banco de dados…",
+    "progressInitializing": "Abrindo o banco de dados…",
+    "progressIndexing": "Reconstruindo o índice de busca…",
+    "progressDone": "Concluído"
   },
   "update": {
     "available": "SyslogStudio {version} está disponível",
@@ -238,5 +267,8 @@
     "download": "Baixar",
     "skip": "Ignorar esta versão",
     "later": "Mais tarde"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "Aviso: a chave privada da autoridade de certificação está armazenada sem criptografia no disco."
   }
 }

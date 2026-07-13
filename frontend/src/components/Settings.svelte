@@ -20,6 +20,7 @@
     let updateChecking = false;
 
     async function initGeneralSettings() {
+        enableNotifications = localStorage.getItem('syslogstudio-notifications') !== 'false';
         try {
             const cfg = await getUpdateConfig();
             autoUpdateCheck = cfg.autoCheck;
@@ -27,6 +28,14 @@
         } catch {
             /* ignore */
         }
+    }
+
+    function onNotificationsChange() {
+        localStorage.setItem('syslogstudio-notifications', enableNotifications ? 'true' : 'false');
+    }
+
+    function handleKeydown(e: KeyboardEvent) {
+        if (visible && e.key === 'Escape') onClose();
     }
 
     async function saveUpdatePrefs() {
@@ -320,6 +329,8 @@
     }
 </script>
 
+<svelte:window on:keydown={handleKeydown} />
+
 {#if visible}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="modal-backdrop" role="presentation" on:click={onClose}>
@@ -327,7 +338,7 @@
         <div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">{$_('settings.title')}</span>
-                <button class="close-btn" on:click={onClose}>&times;</button>
+                <button class="close-btn" on:click={onClose} aria-label={$_('common.close')}>&times;</button>
             </div>
 
             <div class="tabs">
@@ -366,7 +377,8 @@
 
                     <div class="form-group checkbox-group">
                         <label>
-                            <input type="checkbox" bind:checked={enableNotifications} />
+                            <input type="checkbox" bind:checked={enableNotifications}
+                                   on:change={onNotificationsChange} />
                             {$_('settings.systemNotifications')}
                         </label>
                     </div>

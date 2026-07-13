@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "閉じる",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ",
+    "delete": "削除"
+  },
   "nav": {
     "logs": "ログ",
     "stats": "統計",
@@ -16,7 +22,9 @@
     "rate": "メッセージレート",
     "buffer": "リングバッファ使用率",
     "dbMessages": "保存済みメッセージ",
-    "dbSize": "データベースサイズ"
+    "dbSize": "データベースサイズ",
+    "dbLoading": "データベースを読み込み中…",
+    "dbIndexing": "インデックス作成中…"
   },
   "server": {
     "start": "開始",
@@ -47,8 +55,11 @@
     "textExportFailed": "テキストエクスポートに失敗しました",
     "dateFrom": "開始日",
     "dateTo": "終了日",
-    "regex": "Regex",
-    "regexTitle": "正規表現検索を有効にする"
+    "modeText": "テキスト検索（クリックで FTS に切替）",
+    "modeFts": "FTS 詳細検索：OR、AND、NOT、\"フレーズ\"、接頭辞*（クリックで正規表現に切替）",
+    "modeRegex": "正規表現検索（クリックでテキストに切替）",
+    "ftsPlaceholder": "error OR fail OR timeout",
+    "regexPlaceholder": "(error|fail|timeout)"
   },
   "log": {
     "severity": "重大度",
@@ -88,7 +99,8 @@
     "rawMessage": "生メッセージ",
     "copy": "コピー",
     "copiedToClipboard": "クリップボードにコピーしました",
-    "failedToCopy": "クリップボードへのコピーに失敗しました"
+    "failedToCopy": "クリップボードへのコピーに失敗しました",
+    "matchesFound": "件の一致"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",
@@ -179,7 +191,8 @@
     "checkNow": "更新を確認",
     "checkingUpdates": "確認中…",
     "upToDate": "最新バージョンを使用しています。",
-    "updateCheckFailed": "更新の確認に失敗しました: {error}"
+    "updateCheckFailed": "更新の確認に失敗しました: {error}",
+    "autoUpdateCheck": "起動時に更新を確認"
   },
   "alerts": {
     "rules": "アラートルール",
@@ -211,24 +224,40 @@
     "clearFailed": "履歴のクリアに失敗しました"
   },
   "encryption": {
-    "title": "Encryption",
-    "enableEncryption": "Encrypt database at rest",
-    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
-    "password": "Password",
-    "confirmPassword": "Confirm password",
-    "currentPassword": "Current password",
-    "enable": "Enable Encryption",
-    "disable": "Disable Encryption",
-    "passwordMismatch": "Passwords do not match.",
-    "passwordRequired": "Password is required.",
-    "wrongPassword": "Incorrect password. Please try again.",
-    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
-    "disableSuccess": "Encryption disabled.",
-    "unlockTitle": "Database Locked",
-    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
-    "unlock": "Unlock",
-    "unlocking": "Unlocking...",
-    "lockedOutSeconds": "試行回数が多すぎます。{seconds}秒間ロックされます。"
+    "title": "暗号化",
+    "enableEncryption": "データベースを保存時に暗号化",
+    "hint": "有効にすると、アプリ終了時にデータベースが暗号化され、起動時にパスワードで復号されます。",
+    "password": "パスワード",
+    "confirmPassword": "パスワードの確認",
+    "currentPassword": "現在のパスワード",
+    "enable": "暗号化を有効にする",
+    "disable": "暗号化を無効にする",
+    "passwordMismatch": "パスワードが一致しません。",
+    "passwordRequired": "パスワードは必須です。",
+    "wrongPassword": "パスワードが正しくありません。もう一度お試しください。",
+    "enableSuccess": "暗号化を有効にしました。アプリ終了時にデータベースが暗号化されます。",
+    "disableSuccess": "暗号化を無効にしました。",
+    "unlockTitle": "データベースがロックされています",
+    "unlockMessage": "ログデータベースは暗号化されています。ロックを解除するにはパスワードを入力してください。",
+    "unlock": "ロック解除",
+    "unlocking": "ロック解除中…",
+    "lockedOutSeconds": "失敗回数が多すぎます。{seconds}秒間ロックされます。",
+    "wrongPasswordAttempts": "パスワードが正しくありません。残り {remaining} 回。",
+    "lockedOut": "失敗回数が多すぎます。アプリケーションを終了します。",
+    "warningTitle": "重要 — よくお読みください",
+    "warningMessage": "暗号化パスワードはディスクに保存されません。アプリの実行中、メモリ上にのみ存在します。",
+    "warningPoint1": "パスワードを忘れると、ログデータベースには永久にアクセスできなくなります。",
+    "warningPoint2": "復旧手段はありません。データは AES-256 で暗号化されます。",
+    "warningPoint3": "パスワードを必ず覚えるか、パスワードマネージャーに保存してください。",
+    "warningCancel": "キャンセル",
+    "warningConfirm": "理解しました。暗号化を有効にする",
+    "progressReading": "暗号化されたデータベースを読み込み中…",
+    "progressDeriving": "パスワードを検証中…",
+    "progressDecrypting": "復号中…",
+    "progressWriting": "データベースを書き込み中…",
+    "progressInitializing": "データベースを開いています…",
+    "progressIndexing": "検索インデックスを再構築中…",
+    "progressDone": "完了"
   },
   "update": {
     "available": "SyslogStudio {version} が利用可能です",
@@ -238,5 +267,8 @@
     "download": "ダウンロード",
     "skip": "このバージョンをスキップ",
     "later": "後で"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "警告：認証局の秘密鍵が暗号化されずにディスクに保存されています。"
   }
 }

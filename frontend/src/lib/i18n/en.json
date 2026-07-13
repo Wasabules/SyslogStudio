@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "Close",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "delete": "Delete"
+  },
   "nav": {
     "logs": "Logs",
     "stats": "Stats",
@@ -261,5 +267,8 @@
     "download": "Download",
     "skip": "Skip this version",
     "later": "Later"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "Warning: the certificate authority private key is stored unencrypted on disk."
   }
 }

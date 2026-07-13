@@ -502,9 +502,9 @@
             {/if}
             {#if $logViewMode === 'history' && !isGrouped && historyTotalPages > 1}
                 <div class="pagination">
-                    <button class="page-btn" disabled={historyPage <= 1} on:click={() => loadHistoryPage(historyPage - 1)}>&laquo;</button>
+                    <button class="page-btn" disabled={historyPage <= 1} on:click={() => loadHistoryPage(historyPage - 1)} aria-label={$_('common.previousPage')}>&laquo;</button>
                     <span class="page-info">{historyPage} / {historyTotalPages}</span>
-                    <button class="page-btn" disabled={historyPage >= historyTotalPages} on:click={() => loadHistoryPage(historyPage + 1)}>&raquo;</button>
+                    <button class="page-btn" disabled={historyPage >= historyTotalPages} on:click={() => loadHistoryPage(historyPage + 1)} aria-label={$_('common.nextPage')}>&raquo;</button>
                 </div>
             {/if}
             <span class="footer-sep">|</span>
@@ -598,7 +598,7 @@
     .col-app { width: 100px; flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-message { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
-    .severity-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; color: white; text-align: center; min-width: 60px; }
+    .severity-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #10161d; text-align: center; min-width: 60px; }
     .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted); font-size: 14px; text-align: center; }
 
     .loading-overlay {

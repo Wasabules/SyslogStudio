@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "关闭",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "delete": "删除"
+  },
   "nav": {
     "logs": "日志",
     "stats": "统计",
@@ -16,7 +22,9 @@
     "rate": "消息速率",
     "buffer": "环形缓冲区使用率",
     "dbMessages": "已存储消息",
-    "dbSize": "数据库大小"
+    "dbSize": "数据库大小",
+    "dbLoading": "正在加载数据库…",
+    "dbIndexing": "正在建立索引…"
   },
   "server": {
     "start": "启动",
@@ -47,8 +55,11 @@
     "textExportFailed": "文本导出失败",
     "dateFrom": "起始",
     "dateTo": "截止",
-    "regex": "Regex",
-    "regexTitle": "启用正则表达式搜索"
+    "modeText": "文本搜索（点击切换到 FTS）",
+    "modeFts": "FTS 高级：OR、AND、NOT、\"短语\"、前缀*（点击切换到正则）",
+    "modeRegex": "正则搜索（点击切换到文本）",
+    "ftsPlaceholder": "error OR fail OR timeout",
+    "regexPlaceholder": "(error|fail|timeout)"
   },
   "log": {
     "severity": "严重程度",
@@ -88,7 +99,8 @@
     "rawMessage": "原始消息",
     "copy": "复制",
     "copiedToClipboard": "已复制到剪贴板",
-    "failedToCopy": "复制到剪贴板失败"
+    "failedToCopy": "复制到剪贴板失败",
+    "matchesFound": "个匹配项"
   },
   "dashboard": {
     "totalMessages": "消息总数",
@@ -179,7 +191,8 @@
     "checkNow": "检查更新",
     "checkingUpdates": "正在检查…",
     "upToDate": "您使用的是最新版本。",
-    "updateCheckFailed": "检查更新失败：{error}"
+    "updateCheckFailed": "检查更新失败：{error}",
+    "autoUpdateCheck": "启动时检查更新"
   },
   "alerts": {
     "rules": "告警规则",
@@ -211,24 +224,40 @@
     "clearFailed": "清除历史记录失败"
   },
   "encryption": {
-    "title": "Encryption",
-    "enableEncryption": "Encrypt database at rest",
-    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
-    "password": "Password",
-    "confirmPassword": "Confirm password",
-    "currentPassword": "Current password",
-    "enable": "Enable Encryption",
-    "disable": "Disable Encryption",
-    "passwordMismatch": "Passwords do not match.",
-    "passwordRequired": "Password is required.",
-    "wrongPassword": "Incorrect password. Please try again.",
-    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
-    "disableSuccess": "Encryption disabled.",
-    "unlockTitle": "Database Locked",
-    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
-    "unlock": "Unlock",
-    "unlocking": "Unlocking...",
-    "lockedOutSeconds": "失败次数过多。已锁定{seconds}秒。"
+    "title": "加密",
+    "enableEncryption": "静态加密数据库",
+    "hint": "启用后，应用关闭时数据库会被加密，启动时用您的密码解密。",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "currentPassword": "当前密码",
+    "enable": "启用加密",
+    "disable": "禁用加密",
+    "passwordMismatch": "两次输入的密码不一致。",
+    "passwordRequired": "必须输入密码。",
+    "wrongPassword": "密码错误，请重试。",
+    "enableSuccess": "已启用加密。应用关闭时数据库将被加密。",
+    "disableSuccess": "已禁用加密。",
+    "unlockTitle": "数据库已锁定",
+    "unlockMessage": "日志数据库已加密。请输入密码以解锁。",
+    "unlock": "解锁",
+    "unlocking": "正在解锁…",
+    "lockedOutSeconds": "失败次数过多。已锁定 {seconds} 秒。",
+    "wrongPasswordAttempts": "密码错误。还剩 {remaining} 次尝试。",
+    "lockedOut": "失败次数过多，应用将关闭。",
+    "warningTitle": "重要 — 请仔细阅读",
+    "warningMessage": "加密密码绝不会保存到磁盘。它仅在应用运行期间存在于内存中。",
+    "warningPoint1": "如果忘记密码，您的日志数据库将永久无法访问。",
+    "warningPoint2": "没有任何恢复机制——数据使用 AES-256 加密。",
+    "warningPoint3": "请务必记住密码，或将其保存在密码管理器中。",
+    "warningCancel": "取消",
+    "warningConfirm": "我已了解，启用加密",
+    "progressReading": "正在读取加密的数据库…",
+    "progressDeriving": "正在验证密码…",
+    "progressDecrypting": "正在解密…",
+    "progressWriting": "正在写入数据库…",
+    "progressInitializing": "正在打开数据库…",
+    "progressIndexing": "正在重建搜索索引…",
+    "progressDone": "完成"
   },
   "update": {
     "available": "SyslogStudio {version} 可用",
@@ -238,5 +267,8 @@
     "download": "下载",
     "skip": "跳过此版本",
     "later": "稍后"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "警告：证书颁发机构的私钥以未加密形式存储在磁盘上。"
   }
 }

@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "Fermer",
+    "previousPage": "Page précédente",
+    "nextPage": "Page suivante",
+    "delete": "Supprimer"
+  },
   "nav": {
     "logs": "Journaux",
     "stats": "Statistiques",
@@ -261,5 +267,8 @@
     "download": "Télécharger",
     "skip": "Ignorer cette version",
     "later": "Plus tard"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "Attention : la clé privée de l'autorité de certification est stockée en clair sur le disque."
   }
 }

@@ -18,7 +18,13 @@
     }
 
     function clearStatus() { error = ''; success = ''; }
+
+    function handleKeydown(e: KeyboardEvent) {
+        if (visible && e.key === 'Escape') onClose();
+    }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 {#if visible}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -27,7 +33,7 @@
         <div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">{$_('tls.title')}</span>
-                <button class="close-btn" on:click={onClose}>&times;</button>
+                <button class="close-btn" on:click={onClose} aria-label={$_('tls.close')}>&times;</button>
             </div>
 
             <div class="tabs">

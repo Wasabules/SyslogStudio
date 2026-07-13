@@ -53,6 +53,7 @@ export const getDefaultCertOptions = (): Promise<CertOptions> => _GetDefaultCert
 export const exportCACertificate = (): Promise<string> => _ExportCACertificate();
 export const exportServerCertificate = (): Promise<string> => _ExportServerCertificate();
 export const exportCertificate = (): Promise<string> => _ExportCertificate();
+export const isCAKeyUnencrypted = (): Promise<boolean> => callGo('IsCAKeyUnencrypted');
 
 // --- Alerts ---
 // These use window.go directly since bindings are generated at build time

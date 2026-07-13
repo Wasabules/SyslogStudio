@@ -184,7 +184,7 @@
                 </div>
                 <div class="rule-actions">
                     <button class="edit-btn" on:click={() => startEdit(rule)}>{$_('alerts.edit')}</button>
-                    <button class="delete-btn" on:click={() => removeRule(rule.id)}>&times;</button>
+                    <button class="delete-btn" on:click={() => removeRule(rule.id)} aria-label={$_('common.delete')}>&times;</button>
                 </div>
             </div>
         {:else}

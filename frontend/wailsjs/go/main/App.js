@@ -146,6 +146,10 @@ export function GetUpdateConfig() {
   return window['go']['main']['App']['GetUpdateConfig']();
 }
 
+export function IsCAKeyUnencrypted() {
+  return window['go']['main']['App']['IsCAKeyUnencrypted']();
+}
+
 export function IsEncryptionEnabled() {
   return window['go']['main']['App']['IsEncryptionEnabled']();
 }

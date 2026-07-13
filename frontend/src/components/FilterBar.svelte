@@ -232,7 +232,8 @@
     .date-input {
         width: 155px;
         font-size: 11px;
-        color-scheme: dark;
+        /* color-scheme is inherited from :root per theme so the native
+           date/time picker popup matches light and dark. */
     }
 
     .severity-selector {
