@@ -43,6 +43,11 @@ const (
 	baseLockoutBackoff = 30 * time.Second
 	// maxLockoutBackoff caps the backoff delay.
 	maxLockoutBackoff = 15 * time.Minute
+	// minPasswordLen is the minimum at-rest encryption password length. The
+	// unlock lockout only rate-limits attempts through the UI; a weak password
+	// is brute-forced offline against a copied logs.db.enc, so the strong KDF
+	// alone is not enough.
+	minPasswordLen = 8
 )
 
 // NewApp creates a new App application struct.
@@ -249,6 +254,13 @@ func (a *App) LoadPersistedCA() error {
 		return nil
 	}
 	return a.tlsManager.LoadCAMaterial(certPEM, keyPEM)
+}
+
+// IsCAKeyUnencrypted reports whether a persisted CA private key is stored in
+// plaintext on disk (i.e. a CA exists but at-rest encryption is off). The UI
+// surfaces this so the user knows the signing key is not protected at rest.
+func (a *App) IsCAKeyUnencrypted() bool {
+	return a.caStore != nil && a.caStore.Exists() && !a.caStore.IsEncrypted()
 }
 
 func (a *App) GenerateServerCert(opts models.CertOptions) (models.CertInfo, error) {
@@ -528,8 +540,8 @@ func (a *App) UnlockDatabase(password string) error {
 
 // EnableEncryption enables at-rest encryption with the given password.
 func (a *App) EnableEncryption(password string) error {
-	if password == "" {
-		return fmt.Errorf("password cannot be empty")
+	if len(password) < minPasswordLen {
+		return fmt.Errorf("password must be at least %d characters", minPasswordLen)
 	}
 	cfg := a.configStore.LoadStorage()
 	cfg.EncryptionEnabled = true
@@ -582,8 +594,8 @@ func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 	if subtle.ConstantTimeCompare([]byte(oldPassword), []byte(a.encryptionPassword)) != 1 {
 		return fmt.Errorf("incorrect current password")
 	}
-	if newPassword == "" {
-		return fmt.Errorf("new password cannot be empty")
+	if len(newPassword) < minPasswordLen {
+		return fmt.Errorf("new password must be at least %d characters", minPasswordLen)
 	}
 	a.encryptionPassword = newPassword
 	if a.logStore != nil {

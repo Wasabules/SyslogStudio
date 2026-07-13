@@ -7,9 +7,11 @@ import (
 )
 
 // maxOctetCount bounds the declared length of an octet-counted frame so a
-// malformed or hostile MSG-LEN cannot force an unbounded buffer. It matches
-// the scanner's buffer capacity.
-const maxOctetCount = tcpScanBufSize
+// malformed or hostile MSG-LEN cannot force an unbounded buffer. It sits
+// strictly below the scanner buffer capacity so that a maximum-length frame,
+// including its "MSG-LEN SP" prefix, still fits in one token (otherwise a
+// conformant ~64 KiB frame would trip bufio.ErrTooLong and drop the connection).
+const maxOctetCount = tcpScanBufSize - 8
 
 // syslogFrameSplit is a bufio.SplitFunc implementing both syslog TCP
 // framings from RFC 6587:

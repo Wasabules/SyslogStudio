@@ -33,6 +33,13 @@ const (
 	// maxTCPConnections caps concurrent TCP+TLS connections to bound
 	// goroutine and memory usage under connection flooding.
 	maxTCPConnections = 512
+	// maxConnsPerIP caps concurrent TCP/TLS connections from a single source
+	// IP so one host cannot occupy every global slot (Slowloris/log-blinding).
+	maxConnsPerIP = 16
+	// firstReadTimeout bounds the wait for the first frame (and, for TLS, the
+	// handshake). Idle/half-open connections are dropped quickly instead of
+	// holding a slot for the full steady-state tcpReadTimeout.
+	firstReadTimeout = 30 * time.Second
 )
 
 // listenAddr builds a listen address from an optional bind IP and a port.
@@ -80,8 +87,9 @@ type SyslogServer struct {
 
 	// Active TCP/TLS connections, tracked so Stop can close them
 	// immediately instead of waiting for idle read deadlines to elapse.
-	conns   map[net.Conn]struct{}
-	connsMu sync.Mutex
+	conns     map[net.Conn]struct{}
+	connPerIP map[string]int // source IP -> active connection count
+	connsMu   sync.Mutex
 
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
@@ -147,6 +155,7 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	workCh := s.workCh
 	s.connSem = make(chan struct{}, maxTCPConnections)
 	s.conns = make(map[net.Conn]struct{})
+	s.connPerIP = make(map[string]int)
 
 	// Compile the source allowlist. Config was validated above, so
 	// parse errors are not expected here; skip defensively regardless.
@@ -311,6 +320,7 @@ func (s *SyslogServer) Stop() error {
 		c.Close()
 	}
 	s.conns = nil
+	s.connPerIP = nil
 	s.connsMu.Unlock()
 
 	s.wg.Wait()
@@ -579,22 +589,41 @@ func (s *SyslogServer) acquireConnSlot() chan struct{} {
 // is already stopping (conns map cleared), in which case the caller
 // should close the connection and return.
 func (s *SyslogServer) trackConn(conn net.Conn) bool {
+	ip := connIP(conn)
 	s.connsMu.Lock()
 	defer s.connsMu.Unlock()
 	if s.conns == nil {
-		return false
+		return false // server is stopping
+	}
+	if s.connPerIP[ip] >= maxConnsPerIP {
+		return false // per-source connection limit reached
 	}
 	s.conns[conn] = struct{}{}
+	s.connPerIP[ip]++
 	return true
 }
 
 // untrackConn removes a connection from the active set.
 func (s *SyslogServer) untrackConn(conn net.Conn) {
+	ip := connIP(conn)
 	s.connsMu.Lock()
 	if s.conns != nil {
 		delete(s.conns, conn)
+		if n := s.connPerIP[ip]; n <= 1 {
+			delete(s.connPerIP, ip)
+		} else {
+			s.connPerIP[ip] = n - 1
+		}
 	}
 	s.connsMu.Unlock()
+}
+
+// connIP returns the source IP of a connection for per-IP accounting.
+func connIP(conn net.Conn) string {
+	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		return tcpAddr.IP.String()
+	}
+	return conn.RemoteAddr().String()
 }
 
 func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string, sem chan struct{}) {
@@ -618,6 +647,7 @@ func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, p
 	scanner.Buffer(make([]byte, 0, tcpScanBufSize), tcpScanBufSize)
 	scanner.Split(syslogFrameSplit)
 
+	first := true
 	for {
 		select {
 		case <-ctx.Done():
@@ -625,10 +655,17 @@ func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, p
 		default:
 		}
 
-		conn.SetReadDeadline(time.Now().Add(tcpReadTimeout))
+		// Short deadline for the first frame (and the TLS handshake it drives),
+		// then the steady-state timeout once the peer has proven it is live.
+		timeout := tcpReadTimeout
+		if first {
+			timeout = firstReadTimeout
+		}
+		conn.SetReadDeadline(time.Now().Add(timeout))
 		if !scanner.Scan() {
 			return
 		}
+		first = false
 
 		line := scanner.Bytes()
 		if len(line) == 0 {

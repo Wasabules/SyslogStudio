@@ -106,7 +106,7 @@ func EncryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 	copy(header[1+saltLen:], nonce)
 
 	tmpPath := dstPath + ".tmp"
-	f, err := os.Create(tmpPath)
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
@@ -196,7 +196,7 @@ func DecryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 
 	// Phase 4: Write (75-100%)
 	tmpPath := dstPath + ".tmp"
-	f, err := os.Create(tmpPath)
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
