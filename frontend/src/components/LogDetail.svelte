@@ -25,7 +25,7 @@
     <div class="detail-panel">
         <div class="detail-header">
             <span class="detail-title">{$_('log.messageDetail')}</span>
-            <button class="close-btn" on:click={close}>&times;</button>
+            <button class="close-btn" on:click={close} aria-label={$_('common.close')}>&times;</button>
         </div>
 
         <div class="detail-body">
@@ -190,8 +190,8 @@
         padding: 1px 6px;
         border-radius: 3px;
         font-size: 10px;
-        font-weight: 600;
-        color: white;
+        font-weight: 700;
+        color: #10161d;
     }
 
     .sev-num {

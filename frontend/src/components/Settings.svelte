@@ -20,6 +20,7 @@
     let updateChecking = false;
 
     async function initGeneralSettings() {
+        enableNotifications = localStorage.getItem('syslogstudio-notifications') !== 'false';
         try {
             const cfg = await getUpdateConfig();
             autoUpdateCheck = cfg.autoCheck;
@@ -27,6 +28,21 @@
         } catch {
             /* ignore */
         }
+    }
+
+    function onNotificationsChange() {
+        localStorage.setItem('syslogstudio-notifications', enableNotifications ? 'true' : 'false');
+    }
+
+    function handleKeydown(e: KeyboardEvent) {
+        if (!visible || e.key !== 'Escape') return;
+        // Escape dismisses the confirmation overlay first, if open, rather than
+        // closing the whole Settings panel underneath it.
+        if (showEncryptionWarning) {
+            showEncryptionWarning = false;
+            return;
+        }
+        onClose();
     }
 
     async function saveUpdatePrefs() {
@@ -65,6 +81,7 @@
     let storageMessageCount = 0;
     let storageDbSizeMB = 0;
     let storageOldest = '';
+    let storageDropped = 0;
     let storageLoading = false;
 
     // --- Encryption ---
@@ -129,6 +146,7 @@
                 storageMessageCount = s.messageCount ?? 0;
                 storageDbSizeMB = s.databaseSizeMB ?? 0;
                 storageOldest = s.oldestTimestamp ?? '';
+                storageDropped = s.droppedWrites ?? 0;
             }
         } catch {}
         storageLoading = false;
@@ -320,6 +338,8 @@
     }
 </script>
 
+<svelte:window on:keydown={handleKeydown} />
+
 {#if visible}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="modal-backdrop" role="presentation" on:click={onClose}>
@@ -327,7 +347,7 @@
         <div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">{$_('settings.title')}</span>
-                <button class="close-btn" on:click={onClose}>&times;</button>
+                <button class="close-btn" on:click={onClose} aria-label={$_('common.close')}>&times;</button>
             </div>
 
             <div class="tabs">
@@ -366,7 +386,8 @@
 
                     <div class="form-group checkbox-group">
                         <label>
-                            <input type="checkbox" bind:checked={enableNotifications} />
+                            <input type="checkbox" bind:checked={enableNotifications}
+                                   on:change={onNotificationsChange} />
                             {$_('settings.systemNotifications')}
                         </label>
                     </div>
@@ -391,10 +412,13 @@
                         </div>
                     {/if}
 
-                    <div class="form-group">
+                    <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
                         <button on:click={checkNow} disabled={updateChecking}>
                             {updateChecking ? $_('settings.checkingUpdates') : $_('settings.checkNow')}
                         </button>
+                        <span style="color: var(--text-secondary); font-size: 12px;">
+                            {$_('settings.version')} {appVersion || '—'}
+                        </span>
                     </div>
 
                 {:else if activeTab === 'storage'}
@@ -551,6 +575,12 @@
                                 <span class="info-label">{$_('settings.oldestMessage')}</span>
                                 <span class="info-value">{formatOldest(storageOldest)}</span>
                             </div>
+                            {#if storageDropped > 0}
+                                <div class="info-row">
+                                    <span class="info-label">{$_('settings.droppedWrites')}</span>
+                                    <span class="info-value dropped">{storageDropped.toLocaleString()}</span>
+                                </div>
+                            {/if}
                         {/if}
                     </div>
 
@@ -890,6 +920,11 @@
         color: var(--text-primary);
         font-family: monospace;
         font-size: 11px;
+    }
+
+    .info-value.dropped {
+        color: var(--danger);
+        font-weight: 700;
     }
 
     /* --- Storage actions --- */

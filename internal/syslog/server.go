@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"SyslogStudio/internal/alert"
@@ -32,6 +33,12 @@ const (
 	// maxTCPConnections caps concurrent TCP+TLS connections to bound
 	// goroutine and memory usage under connection flooding.
 	maxTCPConnections = 512
+	// firstReadTimeout bounds the wait for the first frame (and, for TLS, the
+	// handshake). Idle/half-open connections are dropped instead of holding a
+	// slot for the full steady-state tcpReadTimeout. Kept generous so clients
+	// that open a persistent connection and only transmit on an event are not
+	// dropped; the per-IP and global caps provide the real Slowloris bound.
+	firstReadTimeout = 120 * time.Second
 )
 
 // listenAddr builds a listen address from an optional bind IP and a port.
@@ -46,7 +53,9 @@ type SyslogServer struct {
 	emitter      event.EventEmitter
 	stats        *StatsCollector
 	AlertManager *alert.AlertManager
-	LogStore     *storage.LogStore
+	// logStore is swapped atomically: startup and UnlockDatabase set it from
+	// their own goroutines while worker goroutines read it on every message.
+	logStore atomic.Pointer[storage.LogStore]
 
 	mu       sync.RWMutex
 	messages []models.SyslogMessage // Ring buffer
@@ -60,6 +69,12 @@ type SyslogServer struct {
 	udpConn     *net.UDPConn
 	tcpListener net.Listener
 	tlsListener net.Listener
+
+	// startStopMu serializes the entire Start/Stop lifecycle. Stop releases
+	// s.mu before its slow conn cleanup and wg.Wait(), so without this a Start
+	// racing an in-flight Stop could allocate fresh conn maps that the Stop then
+	// nils out — leaving the new listener rejecting every connection.
+	startStopMu sync.Mutex
 
 	// Cancellation
 	cancel  context.CancelFunc
@@ -77,8 +92,10 @@ type SyslogServer struct {
 
 	// Active TCP/TLS connections, tracked so Stop can close them
 	// immediately instead of waiting for idle read deadlines to elapse.
-	conns   map[net.Conn]struct{}
-	connsMu sync.Mutex
+	conns         map[net.Conn]struct{}
+	connPerIP     map[string]int // source IP -> active connection count
+	maxConnsPerIP int            // effective per-IP cap for the current run
+	connsMu       sync.Mutex
 
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
@@ -101,11 +118,21 @@ func NewSyslogServer(emitter event.EventEmitter, tlsMgr *pki.TLSManager) *Syslog
 	}
 }
 
+// SetLogStore atomically installs (or clears) the persistence store used by
+// worker goroutines. Safe to call while the server is running.
+func (s *SyslogServer) SetLogStore(ls *storage.LogStore) {
+	s.logStore.Store(ls)
+}
+
 // Start begins listening on enabled protocols.
 func (s *SyslogServer) Start(config models.ServerConfig) error {
 	if err := models.ValidateServerConfig(config); err != nil {
 		return err
 	}
+
+	// Serialize the whole lifecycle against Stop (see startStopMu doc).
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
 
 	s.mu.Lock()
 	if s.running {
@@ -138,6 +165,11 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	workCh := s.workCh
 	s.connSem = make(chan struct{}, maxTCPConnections)
 	s.conns = make(map[net.Conn]struct{})
+	s.connPerIP = make(map[string]int)
+	s.maxConnsPerIP = config.MaxConnsPerIP
+	if s.maxConnsPerIP <= 0 {
+		s.maxConnsPerIP = models.DefaultMaxConnsPerIP
+	}
 
 	// Compile the source allowlist. Config was validated above, so
 	// parse errors are not expected here; skip defensively regardless.
@@ -149,13 +181,24 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	}
 	s.mu.Unlock()
 
-	// Start worker pool
+	// Start worker pool. Workers drain workCh but also watch ctx so they
+	// exit on Stop() without the channel ever being closed — closing workCh
+	// while a producer is mid-send in submitWork would panic ("send on
+	// closed channel"). Stop() cancels ctx to unblock them instead.
 	for i := 0; i < maxWorkers; i++ {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			for fn := range workCh {
-				fn()
+			for {
+				select {
+				case fn, ok := <-workCh:
+					if !ok {
+						return
+					}
+					fn()
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -258,6 +301,10 @@ func (s *SyslogServer) startTLSListener(ctx context.Context, config models.Serve
 
 // Stop gracefully shuts down all listeners.
 func (s *SyslogServer) Stop() error {
+	// Serialize the whole lifecycle against Start (see startStopMu doc).
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
+
 	s.mu.Lock()
 	if !s.running {
 		s.mu.Unlock()
@@ -279,7 +326,6 @@ func (s *SyslogServer) Stop() error {
 		s.tlsListener.Close()
 		s.tlsListener = nil
 	}
-	workCh := s.workCh
 	s.workCh = nil
 	s.connSem = nil
 	s.mu.Unlock()
@@ -292,11 +338,8 @@ func (s *SyslogServer) Stop() error {
 		c.Close()
 	}
 	s.conns = nil
+	s.connPerIP = nil
 	s.connsMu.Unlock()
-
-	if workCh != nil {
-		close(workCh)
-	}
 
 	s.wg.Wait()
 	slog.Info("syslog server stopped")
@@ -564,22 +607,45 @@ func (s *SyslogServer) acquireConnSlot() chan struct{} {
 // is already stopping (conns map cleared), in which case the caller
 // should close the connection and return.
 func (s *SyslogServer) trackConn(conn net.Conn) bool {
+	ip := connIP(conn)
 	s.connsMu.Lock()
 	defer s.connsMu.Unlock()
 	if s.conns == nil {
-		return false
+		return false // server is stopping
+	}
+	if s.connPerIP[ip] >= s.maxConnsPerIP {
+		// Distinct from the stopping case above so operators can diagnose why a
+		// busy source (e.g. a relay behind one IP) sees connection resets.
+		slog.Warn("per-IP connection limit reached, rejecting connection",
+			"ip", ip, "limit", s.maxConnsPerIP)
+		return false // per-source connection limit reached
 	}
 	s.conns[conn] = struct{}{}
+	s.connPerIP[ip]++
 	return true
 }
 
 // untrackConn removes a connection from the active set.
 func (s *SyslogServer) untrackConn(conn net.Conn) {
+	ip := connIP(conn)
 	s.connsMu.Lock()
 	if s.conns != nil {
 		delete(s.conns, conn)
+		if n := s.connPerIP[ip]; n <= 1 {
+			delete(s.connPerIP, ip)
+		} else {
+			s.connPerIP[ip] = n - 1
+		}
 	}
 	s.connsMu.Unlock()
+}
+
+// connIP returns the source IP of a connection for per-IP accounting.
+func connIP(conn net.Conn) string {
+	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		return tcpAddr.IP.String()
+	}
+	return conn.RemoteAddr().String()
 }
 
 func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, protocol string, sem chan struct{}) {
@@ -603,6 +669,7 @@ func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, p
 	scanner.Buffer(make([]byte, 0, tcpScanBufSize), tcpScanBufSize)
 	scanner.Split(syslogFrameSplit)
 
+	first := true
 	for {
 		select {
 		case <-ctx.Done():
@@ -610,10 +677,17 @@ func (s *SyslogServer) handleTCPConnection(ctx context.Context, conn net.Conn, p
 		default:
 		}
 
-		conn.SetReadDeadline(time.Now().Add(tcpReadTimeout))
+		// Short deadline for the first frame (and the TLS handshake it drives),
+		// then the steady-state timeout once the peer has proven it is live.
+		timeout := tcpReadTimeout
+		if first {
+			timeout = firstReadTimeout
+		}
+		conn.SetReadDeadline(time.Now().Add(timeout))
 		if !scanner.Scan() {
 			return
 		}
+		first = false
 
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -665,8 +739,8 @@ func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
 	s.stats.RecordMessage(msg)
 
 	// Persist to SQLite
-	if s.LogStore != nil {
-		s.LogStore.BufferMessage(msg)
+	if ls := s.logStore.Load(); ls != nil {
+		ls.BufferMessage(msg)
 	}
 
 	// Check alert rules

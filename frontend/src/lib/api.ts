@@ -53,6 +53,7 @@ export const getDefaultCertOptions = (): Promise<CertOptions> => _GetDefaultCert
 export const exportCACertificate = (): Promise<string> => _ExportCACertificate();
 export const exportServerCertificate = (): Promise<string> => _ExportServerCertificate();
 export const exportCertificate = (): Promise<string> => _ExportCertificate();
+export const isCAKeyUnencrypted = (): Promise<boolean> => callGo('IsCAKeyUnencrypted');
 
 // --- Alerts ---
 // These use window.go directly since bindings are generated at build time
@@ -114,7 +115,9 @@ export const setUpdateConfig = (cfg: UpdateConfig): Promise<void> => callGo('Set
 export const skipUpdateVersion = (version: string): Promise<void> => callGo('SkipUpdateVersion', version);
 
 // --- Utilities ---
+export interface NetworkInterface { name: string; ip: string; }
 export const getLocalIPs = (): Promise<string[]> => _GetLocalIPs();
+export const getNetworkInterfaces = (): Promise<NetworkInterface[]> => callGo('GetNetworkInterfaces');
 export const selectCertFile = (): Promise<string> => _SelectCertFile();
 export const selectKeyFile = (): Promise<string> => _SelectKeyFile();
 export const selectCAFile = (): Promise<string> => _SelectCAFile();

@@ -171,6 +171,20 @@ export namespace models {
 	        this.count = source["count"];
 	    }
 	}
+	export class NetworkInterface {
+	    name: string;
+	    ip: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NetworkInterface(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.ip = source["ip"];
+	    }
+	}
 	export class SyslogMessage {
 	    id: string;
 	    // Go type: time
@@ -327,7 +341,8 @@ export namespace models {
 	    certOptions: CertOptions;
 	    mutualTLS: boolean;
 	    caFile: string;
-	
+	    maxConnsPerIP: number;
+
 	    static createFrom(source: any = {}) {
 	        return new ServerConfig(source);
 	    }
@@ -349,6 +364,7 @@ export namespace models {
 	        this.certOptions = this.convertValues(source["certOptions"], CertOptions);
 	        this.mutualTLS = source["mutualTLS"];
 	        this.caFile = source["caFile"];
+	        this.maxConnsPerIP = source["maxConnsPerIP"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -490,16 +506,18 @@ export namespace models {
 	    messageCount: number;
 	    databaseSizeMB: number;
 	    oldestTimestamp: string;
-	
+	    droppedWrites: number;
+
 	    static createFrom(source: any = {}) {
 	        return new StorageStats(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.messageCount = source["messageCount"];
 	        this.databaseSizeMB = source["databaseSizeMB"];
 	        this.oldestTimestamp = source["oldestTimestamp"];
+	        this.droppedWrites = source["droppedWrites"];
 	    }
 	}
 	

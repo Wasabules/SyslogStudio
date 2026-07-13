@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "Close",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "delete": "Delete"
+  },
   "nav": {
     "logs": "Logs",
     "stats": "Stats",
@@ -28,7 +34,9 @@
     "allInterfaces": "All interfaces",
     "bindAddressHint": "Bind address: local IP to listen on. Empty = all interfaces.",
     "allowedSources": "Allowed sources",
-    "allowedSourcesHint": "Allowed sources: IPs or CIDR ranges, comma-separated. Empty = allow all. Note: UDP sources can be spoofed."
+    "allowedSourcesHint": "Allowed sources: IPs or CIDR ranges, comma-separated. Empty = allow all. Note: UDP sources can be spoofed.",
+    "maxConnsPerIP": "Max conn/IP",
+    "maxConnsPerIPHint": "Maximum concurrent TCP/TLS connections from a single source IP. Raise it for a syslog relay or NAT gateway that multiplexes many senders behind one address."
   },
   "filter": {
     "severity": "Severity",
@@ -186,7 +194,8 @@
     "checkNow": "Check for updates",
     "checkingUpdates": "Checking…",
     "upToDate": "You're on the latest version.",
-    "updateCheckFailed": "Update check failed: {error}"
+    "updateCheckFailed": "Update check failed: {error}",
+    "droppedWrites": "Dropped logs (overload)"
   },
   "alerts": {
     "rules": "Alert Rules",
@@ -261,5 +270,8 @@
     "download": "Download",
     "skip": "Skip this version",
     "later": "Later"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "Warning: the certificate authority private key is stored unencrypted on disk."
   }
 }

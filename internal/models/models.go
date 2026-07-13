@@ -139,6 +139,12 @@ type ServerConfig struct {
 	CertOptions    CertOptions `json:"certOptions"`
 	MutualTLS      bool        `json:"mutualTLS"`
 	CAFile         string      `json:"caFile"`
+	// MaxConnsPerIP caps concurrent TCP/TLS connections from a single source
+	// IP so one host cannot occupy every global slot (Slowloris/log-blinding).
+	// A syslog relay or NAT gateway multiplexes many senders behind one IP, so
+	// this must be high enough for those deployments. 0 or negative means use
+	// the default. Applies only to connection-oriented listeners (TCP/TLS).
+	MaxConnsPerIP int `json:"maxConnsPerIP"`
 }
 
 // ServerStatus describes the current state of the server.
@@ -195,6 +201,9 @@ type StorageStats struct {
 	MessageCount    int64   `json:"messageCount"`
 	DatabaseSizeMB  float64 `json:"databaseSizeMB"`
 	OldestTimestamp string  `json:"oldestTimestamp"`
+	// DroppedWrites counts messages discarded because the write buffer stayed
+	// full (persistence could not keep up). Non-zero means logs were lost.
+	DroppedWrites int64 `json:"droppedWrites"`
 }
 
 // PagedResult holds a paginated query result.
@@ -289,6 +298,13 @@ type UpdateConfig struct {
 	SkipVersion string `json:"skipVersion"`
 	// LastCheckUnix is the Unix time (seconds) of the last successful check.
 	LastCheckUnix int64 `json:"lastCheckUnix"`
+}
+
+// NetworkInterface describes a bindable local IPv4 address and the interface
+// it belongs to, for the bind-address selector in the UI.
+type NetworkInterface struct {
+	Name string `json:"name"`
+	IP   string `json:"ip"`
 }
 
 // --- Label converters ---
@@ -394,16 +410,27 @@ func DefaultUpdateConfig() UpdateConfig {
 // DefaultServerConfig returns sensible defaults.
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		UDPEnabled:    true,
-		TCPEnabled:    false,
-		TLSEnabled:    false,
-		UDPPort:       514,
-		TCPPort:       514,
+		UDPEnabled: true,
+		TCPEnabled: false,
+		TLSEnabled: false,
+		// Non-privileged defaults so the first run binds without root on
+		// Linux/macOS (ports < 1024 need elevation there). Existing saved
+		// configs keep their values; users who need the standard 514 can set it
+		// and run with the required privileges.
+		UDPPort:       1514,
+		TCPPort:       1514,
 		TLSPort:       6514,
 		MaxBuffer:     10000,
+		MaxConnsPerIP: DefaultMaxConnsPerIP,
 		UseSelfSigned: false,
 	}
 }
+
+// DefaultMaxConnsPerIP is the default per-source-IP concurrent TCP/TLS
+// connection cap. Chosen high enough not to break a syslog relay/NAT gateway
+// that multiplexes many senders behind one IP, while still preventing a single
+// host from monopolizing the global connection pool.
+const DefaultMaxConnsPerIP = 128
 
 // --- Validation ---
 
@@ -482,7 +509,13 @@ func ValidateServerConfig(c ServerConfig) error {
 		}
 	}
 
-	if c.TLSEnabled && c.MutualTLS && c.CAFile != "" {
+	if c.TLSEnabled && c.MutualTLS {
+		// A CA is mandatory for mutual TLS: without it, client-certificate
+		// verification is silently not enforced and any anonymous client is
+		// accepted while the UI still reports mTLS as enabled.
+		if c.CAFile == "" {
+			return fmt.Errorf("mutual TLS requires a CA certificate file to verify client certificates")
+		}
 		if _, err := os.Stat(c.CAFile); err != nil {
 			return fmt.Errorf("CA certificate file not found: %s", c.CAFile)
 		}

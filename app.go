@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	neturl "net/url"
 	"os"
 	"strings"
 	"time"
@@ -43,6 +44,11 @@ const (
 	baseLockoutBackoff = 30 * time.Second
 	// maxLockoutBackoff caps the backoff delay.
 	maxLockoutBackoff = 15 * time.Minute
+	// minPasswordLen is the minimum at-rest encryption password length. The
+	// unlock lockout only rate-limits attempts through the UI; a weak password
+	// is brute-forced offline against a copied logs.db.enc, so the strong KDF
+	// alone is not enough.
+	minPasswordLen = 8
 )
 
 // NewApp creates a new App application struct.
@@ -70,7 +76,7 @@ func (a *App) startup(ctx context.Context) {
 		slog.Warn("failed to initialize log store, persistence disabled", "error", err)
 	} else {
 		a.logStore = ls
-		a.server.LogStore = ls
+		a.server.SetLogStore(ls)
 	}
 
 	// Restore alert rules
@@ -97,8 +103,8 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	if a.server != nil {
 		a.server.Stop()
+		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	}
-	a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	if a.logStore != nil {
 		a.logStore.Close()
 	}
@@ -251,6 +257,13 @@ func (a *App) LoadPersistedCA() error {
 	return a.tlsManager.LoadCAMaterial(certPEM, keyPEM)
 }
 
+// IsCAKeyUnencrypted reports whether a persisted CA private key is stored in
+// plaintext on disk (i.e. a CA exists but at-rest encryption is off). The UI
+// surfaces this so the user knows the signing key is not protected at rest.
+func (a *App) IsCAKeyUnencrypted() bool {
+	return a.caStore != nil && a.caStore.Exists() && !a.caStore.IsEncrypted()
+}
+
 func (a *App) GenerateServerCert(opts models.CertOptions) (models.CertInfo, error) {
 	return a.tlsManager.GenerateServerCertSignedByCA(opts)
 }
@@ -361,6 +374,34 @@ func (a *App) GetLocalIPs() []string {
 		}
 	}
 	return ips
+}
+
+// GetNetworkInterfaces lists bindable local IPv4 addresses with their
+// interface name, for the bind-address selector. Interfaces that are down are
+// skipped; loopback is included so the server can be restricted to localhost.
+func (a *App) GetNetworkInterfaces() []models.NetworkInterface {
+	var out []models.NetworkInterface
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return out
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				if ip4 := ipnet.IP.To4(); ip4 != nil {
+					out = append(out, models.NetworkInterface{Name: iface.Name, IP: ip4.String()})
+				}
+			}
+		}
+	}
+	return out
 }
 
 // --- Alert Methods ---
@@ -483,7 +524,7 @@ func (a *App) UnlockDatabase(password string) error {
 	// Success: clear persisted lockout state.
 	a.configStore.SaveLockout(models.LockoutState{})
 	a.encryptionPassword = password
-	a.server.LogStore = a.logStore
+	a.server.SetLogStore(a.logStore)
 
 	// Restore alert rules now that the store is available
 	rules := a.configStore.LoadAlertRules()
@@ -500,8 +541,8 @@ func (a *App) UnlockDatabase(password string) error {
 
 // EnableEncryption enables at-rest encryption with the given password.
 func (a *App) EnableEncryption(password string) error {
-	if password == "" {
-		return fmt.Errorf("password cannot be empty")
+	if len(password) < minPasswordLen {
+		return fmt.Errorf("password must be at least %d characters", minPasswordLen)
 	}
 	cfg := a.configStore.LoadStorage()
 	cfg.EncryptionEnabled = true
@@ -554,8 +595,8 @@ func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 	if subtle.ConstantTimeCompare([]byte(oldPassword), []byte(a.encryptionPassword)) != 1 {
 		return fmt.Errorf("incorrect current password")
 	}
-	if newPassword == "" {
-		return fmt.Errorf("new password cannot be empty")
+	if len(newPassword) < minPasswordLen {
+		return fmt.Errorf("new password must be at least %d characters", minPasswordLen)
 	}
 	a.encryptionPassword = newPassword
 	if a.logStore != nil {
@@ -598,7 +639,11 @@ func (a *App) GetAppVersion() string {
 
 // OpenURL opens a URL in the user's default browser.
 func (a *App) OpenURL(url string) {
-	wailsRuntime.BrowserOpenURL(a.ctx, url)
+	// Only open web URLs — never file:, javascript:, or custom-protocol
+	// handlers, which BrowserOpenURL would otherwise dispatch.
+	if u, err := neturl.Parse(url); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		wailsRuntime.BrowserOpenURL(a.ctx, url)
+	}
 }
 
 // GetUpdateConfig returns the persisted update-check preferences.

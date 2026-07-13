@@ -1,4 +1,10 @@
 {
+  "common": {
+    "close": "Schließen",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "delete": "Löschen"
+  },
   "nav": {
     "logs": "Protokolle",
     "stats": "Statistiken",
@@ -16,7 +22,9 @@
     "rate": "Nachrichtenrate",
     "buffer": "Ringpuffer-Auslastung",
     "dbMessages": "Gespeicherte Nachrichten",
-    "dbSize": "Datenbankgröße"
+    "dbSize": "Datenbankgröße",
+    "dbLoading": "Datenbank wird geladen …",
+    "dbIndexing": "Indizierung …"
   },
   "server": {
     "start": "Starten",
@@ -26,7 +34,9 @@
     "allInterfaces": "Alle Schnittstellen",
     "bindAddressHint": "Bind-Adresse: lokale IP, auf der gelauscht wird. Leer = alle Schnittstellen.",
     "allowedSources": "Erlaubte Quellen",
-    "allowedSourcesHint": "Erlaubte Quellen: IPs oder CIDR-Bereiche, kommagetrennt. Leer = alle erlauben. Hinweis: UDP-Quellen können gefälscht sein."
+    "allowedSourcesHint": "Erlaubte Quellen: IPs oder CIDR-Bereiche, kommagetrennt. Leer = alle erlauben. Hinweis: UDP-Quellen können gefälscht sein.",
+    "maxConnsPerIP": "Max. Verb./IP",
+    "maxConnsPerIPHint": "Maximale gleichzeitige TCP/TLS-Verbindungen von einer einzelnen Quell-IP. Für ein Syslog-Relay oder NAT-Gateway erhöhen, das viele Sender hinter einer Adresse bündelt."
   },
   "filter": {
     "severity": "Schweregrad",
@@ -47,8 +57,11 @@
     "textExportFailed": "Textexport fehlgeschlagen",
     "dateFrom": "Von",
     "dateTo": "Bis",
-    "regex": "Regex",
-    "regexTitle": "Regex-Suche aktivieren"
+    "modeText": "Textsuche (klicken für FTS)",
+    "modeFts": "FTS erweitert: OR, AND, NOT, \"Phrase\", Präfix* (klicken für Regex)",
+    "modeRegex": "Regex-Suche (klicken für Text)",
+    "ftsPlaceholder": "error OR fail OR timeout",
+    "regexPlaceholder": "(error|fail|timeout)"
   },
   "log": {
     "severity": "Schweregrad",
@@ -88,7 +101,8 @@
     "rawMessage": "Rohnachricht",
     "copy": "Kopieren",
     "copiedToClipboard": "In die Zwischenablage kopiert",
-    "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen"
+    "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen",
+    "matchesFound": "Treffer gefunden"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",
@@ -179,7 +193,9 @@
     "checkNow": "Nach Updates suchen",
     "checkingUpdates": "Wird geprüft…",
     "upToDate": "Sie verwenden die neueste Version.",
-    "updateCheckFailed": "Update-Prüfung fehlgeschlagen: {error}"
+    "updateCheckFailed": "Update-Prüfung fehlgeschlagen: {error}",
+    "autoUpdateCheck": "Beim Start nach Updates suchen",
+    "droppedWrites": "Verworfene Logs (Überlast)"
   },
   "alerts": {
     "rules": "Warnregeln",
@@ -211,24 +227,40 @@
     "clearFailed": "Verlauf konnte nicht geleert werden"
   },
   "encryption": {
-    "title": "Encryption",
-    "enableEncryption": "Encrypt database at rest",
-    "hint": "When enabled, the database is encrypted when the app closes and decrypted on startup with your password.",
-    "password": "Password",
-    "confirmPassword": "Confirm password",
-    "currentPassword": "Current password",
-    "enable": "Enable Encryption",
-    "disable": "Disable Encryption",
-    "passwordMismatch": "Passwords do not match.",
-    "passwordRequired": "Password is required.",
-    "wrongPassword": "Incorrect password. Please try again.",
-    "enableSuccess": "Encryption enabled. The database will be encrypted when the app closes.",
-    "disableSuccess": "Encryption disabled.",
-    "unlockTitle": "Database Locked",
-    "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
-    "unlock": "Unlock",
-    "unlocking": "Unlocking...",
-    "lockedOutSeconds": "Zu viele Fehlversuche. Gesperrt für {seconds}s."
+    "title": "Verschlüsselung",
+    "enableEncryption": "Datenbank im Ruhezustand verschlüsseln",
+    "hint": "Wenn aktiviert, wird die Datenbank beim Schließen der App verschlüsselt und beim Start mit Ihrem Passwort entschlüsselt.",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "currentPassword": "Aktuelles Passwort",
+    "enable": "Verschlüsselung aktivieren",
+    "disable": "Verschlüsselung deaktivieren",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+    "passwordRequired": "Passwort ist erforderlich.",
+    "wrongPassword": "Falsches Passwort. Bitte erneut versuchen.",
+    "enableSuccess": "Verschlüsselung aktiviert. Die Datenbank wird beim Schließen der App verschlüsselt.",
+    "disableSuccess": "Verschlüsselung deaktiviert.",
+    "unlockTitle": "Datenbank gesperrt",
+    "unlockMessage": "Die Protokolldatenbank ist verschlüsselt. Geben Sie Ihr Passwort zum Entsperren ein.",
+    "unlock": "Entsperren",
+    "unlocking": "Wird entsperrt …",
+    "lockedOutSeconds": "Zu viele Fehlversuche. Gesperrt für {seconds}s.",
+    "wrongPasswordAttempts": "Falsches Passwort. Noch {remaining} Versuch(e).",
+    "lockedOut": "Zu viele Fehlversuche. Die Anwendung wird geschlossen.",
+    "warningTitle": "Wichtig — bitte aufmerksam lesen",
+    "warningMessage": "Das Verschlüsselungspasswort wird niemals auf der Festplatte gespeichert. Es existiert nur im Arbeitsspeicher, solange die App läuft.",
+    "warningPoint1": "Wenn Sie Ihr Passwort vergessen, ist Ihre Protokolldatenbank dauerhaft unzugänglich.",
+    "warningPoint2": "Es gibt keinen Wiederherstellungsmechanismus — die Daten sind mit AES-256 verschlüsselt.",
+    "warningPoint3": "Merken Sie sich Ihr Passwort oder speichern Sie es in einem Passwort-Manager.",
+    "warningCancel": "Abbrechen",
+    "warningConfirm": "Verstanden, Verschlüsselung aktivieren",
+    "progressReading": "Verschlüsselte Datenbank wird gelesen …",
+    "progressDeriving": "Passwort wird überprüft …",
+    "progressDecrypting": "Wird entschlüsselt …",
+    "progressWriting": "Datenbank wird geschrieben …",
+    "progressInitializing": "Datenbank wird geöffnet …",
+    "progressIndexing": "Suchindex wird neu aufgebaut …",
+    "progressDone": "Fertig"
   },
   "update": {
     "available": "SyslogStudio {version} ist verfügbar",
@@ -238,5 +270,8 @@
     "download": "Herunterladen",
     "skip": "Diese Version überspringen",
     "later": "Später"
+  },
+  "warnings": {
+    "caKeyUnencrypted": "Warnung: Der private Schlüssel der Zertifizierungsstelle ist unverschlüsselt auf der Festplatte gespeichert."
   }
 }

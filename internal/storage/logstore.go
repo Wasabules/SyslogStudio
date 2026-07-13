@@ -21,15 +21,20 @@ const (
 	logStoreFlushInterval   = 500 * time.Millisecond
 	logStoreCleanupInterval = 5 * time.Minute
 	dbFileName              = "logs.db"
+	// maxWriteBuffer caps the in-memory pending-write buffer so a message
+	// flood that outruns SQLite commits (slow disk, VACUUM, retention delete)
+	// bounds memory instead of growing without limit until OOM.
+	maxWriteBuffer = 200000
 )
 
 // LogStore handles SQLite-based message persistence.
 type LogStore struct {
-	mu      sync.Mutex
-	db      *sql.DB
-	config  models.StorageConfig
-	buffer  []models.SyslogMessage
-	emitter event.EventEmitter
+	mu            sync.Mutex
+	db            *sql.DB
+	config        models.StorageConfig
+	buffer        []models.SyslogMessage
+	droppedWrites int64
+	emitter       event.EventEmitter
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -188,6 +193,8 @@ func (ls *LogStore) IsReady() bool {
 
 // IsLocked returns true if the database is encrypted and not yet unlocked.
 func (ls *LogStore) IsLocked() bool {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 	return ls.locked
 }
 
@@ -289,12 +296,32 @@ func (ls *LogStore) rebuildFTS() {
 
 // BufferMessage adds a message to the write buffer (non-blocking).
 func (ls *LogStore) BufferMessage(msg models.SyslogMessage) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 	if ls.db == nil {
 		return
 	}
-	ls.mu.Lock()
+	if len(ls.buffer) >= maxWriteBuffer {
+		// Persistence can't keep up: drop the oldest to bound memory. Drop a
+		// chunk at once (one memmove per chunk) rather than one element per
+		// call — the latter is an O(n) copy of the whole 200k buffer on every
+		// message, during the exact overload this guard exists for.
+		drop := maxWriteBuffer / 8
+		n := copy(ls.buffer, ls.buffer[drop:])
+		ls.buffer = ls.buffer[:n]
+		ls.droppedWrites += int64(drop)
+		slog.Warn("log write buffer full, dropping oldest messages",
+			"droppedThisChunk", drop, "droppedTotal", ls.droppedWrites)
+	}
 	ls.buffer = append(ls.buffer, msg)
-	ls.mu.Unlock()
+}
+
+// droppedWriteCount returns how many buffered messages have been dropped due
+// to sustained buffer-full overload. Read under the same lock that mutates it.
+func (ls *LogStore) droppedWriteCount() int64 {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.droppedWrites
 }
 
 func (ls *LogStore) flushLoop() {
@@ -743,7 +770,8 @@ func (ls *LogStore) GetStats() models.StorageStats {
 	}
 
 	stats := models.StorageStats{
-		MessageCount: ls.messageCount(),
+		MessageCount:  ls.messageCount(),
+		DroppedWrites: ls.droppedWriteCount(),
 	}
 
 	// DB file size (main + WAL + SHM)

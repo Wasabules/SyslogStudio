@@ -38,8 +38,15 @@ function formatNotification(event: AlertEvent): { title: string; body: string } 
     };
 }
 
+// notificationsEnabled reflects the Settings "system notifications" toggle,
+// persisted to localStorage (default on).
+function notificationsEnabled(): boolean {
+    return localStorage.getItem('syslogstudio-notifications') !== 'false';
+}
+
 function sendSystemNotification(event: AlertEvent) {
     if (!notificationsReady || !window.runtime?.SendNotification) return;
+    if (!notificationsEnabled()) return;
     try {
         const { title, body } = formatNotification(event);
         window.runtime.SendNotification({ id: event.id, title, body });

@@ -1,7 +1,8 @@
 <script lang="ts">
     import { serverStatus } from '../lib/stores';
     import type { ServerConfig } from '../lib/stores';
-    import { startServer, stopServer, getServerStatus, getDefaultConfig } from '../lib/api';
+    import { startServer, stopServer, getServerStatus, getDefaultConfig, getNetworkInterfaces } from '../lib/api';
+    import type { NetworkInterface } from '../lib/api';
     import { onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
 
@@ -12,10 +13,21 @@
         udpPort: 514, tcpPort: 514, tlsPort: 6514, bindAddress: '', allowedSources: [],
         maxBuffer: 10000, certFile: '', keyFile: '', useSelfSigned: false,
         certOptions: { algorithm: 'ECDSA-P256', validityDays: 365, commonName: 'SyslogStudio', organization: 'SyslogStudio', dnsNames: ['localhost'], ipAddresses: ['127.0.0.1', '::1'] },
-        mutualTLS: false, caFile: '',
+        mutualTLS: false, caFile: '', maxConnsPerIP: 128,
     };
     let error = '';
     let allowedSourcesText = '';
+    let interfaces: NetworkInterface[] = [];
+
+    // Bind-address options: the detected interfaces, plus a persisted address
+    // that is no longer present (so the current selection is never lost).
+    $: bindOptions = (() => {
+        const opts = interfaces.map(i => ({ ip: i.ip, label: `${i.name} (${i.ip})` }));
+        if (config.bindAddress && !opts.some(o => o.ip === config.bindAddress)) {
+            opts.unshift({ ip: config.bindAddress, label: config.bindAddress });
+        }
+        return opts;
+    })();
 
     onMount(async () => {
         try {
@@ -25,6 +37,11 @@
             serverStatus.set(status);
         } catch (e: any) {
             console.warn('Failed to load initial config:', e);
+        }
+        try {
+            interfaces = await getNetworkInterfaces();
+        } catch {
+            interfaces = [];
         }
     });
 
@@ -89,14 +106,23 @@
         </div>
 
         <div class="net-group">
-            <input type="text" bind:value={config.bindAddress}
-                   placeholder={$_('server.allInterfaces')}
-                   title={$_('server.bindAddressHint')}
-                   disabled={$serverStatus.running} class="bind-input" />
+            <select bind:value={config.bindAddress}
+                    title={$_('server.bindAddressHint')}
+                    disabled={$serverStatus.running} class="bind-input">
+                <option value="">{$_('server.allInterfaces')}</option>
+                {#each bindOptions as opt}
+                    <option value={opt.ip}>{opt.label}</option>
+                {/each}
+            </select>
             <input type="text" bind:value={allowedSourcesText}
                    placeholder={$_('server.allowedSources')}
                    title={$_('server.allowedSourcesHint')}
                    disabled={$serverStatus.running} class="sources-input" />
+            <label class="conns-group" title={$_('server.maxConnsPerIPHint')}>
+                {$_('server.maxConnsPerIP')}
+                <input type="number" bind:value={config.maxConnsPerIP} min="1" max="65535"
+                       disabled={$serverStatus.running} class="port-input" />
+            </label>
         </div>
 
         {#if config.tlsEnabled}
@@ -205,11 +231,20 @@
     }
 
     .bind-input {
-        width: 110px;
+        width: 170px;
     }
 
     .sources-input {
         width: 180px;
+    }
+
+    .conns-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: nowrap;
     }
 
     .tls-btn {

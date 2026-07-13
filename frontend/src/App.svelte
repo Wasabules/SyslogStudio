@@ -14,7 +14,8 @@
     import ToastContainer from './components/ToastContainer.svelte';
     import AlertConfig from './components/AlertConfig.svelte';
     import UnlockScreen from './components/UnlockScreen.svelte';
-    import { isEncryptionLocked, getUpdateConfig } from './lib/api';
+    import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted } from './lib/api';
+    import { toastError } from './lib/toast';
     import { updateStore } from './lib/updateStore';
     import UpdateBanner from './components/UpdateBanner.svelte';
 
@@ -26,6 +27,19 @@
         initEventListeners();
         updateStore.loadVersion();
         maybeAutoCheck();
+        maybeWarnCAPlaintext();
+    }
+
+    // maybeWarnCAPlaintext alerts the user when a certificate authority private
+    // key is persisted to disk without encryption, so they can act on it.
+    async function maybeWarnCAPlaintext() {
+        try {
+            if (await isCAKeyUnencrypted()) {
+                toastError($_('warnings.caKeyUnencrypted'));
+            }
+        } catch {
+            /* ignore */
+        }
     }
 
     // maybeAutoCheck runs the automatic update check, honoring the persisted

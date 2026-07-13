@@ -9,5 +9,11 @@
   "author": {
     "name": "Geoffrey Lecoq",
     "email": ""
+  },
+  "info": {
+    "companyName": "Geoffrey Lecoq",
+    "productName": "SyslogStudio",
+    "copyright": "Copyright © 2026 Geoffrey Lecoq",
+    "comments": "Multi-protocol syslog server and log viewer"
   }
 }
