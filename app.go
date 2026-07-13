@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	neturl "net/url"
 	"os"
 	"strings"
 	"time"
@@ -638,7 +639,11 @@ func (a *App) GetAppVersion() string {
 
 // OpenURL opens a URL in the user's default browser.
 func (a *App) OpenURL(url string) {
-	wailsRuntime.BrowserOpenURL(a.ctx, url)
+	// Only open web URLs — never file:, javascript:, or custom-protocol
+	// handlers, which BrowserOpenURL would otherwise dispatch.
+	if u, err := neturl.Parse(url); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		wailsRuntime.BrowserOpenURL(a.ctx, url)
+	}
 }
 
 // GetUpdateConfig returns the persisted update-check preferences.

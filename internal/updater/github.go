@@ -44,6 +44,16 @@ func (r *ghRelease) assetURL(name string) string {
 	return ""
 }
 
+// assetSize returns the byte size of the named asset (0 if absent).
+func (r *ghRelease) assetSize(name string) int64 {
+	for _, a := range r.Assets {
+		if a.Name == name {
+			return a.Size
+		}
+	}
+	return 0
+}
+
 // latestRelease fetches the repository's latest (non-draft) release.
 func (s *Service) latestRelease(ctx context.Context) (*ghRelease, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", apiBase, s.owner, s.repo)

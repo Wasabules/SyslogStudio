@@ -34,6 +34,7 @@ type pending struct {
 	version        string
 	assetURL       string
 	assetName      string
+	size           int64 // authenticated asset size from the GitHub API (0 if unknown)
 	checksumURL    string
 	checksumSigURL string
 	mode           applyMode
@@ -112,6 +113,11 @@ func (s *Service) CheckForUpdate() (models.UpdateInfo, error) {
 	if isDevVersion() {
 		return info, nil
 	}
+	// Authenticity is mandatory: without an embedded signing key, updates are
+	// disabled entirely rather than silently downgraded to SHA-256-only.
+	if !signatureEnforced() {
+		return info, fmt.Errorf("auto-update is disabled: no updater signing key is configured")
+	}
 
 	ctx, cancel := context.WithTimeout(s.context(), 15*time.Second)
 	defer cancel()
@@ -140,9 +146,12 @@ func (s *Service) CheckForUpdate() (models.UpdateInfo, error) {
 	assetName, mode := target()
 	assetURL := rel.assetURL(assetName)
 	if assetURL == "" {
-		// No self-update asset for this platform in this release: fall back
-		// to opening the release page in the browser.
+		// No self-update asset for this platform in this release.
 		mode = applyBrowser
+	}
+	if mode == applyBrowser {
+		// Open the release page (where the signed checksums are visible)
+		// rather than a direct, unverified asset link.
 		assetURL = rel.HTMLURL
 	}
 	info.AssetName = assetName
@@ -154,6 +163,7 @@ func (s *Service) CheckForUpdate() (models.UpdateInfo, error) {
 		version:        rel.TagName,
 		assetURL:       assetURL,
 		assetName:      assetName,
+		size:           rel.assetSize(assetName),
 		checksumURL:    rel.assetURL(checksumsAsset),
 		checksumSigURL: rel.assetURL(checksumsAsset + ".sig"),
 		mode:           mode,

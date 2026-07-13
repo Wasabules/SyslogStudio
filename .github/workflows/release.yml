@@ -183,11 +183,23 @@ jobs:
           merge-multiple: true
       - name: Generate checksums
         working-directory: artifacts
-        run: sha256sum SyslogStudio-windows-* SyslogStudio-macos-* SyslogStudio-linux-* > SyslogStudio-checksums.txt
+        run: |
+          # The first line binds the signed manifest to this release tag; the
+          # app rejects a manifest whose version doesn't match (replay guard).
+          {
+            echo "version ${GITHUB_REF_NAME}"
+            sha256sum SyslogStudio-windows-* SyslogStudio-macos-* SyslogStudio-linux-*
+          } > SyslogStudio-checksums.txt
       - name: Sign checksums
         env:
           UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
-        run: go run ./tools/updatersign sign artifacts/SyslogStudio-checksums.txt
+        run: |
+          if [ -z "$UPDATER_PRIVATE_KEY" ]; then
+            echo "::error::UPDATER_PRIVATE_KEY secret is not set; releases must be signed." >&2
+            exit 1
+          fi
+          go run ./tools/updatersign sign artifacts/SyslogStudio-checksums.txt
+          test -s artifacts/SyslogStudio-checksums.txt.sig
       - name: List release assets
         run: ls -lh artifacts/
       - name: Create GitHub Release
