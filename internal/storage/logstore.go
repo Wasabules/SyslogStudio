@@ -193,6 +193,8 @@ func (ls *LogStore) IsReady() bool {
 
 // IsLocked returns true if the database is encrypted and not yet unlocked.
 func (ls *LogStore) IsLocked() bool {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 	return ls.locked
 }
 

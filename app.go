@@ -70,7 +70,7 @@ func (a *App) startup(ctx context.Context) {
 		slog.Warn("failed to initialize log store, persistence disabled", "error", err)
 	} else {
 		a.logStore = ls
-		a.server.LogStore = ls
+		a.server.SetLogStore(ls)
 	}
 
 	// Restore alert rules
@@ -511,7 +511,7 @@ func (a *App) UnlockDatabase(password string) error {
 	// Success: clear persisted lockout state.
 	a.configStore.SaveLockout(models.LockoutState{})
 	a.encryptionPassword = password
-	a.server.LogStore = a.logStore
+	a.server.SetLogStore(a.logStore)
 
 	// Restore alert rules now that the store is available
 	rules := a.configStore.LoadAlertRules()

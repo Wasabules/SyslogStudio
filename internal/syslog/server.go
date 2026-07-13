@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"SyslogStudio/internal/alert"
@@ -46,7 +47,9 @@ type SyslogServer struct {
 	emitter      event.EventEmitter
 	stats        *StatsCollector
 	AlertManager *alert.AlertManager
-	LogStore     *storage.LogStore
+	// logStore is swapped atomically: startup and UnlockDatabase set it from
+	// their own goroutines while worker goroutines read it on every message.
+	logStore atomic.Pointer[storage.LogStore]
 
 	mu       sync.RWMutex
 	messages []models.SyslogMessage // Ring buffer
@@ -99,6 +102,12 @@ func NewSyslogServer(emitter event.EventEmitter, tlsMgr *pki.TLSManager) *Syslog
 		AlertManager: alert.NewAlertManager(emitter),
 		tlsManager:   tlsMgr,
 	}
+}
+
+// SetLogStore atomically installs (or clears) the persistence store used by
+// worker goroutines. Safe to call while the server is running.
+func (s *SyslogServer) SetLogStore(ls *storage.LogStore) {
+	s.logStore.Store(ls)
 }
 
 // Start begins listening on enabled protocols.
@@ -671,8 +680,8 @@ func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
 	s.stats.RecordMessage(msg)
 
 	// Persist to SQLite
-	if s.LogStore != nil {
-		s.LogStore.BufferMessage(msg)
+	if ls := s.logStore.Load(); ls != nil {
+		ls.BufferMessage(msg)
 	}
 
 	// Check alert rules
