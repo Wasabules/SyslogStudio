@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"SyslogStudio/internal/models"
 )
@@ -12,8 +13,14 @@ import (
 const configFileName = "config.json"
 
 // ConfigStore handles persisting and loading user configuration.
+//
+// Every public Load*/Save* is a read-modify-write of config.json (loadAll then
+// saveAll). The mutex makes each of those atomic so concurrent savers on
+// different Wails goroutines cannot lose each other's changes, and saveAll
+// writes via a temp file + rename so a crash mid-write cannot corrupt the file.
 type ConfigStore struct {
 	dir string
+	mu  sync.Mutex
 }
 
 // NewConfigStore creates a ConfigStore using the user's config directory.
@@ -103,18 +110,30 @@ func (cs *ConfigStore) saveAll(cfg models.AppConfig) {
 		slog.Warn("failed to marshal config", "error", err)
 		return
 	}
-	if err := os.WriteFile(cs.path(), data, 0600); err != nil {
+	// Write atomically: a partial write (crash/full disk) must not corrupt
+	// config.json, which would otherwise fall back to defaults on next load.
+	tmp := cs.path() + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		slog.Warn("failed to write config", "error", err)
+		return
+	}
+	if err := os.Rename(tmp, cs.path()); err != nil {
+		slog.Warn("failed to replace config", "error", err)
+		_ = os.Remove(tmp)
 	}
 }
 
 // Load reads the saved ServerConfig from disk.
 func (cs *ConfigStore) Load() models.ServerConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	return cs.loadAll().Server
 }
 
 // Save writes the ServerConfig to disk.
 func (cs *ConfigStore) Save(cfg models.ServerConfig) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	all := cs.loadAll()
 	all.Server = cfg
 	cs.saveAll(all)
@@ -122,11 +141,15 @@ func (cs *ConfigStore) Save(cfg models.ServerConfig) {
 
 // LoadStorage reads the saved StorageConfig.
 func (cs *ConfigStore) LoadStorage() models.StorageConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	return cs.loadAll().Storage
 }
 
 // SaveStorage writes the StorageConfig.
 func (cs *ConfigStore) SaveStorage(cfg models.StorageConfig) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	all := cs.loadAll()
 	all.Storage = cfg
 	cs.saveAll(all)
@@ -134,11 +157,15 @@ func (cs *ConfigStore) SaveStorage(cfg models.StorageConfig) {
 
 // LoadAlertRules reads the saved alert rules.
 func (cs *ConfigStore) LoadAlertRules() []models.AlertRule {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	return cs.loadAll().Alerts
 }
 
 // SaveAlertRules writes the alert rules.
 func (cs *ConfigStore) SaveAlertRules(rules []models.AlertRule) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	all := cs.loadAll()
 	all.Alerts = rules
 	cs.saveAll(all)
@@ -146,11 +173,15 @@ func (cs *ConfigStore) SaveAlertRules(rules []models.AlertRule) {
 
 // LoadLockout reads the persisted unlock-lockout state.
 func (cs *ConfigStore) LoadLockout() models.LockoutState {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	return cs.loadAll().Lockout
 }
 
 // SaveLockout writes the unlock-lockout state.
 func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	all := cs.loadAll()
 	all.Lockout = state
 	cs.saveAll(all)
@@ -158,11 +189,15 @@ func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
 
 // LoadUpdateConfig reads the persisted update-check preferences.
 func (cs *ConfigStore) LoadUpdateConfig() models.UpdateConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	return cs.loadAll().Updates
 }
 
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	all := cs.loadAll()
 	all.Updates = cfg
 	cs.saveAll(all)

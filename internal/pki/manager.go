@@ -77,8 +77,13 @@ func (t *TLSManager) GetTLSConfig(config models.ServerConfig) (*tls.Config, erro
 		}
 	}
 
-	// Apply mutual TLS if enabled
-	if config.MutualTLS && config.CAFile != "" {
+	// Apply mutual TLS if enabled. A missing/empty CA is a hard error, not a
+	// silent skip: otherwise ClientAuth stays NoClientCert and the listener
+	// accepts any anonymous client while the UI reports mTLS as enabled.
+	if config.MutualTLS {
+		if config.CAFile == "" {
+			return nil, fmt.Errorf("mutual TLS requires a CA certificate file")
+		}
 		caPool, caErr := t.LoadCACertificateFromFile(config.CAFile)
 		if caErr != nil {
 			return nil, fmt.Errorf("failed to load CA for mutual TLS: %w", caErr)

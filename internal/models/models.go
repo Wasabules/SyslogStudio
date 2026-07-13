@@ -489,7 +489,13 @@ func ValidateServerConfig(c ServerConfig) error {
 		}
 	}
 
-	if c.TLSEnabled && c.MutualTLS && c.CAFile != "" {
+	if c.TLSEnabled && c.MutualTLS {
+		// A CA is mandatory for mutual TLS: without it, client-certificate
+		// verification is silently not enforced and any anonymous client is
+		// accepted while the UI still reports mTLS as enabled.
+		if c.CAFile == "" {
+			return fmt.Errorf("mutual TLS requires a CA certificate file to verify client certificates")
+		}
 		if _, err := os.Stat(c.CAFile); err != nil {
 			return fmt.Errorf("CA certificate file not found: %s", c.CAFile)
 		}

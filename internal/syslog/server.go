@@ -149,13 +149,24 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	}
 	s.mu.Unlock()
 
-	// Start worker pool
+	// Start worker pool. Workers drain workCh but also watch ctx so they
+	// exit on Stop() without the channel ever being closed — closing workCh
+	// while a producer is mid-send in submitWork would panic ("send on
+	// closed channel"). Stop() cancels ctx to unblock them instead.
 	for i := 0; i < maxWorkers; i++ {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			for fn := range workCh {
-				fn()
+			for {
+				select {
+				case fn, ok := <-workCh:
+					if !ok {
+						return
+					}
+					fn()
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -279,7 +290,6 @@ func (s *SyslogServer) Stop() error {
 		s.tlsListener.Close()
 		s.tlsListener = nil
 	}
-	workCh := s.workCh
 	s.workCh = nil
 	s.connSem = nil
 	s.mu.Unlock()
@@ -293,10 +303,6 @@ func (s *SyslogServer) Stop() error {
 	}
 	s.conns = nil
 	s.connsMu.Unlock()
-
-	if workCh != nil {
-		close(workCh)
-	}
 
 	s.wg.Wait()
 	slog.Info("syslog server stopped")
