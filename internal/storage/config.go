@@ -112,14 +112,48 @@ func (cs *ConfigStore) saveAll(cfg models.AppConfig) {
 	}
 	// Write atomically: a partial write (crash/full disk) must not corrupt
 	// config.json, which would otherwise fall back to defaults on next load.
+	// The temp file is fsynced before the rename so a crash right after the
+	// rename cannot leave a present-but-zero-length config (which would silently
+	// reset persisted state, including the unlock-lockout backoff).
 	tmp := cs.path() + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
+	if err := writeFileSync(tmp, data, 0600); err != nil {
 		slog.Warn("failed to write config", "error", err)
+		_ = os.Remove(tmp)
 		return
 	}
 	if err := os.Rename(tmp, cs.path()); err != nil {
 		slog.Warn("failed to replace config", "error", err)
 		_ = os.Remove(tmp)
+		return
+	}
+	syncDir(cs.dir)
+}
+
+// writeFileSync writes data to path and fsyncs it before returning, so a crash
+// after a subsequent rename cannot leave a present-but-unflushed (zero-length)
+// file.
+func writeFileSync(path string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// syncDir best-effort fsyncs a directory so a rename within it is durable.
+// Directory fsync is unsupported on Windows; the error is ignored there.
+func syncDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
 	}
 }
 

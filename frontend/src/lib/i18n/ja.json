@@ -34,7 +34,9 @@
     "allInterfaces": "すべてのインターフェース",
     "bindAddressHint": "バインドアドレス：待ち受けるローカルIP。空欄＝すべてのインターフェース。",
     "allowedSources": "許可された送信元",
-    "allowedSourcesHint": "許可された送信元：IPまたはCIDR範囲、カンマ区切り。空欄＝すべて許可。注意：UDPの送信元は偽装可能です。"
+    "allowedSourcesHint": "許可された送信元：IPまたはCIDR範囲、カンマ区切り。空欄＝すべて許可。注意：UDPの送信元は偽装可能です。",
+    "maxConnsPerIP": "最大接続数/IP",
+    "maxConnsPerIPHint": "単一の送信元IPからの同時TCP/TLS接続の最大数。多数の送信元を1つのアドレスに集約するsyslogリレーやNATゲートウェイでは増やしてください。"
   },
   "filter": {
     "severity": "重大度",
@@ -192,7 +194,8 @@
     "checkingUpdates": "確認中…",
     "upToDate": "最新バージョンを使用しています。",
     "updateCheckFailed": "更新の確認に失敗しました: {error}",
-    "autoUpdateCheck": "起動時に更新を確認"
+    "autoUpdateCheck": "起動時に更新を確認",
+    "droppedWrites": "破棄されたログ（過負荷）"
   },
   "alerts": {
     "rules": "アラートルール",

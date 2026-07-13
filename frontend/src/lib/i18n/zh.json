@@ -34,7 +34,9 @@
     "allInterfaces": "所有接口",
     "bindAddressHint": "绑定地址：监听的本地IP。留空=所有接口。",
     "allowedSources": "允许的来源",
-    "allowedSourcesHint": "允许的来源：IP或CIDR范围，逗号分隔。留空=允许所有。注意：UDP来源可能被伪造。"
+    "allowedSourcesHint": "允许的来源：IP或CIDR范围，逗号分隔。留空=允许所有。注意：UDP来源可能被伪造。",
+    "maxConnsPerIP": "每IP最大连接",
+    "maxConnsPerIPHint": "来自单个源IP的最大并发TCP/TLS连接数。对于将多个发送端聚合在单个地址后的syslog中继或NAT网关，请调高此值。"
   },
   "filter": {
     "severity": "严重程度",
@@ -192,7 +194,8 @@
     "checkingUpdates": "正在检查…",
     "upToDate": "您使用的是最新版本。",
     "updateCheckFailed": "检查更新失败：{error}",
-    "autoUpdateCheck": "启动时检查更新"
+    "autoUpdateCheck": "启动时检查更新",
+    "droppedWrites": "丢弃的日志（过载）"
   },
   "alerts": {
     "rules": "告警规则",

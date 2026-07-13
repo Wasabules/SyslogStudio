@@ -139,6 +139,12 @@ type ServerConfig struct {
 	CertOptions    CertOptions `json:"certOptions"`
 	MutualTLS      bool        `json:"mutualTLS"`
 	CAFile         string      `json:"caFile"`
+	// MaxConnsPerIP caps concurrent TCP/TLS connections from a single source
+	// IP so one host cannot occupy every global slot (Slowloris/log-blinding).
+	// A syslog relay or NAT gateway multiplexes many senders behind one IP, so
+	// this must be high enough for those deployments. 0 or negative means use
+	// the default. Applies only to connection-oriented listeners (TCP/TLS).
+	MaxConnsPerIP int `json:"maxConnsPerIP"`
 }
 
 // ServerStatus describes the current state of the server.
@@ -195,6 +201,9 @@ type StorageStats struct {
 	MessageCount    int64   `json:"messageCount"`
 	DatabaseSizeMB  float64 `json:"databaseSizeMB"`
 	OldestTimestamp string  `json:"oldestTimestamp"`
+	// DroppedWrites counts messages discarded because the write buffer stayed
+	// full (persistence could not keep up). Non-zero means logs were lost.
+	DroppedWrites int64 `json:"droppedWrites"`
 }
 
 // PagedResult holds a paginated query result.
@@ -412,9 +421,16 @@ func DefaultServerConfig() ServerConfig {
 		TCPPort:       1514,
 		TLSPort:       6514,
 		MaxBuffer:     10000,
+		MaxConnsPerIP: DefaultMaxConnsPerIP,
 		UseSelfSigned: false,
 	}
 }
+
+// DefaultMaxConnsPerIP is the default per-source-IP concurrent TCP/TLS
+// connection cap. Chosen high enough not to break a syslog relay/NAT gateway
+// that multiplexes many senders behind one IP, while still preventing a single
+// host from monopolizing the global connection pool.
+const DefaultMaxConnsPerIP = 128
 
 // --- Validation ---
 

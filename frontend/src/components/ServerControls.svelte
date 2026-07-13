@@ -13,7 +13,7 @@
         udpPort: 514, tcpPort: 514, tlsPort: 6514, bindAddress: '', allowedSources: [],
         maxBuffer: 10000, certFile: '', keyFile: '', useSelfSigned: false,
         certOptions: { algorithm: 'ECDSA-P256', validityDays: 365, commonName: 'SyslogStudio', organization: 'SyslogStudio', dnsNames: ['localhost'], ipAddresses: ['127.0.0.1', '::1'] },
-        mutualTLS: false, caFile: '',
+        mutualTLS: false, caFile: '', maxConnsPerIP: 128,
     };
     let error = '';
     let allowedSourcesText = '';
@@ -118,6 +118,11 @@
                    placeholder={$_('server.allowedSources')}
                    title={$_('server.allowedSourcesHint')}
                    disabled={$serverStatus.running} class="sources-input" />
+            <label class="conns-group" title={$_('server.maxConnsPerIPHint')}>
+                {$_('server.maxConnsPerIP')}
+                <input type="number" bind:value={config.maxConnsPerIP} min="1" max="65535"
+                       disabled={$serverStatus.running} class="port-input" />
+            </label>
         </div>
 
         {#if config.tlsEnabled}
@@ -231,6 +236,15 @@
 
     .sources-input {
         width: 180px;
+    }
+
+    .conns-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: nowrap;
     }
 
     .tls-btn {

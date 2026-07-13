@@ -34,7 +34,9 @@
     "allInterfaces": "Toutes les interfaces",
     "bindAddressHint": "Adresse d'écoute : IP locale sur laquelle écouter. Vide = toutes les interfaces.",
     "allowedSources": "Sources autorisées",
-    "allowedSourcesHint": "Sources autorisées : IP ou plages CIDR, séparées par des virgules. Vide = tout autoriser. Remarque : les sources UDP peuvent être usurpées."
+    "allowedSourcesHint": "Sources autorisées : IP ou plages CIDR, séparées par des virgules. Vide = tout autoriser. Remarque : les sources UDP peuvent être usurpées.",
+    "maxConnsPerIP": "Max conn./IP",
+    "maxConnsPerIPHint": "Nombre maximum de connexions TCP/TLS simultanées depuis une même IP source. À augmenter pour un relais syslog ou une passerelle NAT qui multiplexe plusieurs émetteurs derrière une seule adresse."
   },
   "filter": {
     "severity": "Sévérité",
@@ -192,7 +194,8 @@
     "checkNow": "Vérifier les mises à jour",
     "checkingUpdates": "Vérification…",
     "upToDate": "Vous utilisez la dernière version.",
-    "updateCheckFailed": "Échec de la vérification : {error}"
+    "updateCheckFailed": "Échec de la vérification : {error}",
+    "droppedWrites": "Logs perdus (surcharge)"
   },
   "alerts": {
     "rules": "Règles d'alerte",

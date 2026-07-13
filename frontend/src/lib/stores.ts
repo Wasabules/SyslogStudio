@@ -62,6 +62,7 @@ export interface ServerConfig {
     certOptions: CertOptions;
     mutualTLS: boolean;
     caFile: string;
+    maxConnsPerIP: number;
 }
 
 export interface ServerStatus {
@@ -131,6 +132,7 @@ export interface StorageStats {
     messageCount: number;
     databaseSizeMB: number;
     oldestTimestamp: string;
+    droppedWrites: number;
 }
 
 export interface PagedResult {
@@ -154,7 +156,7 @@ export const serverStatus = writable<ServerStatus>({
         udpPort: 514, tcpPort: 514, tlsPort: 6514, bindAddress: '', allowedSources: [],
         maxBuffer: 10000, certFile: '', keyFile: '', useSelfSigned: false,
         certOptions: { algorithm: 'ECDSA-P256', validityDays: 365, commonName: 'SyslogStudio', organization: 'SyslogStudio', dnsNames: ['localhost'], ipAddresses: ['127.0.0.1', '::1'] },
-        mutualTLS: false, caFile: '',
+        mutualTLS: false, caFile: '', maxConnsPerIP: 128,
     },
 });
 

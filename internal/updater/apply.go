@@ -130,7 +130,7 @@ func (s *Service) download(ctx context.Context, url, asset string, size int64) (
 	if err != nil {
 		return "", "", err
 	}
-	resp, err := s.client.Do(req)
+	resp, err := s.dlClient.Do(req)
 	if err != nil {
 		return "", "", err
 	}
@@ -250,6 +250,11 @@ func (s *Service) runInstaller(ctx context.Context, path string) error {
 		}
 	}
 	if err := exec.Command(target).Start(); err != nil {
+		// The caller's deferred cleanup keys off the pre-rename path, so remove
+		// the renamed installer here to avoid leaking it into the temp dir.
+		if target != path {
+			os.Remove(target)
+		}
 		return fmt.Errorf("launch installer: %w", err)
 	}
 	wruntime.Quit(ctx)

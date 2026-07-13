@@ -42,9 +42,16 @@ type pending struct {
 
 // Service checks GitHub Releases and applies updates for one repository.
 type Service struct {
-	owner  string
-	repo   string
+	owner string
+	repo  string
+	// client is host-pinned to GitHub for the API/manifest/signature requests.
 	client *http.Client
+	// dlClient downloads the release asset. Its redirects are only required to
+	// stay on HTTPS, not on a GitHub host: GitHub has changed its asset CDN
+	// before, and integrity is already guaranteed by the signed-manifest
+	// checksum, so pinning the host here would only add an availability
+	// failure mode without adding security.
+	dlClient *http.Client
 
 	mu      sync.Mutex
 	ctx     context.Context
@@ -55,24 +62,29 @@ type Service struct {
 // NewService creates an updater for the given GitHub owner/repo.
 func NewService(owner, repo string) *Service {
 	return &Service{
-		owner:  owner,
-		repo:   repo,
-		client: newHTTPClient(),
+		owner:    owner,
+		repo:     repo,
+		client:   newHTTPClient(true),
+		dlClient: newHTTPClient(false),
 	}
 }
 
-// newHTTPClient builds the HTTP client for all update traffic. It has no global
+// newHTTPClient builds an HTTP client for update traffic. It has no global
 // timeout — the asset download can be large and slow, so each request is bounded
-// by its own context deadline instead. Redirects are constrained to HTTPS on
-// GitHub hosts so a hostile redirect cannot downgrade to plaintext or pull bytes
-// from an arbitrary host.
-func newHTTPClient() *http.Client {
+// by its own context deadline instead. Redirects are always constrained to
+// HTTPS so a hostile redirect cannot downgrade to plaintext. When pinHost is
+// true the redirect target must also be a GitHub host (for the API, manifest,
+// and signature); the asset download uses pinHost=false (see Service.dlClient).
+func newHTTPClient(pinHost bool) *http.Client {
 	return &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
-			if req.URL.Scheme != "https" || !isGitHubHost(req.URL.Hostname()) {
+			if req.URL.Scheme != "https" {
+				return fmt.Errorf("refusing non-https redirect to %s", req.URL.Hostname())
+			}
+			if pinHost && !isGitHubHost(req.URL.Hostname()) {
 				return fmt.Errorf("refusing redirect to %s://%s", req.URL.Scheme, req.URL.Hostname())
 			}
 			return nil
@@ -147,6 +159,13 @@ func (s *Service) CheckForUpdate() (models.UpdateInfo, error) {
 	assetURL := rel.assetURL(assetName)
 	if assetURL == "" {
 		// No self-update asset for this platform in this release.
+		mode = applyBrowser
+	}
+	// Self-apply needs the signed checksums manifest AND its signature. If the
+	// release lacks either (e.g. a hand-made release), don't advertise a
+	// self-apply that would only fail at download time — offer the manual path.
+	if mode != applyBrowser &&
+		(rel.assetURL(checksumsAsset) == "" || rel.assetURL(checksumsAsset+".sig") == "") {
 		mode = applyBrowser
 	}
 	if mode == applyBrowser {

@@ -34,7 +34,9 @@
     "allInterfaces": "Tutte le interfacce",
     "bindAddressHint": "Indirizzo di ascolto: IP locale su cui ascoltare. Vuoto = tutte le interfacce.",
     "allowedSources": "Origini consentite",
-    "allowedSourcesHint": "Origini consentite: IP o intervalli CIDR, separati da virgole. Vuoto = consenti tutti. Nota: le origini UDP possono essere contraffatte."
+    "allowedSourcesHint": "Origini consentite: IP o intervalli CIDR, separati da virgole. Vuoto = consenti tutti. Nota: le origini UDP possono essere contraffatte.",
+    "maxConnsPerIP": "Max conn./IP",
+    "maxConnsPerIPHint": "Numero massimo di connessioni TCP/TLS simultanee da un singolo IP di origine. Aumentalo per un relay syslog o gateway NAT che multiplexa molti mittenti dietro un unico indirizzo."
   },
   "filter": {
     "severity": "Gravità",
@@ -192,7 +194,8 @@
     "checkingUpdates": "Controllo…",
     "upToDate": "Stai usando l'ultima versione.",
     "updateCheckFailed": "Controllo aggiornamenti non riuscito: {error}",
-    "autoUpdateCheck": "Controlla aggiornamenti all'avvio"
+    "autoUpdateCheck": "Controlla aggiornamenti all'avvio",
+    "droppedWrites": "Log scartati (sovraccarico)"
   },
   "alerts": {
     "rules": "Regole di avviso",

@@ -3,6 +3,7 @@ package syslog
 import (
 	"net"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,4 +67,104 @@ func freeUDPPort(t *testing.T) int {
 	}
 	defer c.Close()
 	return c.LocalAddr().(*net.UDPAddr).Port
+}
+
+func tcpBaseConfig(t *testing.T) models.ServerConfig {
+	cfg := models.DefaultServerConfig()
+	cfg.BindAddress = "127.0.0.1"
+	cfg.UDPEnabled = false
+	cfg.TLSEnabled = false
+	cfg.TCPEnabled = true
+	cfg.TCPPort = freeTCPPort(t)
+	return cfg
+}
+
+// perIPCount reads the live per-source-IP connection count (same package, so it
+// may touch unexported state under the same lock the server uses).
+func perIPCount(s *SyslogServer, ip string) int {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	return s.connPerIP[ip]
+}
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("condition not met in time: %s", what)
+}
+
+// TestStartStopOverlap_NoClobber hammers Start and Stop concurrently. Start
+// allocates the conn maps under s.mu while Stop nils them under connsMu; before
+// the lifecycle was serialized, an overlapping pair could let a stale Stop null
+// the new run's maps, leaving trackConn rejecting every connection. This must
+// run clean under -race and leave the server accepting connections afterwards.
+func TestStartStopOverlap_NoClobber(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	for i := 0; i < 20; i++ {
+		cfg := tcpBaseConfig(t)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); _ = s.Start(cfg) }()
+		go func() { defer wg.Done(); _ = s.Stop() }()
+		wg.Wait()
+		_ = s.Stop() // guarantee stopped between iterations
+	}
+
+	cfg := tcpBaseConfig(t)
+	if err := s.Start(cfg); err != nil {
+		t.Fatalf("final start: %v", err)
+	}
+	defer s.Stop()
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.TCPPort))
+	var conn net.Conn
+	var err error
+	for i := 0; i < 50; i++ { // listener may not be ready the instant Start returns
+		if conn, err = net.DialTimeout("tcp", addr, 200*time.Millisecond); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("server not accepting after Start/Stop churn: %v", err)
+	}
+	conn.Close()
+}
+
+// TestPerIPConnLimit_Balance opens connections up to the per-IP cap and verifies
+// the counter both counts up and drains back to zero on close, so a busy source
+// is never permanently locked out by a leaked count.
+func TestPerIPConnLimit_Balance(t *testing.T) {
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	cfg := tcpBaseConfig(t)
+	cfg.MaxConnsPerIP = 4
+	if err := s.Start(cfg); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer s.Stop()
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.TCPPort))
+
+	var conns []net.Conn
+	for i := 0; i < cfg.MaxConnsPerIP; i++ {
+		c, err := net.DialTimeout("tcp", addr, time.Second)
+		if err != nil {
+			t.Fatalf("dial %d: %v", i, err)
+		}
+		conns = append(conns, c)
+	}
+	waitFor(t, "per-IP count reaches cap", func() bool {
+		return perIPCount(s, "127.0.0.1") == cfg.MaxConnsPerIP
+	})
+
+	for _, c := range conns {
+		c.Close()
+	}
+	waitFor(t, "per-IP count drains to zero", func() bool {
+		return perIPCount(s, "127.0.0.1") == 0
+	})
 }

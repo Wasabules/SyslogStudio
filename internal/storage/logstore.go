@@ -302,15 +302,26 @@ func (ls *LogStore) BufferMessage(msg models.SyslogMessage) {
 		return
 	}
 	if len(ls.buffer) >= maxWriteBuffer {
-		// Persistence can't keep up: drop the oldest to bound memory.
-		copy(ls.buffer, ls.buffer[1:])
-		ls.buffer = ls.buffer[:len(ls.buffer)-1]
-		ls.droppedWrites++
-		if ls.droppedWrites%maxWriteBuffer == 1 {
-			slog.Warn("log write buffer full, dropping oldest messages", "dropped", ls.droppedWrites)
-		}
+		// Persistence can't keep up: drop the oldest to bound memory. Drop a
+		// chunk at once (one memmove per chunk) rather than one element per
+		// call — the latter is an O(n) copy of the whole 200k buffer on every
+		// message, during the exact overload this guard exists for.
+		drop := maxWriteBuffer / 8
+		n := copy(ls.buffer, ls.buffer[drop:])
+		ls.buffer = ls.buffer[:n]
+		ls.droppedWrites += int64(drop)
+		slog.Warn("log write buffer full, dropping oldest messages",
+			"droppedThisChunk", drop, "droppedTotal", ls.droppedWrites)
 	}
 	ls.buffer = append(ls.buffer, msg)
+}
+
+// droppedWriteCount returns how many buffered messages have been dropped due
+// to sustained buffer-full overload. Read under the same lock that mutates it.
+func (ls *LogStore) droppedWriteCount() int64 {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.droppedWrites
 }
 
 func (ls *LogStore) flushLoop() {
@@ -759,7 +770,8 @@ func (ls *LogStore) GetStats() models.StorageStats {
 	}
 
 	stats := models.StorageStats{
-		MessageCount: ls.messageCount(),
+		MessageCount:  ls.messageCount(),
+		DroppedWrites: ls.droppedWriteCount(),
 	}
 
 	// DB file size (main + WAL + SHM)

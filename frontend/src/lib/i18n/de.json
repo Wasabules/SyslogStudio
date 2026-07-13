@@ -34,7 +34,9 @@
     "allInterfaces": "Alle Schnittstellen",
     "bindAddressHint": "Bind-Adresse: lokale IP, auf der gelauscht wird. Leer = alle Schnittstellen.",
     "allowedSources": "Erlaubte Quellen",
-    "allowedSourcesHint": "Erlaubte Quellen: IPs oder CIDR-Bereiche, kommagetrennt. Leer = alle erlauben. Hinweis: UDP-Quellen können gefälscht sein."
+    "allowedSourcesHint": "Erlaubte Quellen: IPs oder CIDR-Bereiche, kommagetrennt. Leer = alle erlauben. Hinweis: UDP-Quellen können gefälscht sein.",
+    "maxConnsPerIP": "Max. Verb./IP",
+    "maxConnsPerIPHint": "Maximale gleichzeitige TCP/TLS-Verbindungen von einer einzelnen Quell-IP. Für ein Syslog-Relay oder NAT-Gateway erhöhen, das viele Sender hinter einer Adresse bündelt."
   },
   "filter": {
     "severity": "Schweregrad",
@@ -192,7 +194,8 @@
     "checkingUpdates": "Wird geprüft…",
     "upToDate": "Sie verwenden die neueste Version.",
     "updateCheckFailed": "Update-Prüfung fehlgeschlagen: {error}",
-    "autoUpdateCheck": "Beim Start nach Updates suchen"
+    "autoUpdateCheck": "Beim Start nach Updates suchen",
+    "droppedWrites": "Verworfene Logs (Überlast)"
   },
   "alerts": {
     "rules": "Warnregeln",

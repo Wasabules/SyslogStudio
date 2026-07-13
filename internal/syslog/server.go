@@ -33,13 +33,12 @@ const (
 	// maxTCPConnections caps concurrent TCP+TLS connections to bound
 	// goroutine and memory usage under connection flooding.
 	maxTCPConnections = 512
-	// maxConnsPerIP caps concurrent TCP/TLS connections from a single source
-	// IP so one host cannot occupy every global slot (Slowloris/log-blinding).
-	maxConnsPerIP = 16
 	// firstReadTimeout bounds the wait for the first frame (and, for TLS, the
-	// handshake). Idle/half-open connections are dropped quickly instead of
-	// holding a slot for the full steady-state tcpReadTimeout.
-	firstReadTimeout = 30 * time.Second
+	// handshake). Idle/half-open connections are dropped instead of holding a
+	// slot for the full steady-state tcpReadTimeout. Kept generous so clients
+	// that open a persistent connection and only transmit on an event are not
+	// dropped; the per-IP and global caps provide the real Slowloris bound.
+	firstReadTimeout = 120 * time.Second
 )
 
 // listenAddr builds a listen address from an optional bind IP and a port.
@@ -71,6 +70,12 @@ type SyslogServer struct {
 	tcpListener net.Listener
 	tlsListener net.Listener
 
+	// startStopMu serializes the entire Start/Stop lifecycle. Stop releases
+	// s.mu before its slow conn cleanup and wg.Wait(), so without this a Start
+	// racing an in-flight Stop could allocate fresh conn maps that the Stop then
+	// nils out — leaving the new listener rejecting every connection.
+	startStopMu sync.Mutex
+
 	// Cancellation
 	cancel  context.CancelFunc
 	running bool
@@ -87,9 +92,10 @@ type SyslogServer struct {
 
 	// Active TCP/TLS connections, tracked so Stop can close them
 	// immediately instead of waiting for idle read deadlines to elapse.
-	conns     map[net.Conn]struct{}
-	connPerIP map[string]int // source IP -> active connection count
-	connsMu   sync.Mutex
+	conns         map[net.Conn]struct{}
+	connPerIP     map[string]int // source IP -> active connection count
+	maxConnsPerIP int            // effective per-IP cap for the current run
+	connsMu       sync.Mutex
 
 	tlsManager *pki.TLSManager
 	tlsConfig  *tls.Config
@@ -124,6 +130,10 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 		return err
 	}
 
+	// Serialize the whole lifecycle against Stop (see startStopMu doc).
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
+
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
@@ -156,6 +166,10 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 	s.connSem = make(chan struct{}, maxTCPConnections)
 	s.conns = make(map[net.Conn]struct{})
 	s.connPerIP = make(map[string]int)
+	s.maxConnsPerIP = config.MaxConnsPerIP
+	if s.maxConnsPerIP <= 0 {
+		s.maxConnsPerIP = models.DefaultMaxConnsPerIP
+	}
 
 	// Compile the source allowlist. Config was validated above, so
 	// parse errors are not expected here; skip defensively regardless.
@@ -287,6 +301,10 @@ func (s *SyslogServer) startTLSListener(ctx context.Context, config models.Serve
 
 // Stop gracefully shuts down all listeners.
 func (s *SyslogServer) Stop() error {
+	// Serialize the whole lifecycle against Start (see startStopMu doc).
+	s.startStopMu.Lock()
+	defer s.startStopMu.Unlock()
+
 	s.mu.Lock()
 	if !s.running {
 		s.mu.Unlock()
@@ -595,7 +613,11 @@ func (s *SyslogServer) trackConn(conn net.Conn) bool {
 	if s.conns == nil {
 		return false // server is stopping
 	}
-	if s.connPerIP[ip] >= maxConnsPerIP {
+	if s.connPerIP[ip] >= s.maxConnsPerIP {
+		// Distinct from the stopping case above so operators can diagnose why a
+		// busy source (e.g. a relay behind one IP) sees connection resets.
+		slog.Warn("per-IP connection limit reached, rejecting connection",
+			"ip", ip, "limit", s.maxConnsPerIP)
 		return false // per-source connection limit reached
 	}
 	s.conns[conn] = struct{}{}

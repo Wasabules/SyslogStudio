@@ -41,18 +41,32 @@ func isInstalled() bool {
 	if loc, ok := installLocation(); ok && loc != "" {
 		// An install is registered: this exe is "installed" only if it lives
 		// under that location.
-		return strings.HasPrefix(dir, strings.ToLower(loc))
+		return pathUnder(dir, loc)
 	}
 
 	// No registry entry: fall back to a path heuristic.
-	if pf := os.Getenv("ProgramFiles"); pf != "" && strings.HasPrefix(dir, strings.ToLower(pf)) {
+	if pf := os.Getenv("ProgramFiles"); pf != "" && pathUnder(dir, pf) {
 		return true
 	}
 	if la := os.Getenv("LOCALAPPDATA"); la != "" &&
-		strings.HasPrefix(dir, strings.ToLower(filepath.Join(la, "SyslogStudio"))) {
+		pathUnder(dir, filepath.Join(la, "SyslogStudio")) {
 		return true
 	}
 	return false
+}
+
+// pathUnder reports whether dir is base or a subdirectory of it, comparing on
+// cleaned, lowercased paths with a separator boundary. A raw prefix match would
+// misclassify siblings — e.g. treat "...\SyslogStudio Portable" as under
+// "...\SyslogStudio", or fail to match when InstallLocation carries a trailing
+// separator that filepath.Dir(exe) does not.
+func pathUnder(dir, base string) bool {
+	if base == "" {
+		return false
+	}
+	dir = strings.ToLower(filepath.Clean(dir))
+	base = strings.ToLower(filepath.Clean(base))
+	return dir == base || strings.HasPrefix(dir, base+string(os.PathSeparator))
 }
 
 // installLocation returns the install directory recorded by the NSIS installer,

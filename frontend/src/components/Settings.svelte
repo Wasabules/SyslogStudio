@@ -35,7 +35,14 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
-        if (visible && e.key === 'Escape') onClose();
+        if (!visible || e.key !== 'Escape') return;
+        // Escape dismisses the confirmation overlay first, if open, rather than
+        // closing the whole Settings panel underneath it.
+        if (showEncryptionWarning) {
+            showEncryptionWarning = false;
+            return;
+        }
+        onClose();
     }
 
     async function saveUpdatePrefs() {
@@ -74,6 +81,7 @@
     let storageMessageCount = 0;
     let storageDbSizeMB = 0;
     let storageOldest = '';
+    let storageDropped = 0;
     let storageLoading = false;
 
     // --- Encryption ---
@@ -138,6 +146,7 @@
                 storageMessageCount = s.messageCount ?? 0;
                 storageDbSizeMB = s.databaseSizeMB ?? 0;
                 storageOldest = s.oldestTimestamp ?? '';
+                storageDropped = s.droppedWrites ?? 0;
             }
         } catch {}
         storageLoading = false;
@@ -566,6 +575,12 @@
                                 <span class="info-label">{$_('settings.oldestMessage')}</span>
                                 <span class="info-value">{formatOldest(storageOldest)}</span>
                             </div>
+                            {#if storageDropped > 0}
+                                <div class="info-row">
+                                    <span class="info-label">{$_('settings.droppedWrites')}</span>
+                                    <span class="info-value dropped">{storageDropped.toLocaleString()}</span>
+                                </div>
+                            {/if}
                         {/if}
                     </div>
 
@@ -905,6 +920,11 @@
         color: var(--text-primary);
         font-family: monospace;
         font-size: 11px;
+    }
+
+    .info-value.dropped {
+        color: var(--danger);
+        font-weight: 700;
     }
 
     /* --- Storage actions --- */

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -123,6 +124,15 @@ func EncryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		os.Remove(tmpPath)
 		return fmt.Errorf("write ciphertext: %w", err)
 	}
+	// fsync before rename so the encrypted data is durable on disk. The caller
+	// deletes the plaintext database once this returns, so a crash here must not
+	// leave a renamed-but-unflushed (zero/partial) .enc — that would lose every
+	// stored log irreversibly.
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("sync temp file: %w", err)
+	}
 	if err := f.Close(); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("close temp file: %w", err)
@@ -131,6 +141,7 @@ func EncryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		os.Remove(tmpPath)
 		return fmt.Errorf("rename to final: %w", err)
 	}
+	syncDir(filepath.Dir(dstPath))
 
 	emit(progress, "done", 100, sizeMB)
 	return nil
@@ -208,6 +219,11 @@ func DecryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		os.Remove(tmpPath)
 		return fmt.Errorf("write decrypted file: %w", err)
 	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("sync temp file: %w", err)
+	}
 	if err := f.Close(); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("close temp file: %w", err)
@@ -216,6 +232,7 @@ func DecryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		os.Remove(tmpPath)
 		return fmt.Errorf("rename decrypted file: %w", err)
 	}
+	syncDir(filepath.Dir(dstPath))
 
 	emit(progress, "done", 100, sizeMB)
 	return nil
