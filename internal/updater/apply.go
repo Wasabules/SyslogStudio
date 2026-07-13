@@ -19,6 +19,19 @@ import (
 
 const progressEvent = "update:progress"
 
+// cleanupLeftoverOld removes a stale ".old" binary left by a previous Windows
+// self-replace: minio/selfupdate renames the running exe aside and cannot
+// delete it until the process exits, so it lingers until the next launch.
+func cleanupLeftoverOld() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	dir, base := filepath.Split(exe)
+	_ = os.Remove(exe + ".old")
+	_ = os.Remove(filepath.Join(dir, "."+base+".old"))
+}
+
 // DownloadAndApply downloads the pending update, verifies its checksum (and,
 // when enforced, the manifest signature), and applies it according to the
 // resolved mode. Requires a prior successful CheckForUpdate.

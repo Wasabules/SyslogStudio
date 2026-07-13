@@ -92,6 +92,7 @@ func (s *Service) SetContext(ctx context.Context) {
 	s.mu.Lock()
 	s.ctx = ctx
 	s.mu.Unlock()
+	cleanupLeftoverOld()
 }
 
 func (s *Service) context() context.Context {

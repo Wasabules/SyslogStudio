@@ -15,9 +15,8 @@ const (
 	windowsBinaryAsset = "SyslogStudio-windows-amd64.exe"
 )
 
-// target selects the Windows asset and apply mode. An installed copy (via the
-// NSIS installer) updates by running the new setup; a portable copy
-// self-replaces the exe.
+// target selects the Windows asset and apply mode. The NSIS-installed copy
+// updates by running the new setup; a portable copy self-replaces the exe.
 func target() (string, applyMode) {
 	if isInstalled() {
 		return windowsSetupAsset, applyInstaller
@@ -25,23 +24,27 @@ func target() (string, applyMode) {
 	return windowsBinaryAsset, applyReplace
 }
 
-// isInstalled reports whether SyslogStudio was installed by the NSIS installer.
-// The installer's uninstall key name is "<CompanyName>SyslogStudio", which is
-// awkward to reconstruct, so we enumerate the Uninstall keys and match on
-// DisplayName instead. Falls back to a path heuristic.
+// isInstalled reports whether the RUNNING executable is the NSIS-installed copy,
+// not merely that an install exists somewhere. A portable exe on a machine that
+// also has an install must self-replace itself, not launch the installer
+// against the other copy.
 func isInstalled() bool {
-	const uninstall = `Software\Microsoft\Windows\CurrentVersion\Uninstall`
-	for _, root := range []registry.Key{registry.CURRENT_USER, registry.LOCAL_MACHINE} {
-		if hasUninstallEntry(root, uninstall) {
-			return true
-		}
-	}
-	// Fallback: the exe lives under a typical install location.
 	exe, err := os.Executable()
 	if err != nil {
 		return false
 	}
+	if real, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+		exe = real
+	}
 	dir := strings.ToLower(filepath.Dir(exe))
+
+	if loc, ok := installLocation(); ok && loc != "" {
+		// An install is registered: this exe is "installed" only if it lives
+		// under that location.
+		return strings.HasPrefix(dir, strings.ToLower(loc))
+	}
+
+	// No registry entry: fall back to a path heuristic.
 	if pf := os.Getenv("ProgramFiles"); pf != "" && strings.HasPrefix(dir, strings.ToLower(pf)) {
 		return true
 	}
@@ -52,26 +55,40 @@ func isInstalled() bool {
 	return false
 }
 
-func hasUninstallEntry(root registry.Key, path string) bool {
+// installLocation returns the install directory recorded by the NSIS installer,
+// matched by DisplayName across HKCU (per-user) then HKLM (all-users).
+func installLocation() (string, bool) {
+	const uninstall = `Software\Microsoft\Windows\CurrentVersion\Uninstall`
+	for _, root := range []registry.Key{registry.CURRENT_USER, registry.LOCAL_MACHINE} {
+		if loc, ok := findInstallLocation(root, uninstall); ok {
+			return loc, true
+		}
+	}
+	return "", false
+}
+
+func findInstallLocation(root registry.Key, path string) (string, bool) {
 	k, err := registry.OpenKey(root, path, registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
-		return false
+		return "", false
 	}
 	defer k.Close()
 	names, err := k.ReadSubKeyNames(-1)
 	if err != nil {
-		return false
+		return "", false
 	}
 	for _, name := range names {
 		sub, err := registry.OpenKey(root, path+`\`+name, registry.QUERY_VALUE)
 		if err != nil {
 			continue
 		}
-		dn, _, err := sub.GetStringValue("DisplayName")
-		sub.Close()
-		if err == nil && dn == "SyslogStudio" {
-			return true
+		dn, _, dnErr := sub.GetStringValue("DisplayName")
+		if dnErr == nil && dn == "SyslogStudio" {
+			loc, _, _ := sub.GetStringValue("InstallLocation")
+			sub.Close()
+			return loc, true
 		}
+		sub.Close()
 	}
-	return false
+	return "", false
 }

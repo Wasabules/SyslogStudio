@@ -22,6 +22,14 @@ func main() {
 		log.Fatal("Failed to create sub FS:", err)
 	}
 
+	// Store WebView2 data (localStorage: theme, locale) under a stable per-user
+	// directory rather than the temp dir, which OS temp cleaners (Disk Cleanup,
+	// Storage Sense) periodically wipe — silently resetting the user's prefs.
+	webviewDataPath := filepath.Join(os.TempDir(), "SyslogStudio")
+	if cacheDir, cerr := os.UserCacheDir(); cerr == nil {
+		webviewDataPath = filepath.Join(cacheDir, "SyslogStudio", "WebView2")
+	}
+
 	app := NewApp()
 
 	err = wails.Run(&options.App{
@@ -35,7 +43,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		Windows: &windows.Options{
-			WebviewUserDataPath: filepath.Join(os.TempDir(), "SyslogStudio"),
+			WebviewUserDataPath: webviewDataPath,
 		},
 		OnStartup:  app.startup,
 		OnShutdown: app.shutdown,

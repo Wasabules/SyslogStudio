@@ -329,6 +329,7 @@ Section "Uninstall"
     RMDir "$INSTDIR"
 
     ; ---- Remove WebView2 data ----
+    RMDir /r "$LOCALAPPDATA\SyslogStudio\WebView2"
     RMDir /r "$TEMP\SyslogStudio"
 
     ; ---- Remove shortcuts ----

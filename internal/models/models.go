@@ -401,11 +401,15 @@ func DefaultUpdateConfig() UpdateConfig {
 // DefaultServerConfig returns sensible defaults.
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		UDPEnabled:    true,
-		TCPEnabled:    false,
-		TLSEnabled:    false,
-		UDPPort:       514,
-		TCPPort:       514,
+		UDPEnabled: true,
+		TCPEnabled: false,
+		TLSEnabled: false,
+		// Non-privileged defaults so the first run binds without root on
+		// Linux/macOS (ports < 1024 need elevation there). Existing saved
+		// configs keep their values; users who need the standard 514 can set it
+		// and run with the required privileges.
+		UDPPort:       1514,
+		TCPPort:       1514,
 		TLSPort:       6514,
 		MaxBuffer:     10000,
 		UseSelfSigned: false,
