@@ -97,8 +97,8 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	if a.server != nil {
 		a.server.Stop()
+		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	}
-	a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
 	if a.logStore != nil {
 		a.logStore.Close()
 	}

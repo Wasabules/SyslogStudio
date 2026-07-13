@@ -8,7 +8,9 @@ package updater
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +48,7 @@ type Service struct {
 	mu      sync.Mutex
 	ctx     context.Context
 	pending *pending
+	applyMu sync.Mutex // serializes DownloadAndApply; rejects concurrent applies
 }
 
 // NewService creates an updater for the given GitHub owner/repo.
@@ -53,8 +56,34 @@ func NewService(owner, repo string) *Service {
 	return &Service{
 		owner:  owner,
 		repo:   repo,
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: newHTTPClient(),
 	}
+}
+
+// newHTTPClient builds the HTTP client for all update traffic. It has no global
+// timeout — the asset download can be large and slow, so each request is bounded
+// by its own context deadline instead. Redirects are constrained to HTTPS on
+// GitHub hosts so a hostile redirect cannot downgrade to plaintext or pull bytes
+// from an arbitrary host.
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			if req.URL.Scheme != "https" || !isGitHubHost(req.URL.Hostname()) {
+				return fmt.Errorf("refusing redirect to %s://%s", req.URL.Scheme, req.URL.Hostname())
+			}
+			return nil
+		},
+	}
+}
+
+func isGitHubHost(host string) bool {
+	host = strings.ToLower(host)
+	return host == "github.com" ||
+		strings.HasSuffix(host, ".github.com") ||
+		strings.HasSuffix(host, ".githubusercontent.com")
 }
 
 // SetContext gives the updater the Wails runtime context, used for progress

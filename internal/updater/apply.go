@@ -23,6 +23,11 @@ const progressEvent = "update:progress"
 // when enforced, the manifest signature), and applies it according to the
 // resolved mode. Requires a prior successful CheckForUpdate.
 func (s *Service) DownloadAndApply() error {
+	if !s.applyMu.TryLock() {
+		return fmt.Errorf("an update is already being downloaded and applied")
+	}
+	defer s.applyMu.Unlock()
+
 	s.mu.Lock()
 	p := s.pending
 	ctx := s.ctx
@@ -90,6 +95,10 @@ func (s *Service) verifiedChecksum(ctx context.Context, checksumURL, sigURL, ass
 // download streams the asset to a temp file, returning its path and the
 // hex SHA-256 computed on the fly. It emits progress events while downloading.
 func (s *Service) download(ctx context.Context, url, asset string) (path, sum string, err error) {
+	// Generous deadline: large installers on slow links must succeed, but a
+	// stalled connection must not hang forever (the client has no global timeout).
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", "", err
@@ -122,6 +131,8 @@ func (s *Service) download(ctx context.Context, url, asset string) (path, sum st
 // fetchBytes downloads a small file (checksums/signature) fully into memory,
 // capped at 1 MiB.
 func (s *Service) fetchBytes(ctx context.Context, url string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

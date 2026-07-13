@@ -21,15 +21,20 @@ const (
 	logStoreFlushInterval   = 500 * time.Millisecond
 	logStoreCleanupInterval = 5 * time.Minute
 	dbFileName              = "logs.db"
+	// maxWriteBuffer caps the in-memory pending-write buffer so a message
+	// flood that outruns SQLite commits (slow disk, VACUUM, retention delete)
+	// bounds memory instead of growing without limit until OOM.
+	maxWriteBuffer = 200000
 )
 
 // LogStore handles SQLite-based message persistence.
 type LogStore struct {
-	mu      sync.Mutex
-	db      *sql.DB
-	config  models.StorageConfig
-	buffer  []models.SyslogMessage
-	emitter event.EventEmitter
+	mu            sync.Mutex
+	db            *sql.DB
+	config        models.StorageConfig
+	buffer        []models.SyslogMessage
+	droppedWrites int64
+	emitter       event.EventEmitter
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -289,12 +294,21 @@ func (ls *LogStore) rebuildFTS() {
 
 // BufferMessage adds a message to the write buffer (non-blocking).
 func (ls *LogStore) BufferMessage(msg models.SyslogMessage) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 	if ls.db == nil {
 		return
 	}
-	ls.mu.Lock()
+	if len(ls.buffer) >= maxWriteBuffer {
+		// Persistence can't keep up: drop the oldest to bound memory.
+		copy(ls.buffer, ls.buffer[1:])
+		ls.buffer = ls.buffer[:len(ls.buffer)-1]
+		ls.droppedWrites++
+		if ls.droppedWrites%maxWriteBuffer == 1 {
+			slog.Warn("log write buffer full, dropping oldest messages", "dropped", ls.droppedWrites)
+		}
+	}
 	ls.buffer = append(ls.buffer, msg)
-	ls.mu.Unlock()
 }
 
 func (ls *LogStore) flushLoop() {
