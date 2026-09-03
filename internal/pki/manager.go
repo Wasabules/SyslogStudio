@@ -135,6 +135,13 @@ func (t *TLSManager) GenerateCA(opts models.CertOptions) (models.CertInfo, error
 	if opts.Organization == "" {
 		opts.Organization = "SyslogStudio"
 	}
+	// Bound the lifetime before it reaches NotAfter: ValidityDays * 24h
+	// overflows int64 past ~106751 days, which would silently produce an
+	// already-expired certificate instead of a long-lived one.
+	if err := models.ValidateCertOptions(opts); err != nil {
+		return models.CertInfo{}, err
+	}
+
 	if opts.Algorithm == "" {
 		opts.Algorithm = "RSA-2048"
 	}
@@ -217,6 +224,13 @@ func (t *TLSManager) GenerateServerCertSignedByCA(opts models.CertOptions) (mode
 	if opts.CommonName == "" {
 		opts.CommonName = "SyslogStudio Server"
 	}
+	// Bound the lifetime before it reaches NotAfter: ValidityDays * 24h
+	// overflows int64 past ~106751 days, which would silently produce an
+	// already-expired certificate instead of a long-lived one.
+	if err := models.ValidateCertOptions(opts); err != nil {
+		return models.CertInfo{}, err
+	}
+
 	if opts.Organization == "" {
 		opts.Organization = "SyslogStudio"
 	}
@@ -413,6 +427,13 @@ func (t *TLSManager) GenerateSelfSignedWithOptions(opts models.CertOptions) (*tl
 	if len(opts.DNSNames) == 0 {
 		opts.DNSNames = []string{"localhost"}
 	}
+	// Bound the lifetime before it reaches NotAfter: ValidityDays * 24h
+	// overflows int64 past ~106751 days, which would silently produce an
+	// already-expired certificate instead of a long-lived one.
+	if err := models.ValidateCertOptions(opts); err != nil {
+		return nil, models.CertInfo{}, err
+	}
+
 	if len(opts.IPAddresses) == 0 {
 		opts.IPAddresses = []string{"127.0.0.1", "::1"}
 	}

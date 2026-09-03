@@ -92,3 +92,74 @@ func TestValidateServerConfig_AllowedSources(t *testing.T) {
 		t.Error("invalid allowlist entry accepted")
 	}
 }
+
+func TestValidateServerConfig_MaxBuffer(t *testing.T) {
+	tests := []struct {
+		name    string
+		buffer  int
+		wantErr bool
+	}{
+		{"default", DefaultServerConfig().MaxBuffer, false},
+		{"zero falls back to default at Start", 0, false},
+		{"at the limit", MaxBufferLimit, false},
+		{"negative rejected", -1, true},
+		{"above the limit rejected", MaxBufferLimit + 1, true},
+		// Start() allocates make([]SyslogMessage, MaxBuffer) up front, so an
+		// absurd value from a hand-edited config.json must be a config error,
+		// not an out-of-memory abort.
+		{"absurd value rejected", 1 << 40, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validBaseConfig()
+			c.MaxBuffer = tt.buffer
+			err := ValidateServerConfig(c)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateServerConfig(maxBuffer=%d) error = %v, wantErr %v", tt.buffer, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCertOptions_ValidityDays(t *testing.T) {
+	tests := []struct {
+		name    string
+		days    int
+		wantErr bool
+	}{
+		{"default", DefaultCertOptions().ValidityDays, false},
+		{"zero means caller default", 0, false},
+		{"ten years", 3650, false},
+		{"at the limit", MaxValidityDays, false},
+		{"negative rejected", -1, true},
+		{"above the limit rejected", MaxValidityDays + 1, true},
+		// Past ~106751 days, ValidityDays * 24 * time.Hour overflows int64 and
+		// NotAfter lands in the past — an already-expired certificate rather
+		// than the very long-lived one the caller asked for.
+		{"int64 overflow range rejected", 200000, true},
+		{"max int rejected", int(^uint(0) >> 1), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := DefaultCertOptions()
+			o.ValidityDays = tt.days
+			err := ValidateCertOptions(o)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateCertOptions(validityDays=%d) error = %v, wantErr %v", tt.days, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateServerConfig_RejectsBadCertOptions(t *testing.T) {
+	// Certificate options ride along in ServerConfig, so starting the server
+	// must reject them too, not just the direct generation entry points.
+	c := validBaseConfig()
+	c.CertOptions = DefaultCertOptions()
+	c.CertOptions.ValidityDays = MaxValidityDays + 1
+	if err := ValidateServerConfig(c); err == nil {
+		t.Error("out-of-range certificate validity accepted by ValidateServerConfig")
+	}
+}

@@ -184,6 +184,19 @@ func (ls *LogStore) emitCryptoProgress(p CryptoProgress) {
 	}
 }
 
+// handle returns the current database handle, read under the lock. It may be
+// nil when persistence is disabled or the database is still locked. Callers
+// take the handle once and use that local for the whole operation instead of
+// touching ls.db repeatedly: Close() clears the field, so an unsynchronized
+// read races with it and a nil-check followed by a later read can still hit a
+// nil pointer. A *sql.DB stays safe to call after Close — its methods return
+// sql.ErrConnDone rather than panicking.
+func (ls *LogStore) handle() *sql.DB {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.db
+}
+
 // IsReady returns true if the database is fully initialized (FTS index built).
 func (ls *LogStore) IsReady() bool {
 	ls.mu.Lock()
@@ -279,15 +292,16 @@ func (ls *LogStore) rebuildFTS() {
 		}
 	}()
 
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return
 	}
 
 	var msgCount int64
-	ls.db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
+	db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
 	if msgCount > 0 {
 		slog.Info("rebuilding FTS index", "messages", msgCount)
-		if _, err := ls.db.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); err != nil {
+		if _, err := db.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); err != nil {
 			slog.Warn("FTS rebuild failed, text search may be slow", "error", err)
 		}
 		slog.Info("FTS index ready", "messages", msgCount)
@@ -350,7 +364,12 @@ func (ls *LogStore) flush() {
 	ls.buffer = make([]models.SyslogMessage, 0, cap(batch))
 	ls.mu.Unlock()
 
-	tx, err := ls.db.Begin()
+	db := ls.handle()
+	if db == nil {
+		return
+	}
+
+	tx, err := db.Begin()
 	if err != nil {
 		slog.Error("log store: failed to begin transaction", "error", err)
 		return
@@ -406,14 +425,15 @@ func (ls *LogStore) cleanupLoop() {
 }
 
 func (ls *LogStore) runCleanup() {
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return
 	}
 
 	// Retention by age
 	if ls.config.RetentionDays > 0 {
 		cutoff := time.Now().Add(-time.Duration(ls.config.RetentionDays) * 24 * time.Hour).UTC().Format(time.RFC3339)
-		res, err := ls.db.Exec("DELETE FROM messages WHERE timestamp < ?", cutoff)
+		res, err := db.Exec("DELETE FROM messages WHERE timestamp < ?", cutoff)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
 				slog.Info("log store: cleaned old messages", "deleted", n)
@@ -423,7 +443,7 @@ func (ls *LogStore) runCleanup() {
 
 	// Retention by count
 	if ls.config.MaxMessages > 0 {
-		res, err := ls.db.Exec(`DELETE FROM messages WHERE id IN (
+		res, err := db.Exec(`DELETE FROM messages WHERE id IN (
 			SELECT id FROM messages ORDER BY timestamp ASC
 			LIMIT MAX(0, (SELECT COUNT(*) FROM messages) - ?)
 		)`, ls.config.MaxMessages)
@@ -439,12 +459,12 @@ func (ls *LogStore) runCleanup() {
 		stats := ls.GetStats()
 		if stats.DatabaseSizeMB > float64(ls.config.MaxSizeMB) {
 			// Delete oldest 10% to make room
-			count := ls.messageCount()
+			count := ls.messageCount(db)
 			toDelete := count / 10
 			if toDelete < 1000 {
 				toDelete = 1000
 			}
-			ls.db.Exec("DELETE FROM messages WHERE id IN (SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?)", toDelete)
+			db.Exec("DELETE FROM messages WHERE id IN (SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?)", toDelete)
 			slog.Info("log store: trimmed by size", "deleted", toDelete)
 		}
 	}
@@ -483,7 +503,8 @@ func buildOrderClause(sortField, sortDir string) string {
 func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 	page := opts.Page
 	pageSize := opts.PageSize
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return models.PagedResult{Page: page, PageSize: pageSize}
 	}
 	if page < 1 {
@@ -513,7 +534,7 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 		// Pass 2: fetch full rows only for the current page
 
 		var totalRows int
-		ls.db.QueryRow("SELECT COUNT(*) FROM messages"+where, args...).Scan(&totalRows)
+		db.QueryRow("SELECT COUNT(*) FROM messages"+where, args...).Scan(&totalRows)
 
 		if ls.emitter != nil {
 			ls.emitter.Emit("syslog:queryProgress", map[string]interface{}{"scanned": 0, "total": totalRows, "matched": 0})
@@ -521,7 +542,7 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 
 		// Pass 1: lightweight scan (id + message + raw_message)
 		scanSQL := "SELECT id, message, raw_message FROM messages" + where + orderBy
-		rows, err := ls.db.Query(scanSQL, args...)
+		rows, err := db.Query(scanSQL, args...)
 		if err != nil {
 			slog.Error("log store: regex scan failed", "error", err)
 			return models.PagedResult{Page: page, PageSize: pageSize}
@@ -573,7 +594,7 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 				fetchArgs[i] = id
 			}
 			fetchSQL := "SELECT id, timestamp, received_at, severity, severity_label, facility, facility_label, hostname, app_name, proc_id, msg_id, message, raw_message, source_ip, protocol, version, structured_data FROM messages WHERE id IN (" + strings.Join(placeholders, ",") + ")" + orderBy
-			fetchRows, err := ls.db.Query(fetchSQL, fetchArgs...)
+			fetchRows, err := db.Query(fetchSQL, fetchArgs...)
 			if err == nil {
 				defer fetchRows.Close()
 				for fetchRows.Next() {
@@ -595,13 +616,13 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 
 	// Standard mode: SQL handles everything
 	var total int
-	ls.db.QueryRow("SELECT COUNT(*) FROM messages"+where, args...).Scan(&total)
+	db.QueryRow("SELECT COUNT(*) FROM messages"+where, args...).Scan(&total)
 
 	offset := (page - 1) * pageSize
 	querySQL := "SELECT id, timestamp, received_at, severity, severity_label, facility, facility_label, hostname, app_name, proc_id, msg_id, message, raw_message, source_ip, protocol, version, structured_data FROM messages" + where + orderBy + " LIMIT ? OFFSET ?"
 	queryArgs := append(args, pageSize, offset)
 
-	rows, err := ls.db.Query(querySQL, queryArgs...)
+	rows, err := db.Query(querySQL, queryArgs...)
 	if err != nil {
 		slog.Error("log store: query failed", "error", err)
 		return models.PagedResult{Page: page, PageSize: pageSize, Total: total}
@@ -646,7 +667,8 @@ func (ls *LogStore) scanMessage(rows *sql.Rows) *models.SyslogMessage {
 
 // QueryGroups returns message counts grouped by a field.
 func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string) []models.GroupSummary {
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return nil
 	}
 	col, ok := allowedGroupFields[groupField]
@@ -656,7 +678,7 @@ func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string)
 
 	where, args := buildWhereClause(filter)
 	query := "SELECT " + col + ", COUNT(*) FROM messages" + where + " GROUP BY " + col + " ORDER BY COUNT(*) DESC"
-	rows, err := ls.db.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		slog.Error("log store: group query failed", "error", err)
 		return nil
@@ -765,12 +787,13 @@ func buildWhereClause(filter models.FilterCriteria) (string, []interface{}) {
 
 // GetStats returns storage statistics.
 func (ls *LogStore) GetStats() models.StorageStats {
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return models.StorageStats{}
 	}
 
 	stats := models.StorageStats{
-		MessageCount:  ls.messageCount(),
+		MessageCount:  ls.messageCount(db),
 		DroppedWrites: ls.droppedWriteCount(),
 	}
 
@@ -786,7 +809,7 @@ func (ls *LogStore) GetStats() models.StorageStats {
 
 	// Oldest message
 	var oldest sql.NullString
-	ls.db.QueryRow("SELECT MIN(timestamp) FROM messages").Scan(&oldest)
+	db.QueryRow("SELECT MIN(timestamp) FROM messages").Scan(&oldest)
 	if oldest.Valid {
 		stats.OldestTimestamp = oldest.String
 	}
@@ -794,28 +817,32 @@ func (ls *LogStore) GetStats() models.StorageStats {
 	return stats
 }
 
-func (ls *LogStore) messageCount() int64 {
+// messageCount takes the handle from its caller so a single GetStats/runCleanup
+// pass uses one consistent handle rather than re-reading ls.db mid-operation.
+func (ls *LogStore) messageCount(db *sql.DB) int64 {
 	var count int64
-	ls.db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
+	db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
 	return count
 }
 
 // Compact runs VACUUM to reclaim disk space.
 func (ls *LogStore) Compact() error {
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return nil
 	}
 	slog.Info("log store: running VACUUM")
-	_, err := ls.db.Exec("VACUUM")
+	_, err := db.Exec("VACUUM")
 	return err
 }
 
 // ClearAll deletes all messages and compacts the database.
 func (ls *LogStore) ClearAll() error {
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return nil
 	}
-	if _, err := ls.db.Exec("DELETE FROM messages"); err != nil {
+	if _, err := db.Exec("DELETE FROM messages"); err != nil {
 		return err
 	}
 	return ls.Compact()
@@ -830,7 +857,8 @@ func (ls *LogStore) UpdateConfig(config models.StorageConfig) {
 
 // Close flushes remaining messages, closes the database, and encrypts if enabled.
 func (ls *LogStore) Close() {
-	if ls.db == nil {
+	db := ls.handle()
+	if db == nil {
 		return
 	}
 
@@ -842,8 +870,12 @@ func (ls *LogStore) Close() {
 	close(ls.stopCh)
 	ls.wg.Wait()
 	ls.Compact()
-	ls.db.Close()
+	db.Close()
+	// Clear the field under the lock: readers take it via handle(), so an
+	// unsynchronized write here would race with an in-flight frontend query.
+	ls.mu.Lock()
 	ls.db = nil
+	ls.mu.Unlock()
 
 	// Encrypt at rest if enabled
 	slog.Info("log store: close encryption check",

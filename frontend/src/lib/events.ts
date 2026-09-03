@@ -25,16 +25,40 @@ const SEVERITY_ICONS: Record<string, string> = {
     'Debug':     '\u{1F41B}',
 };
 
+// MAX_NOTIFICATION_FIELD bounds each field so one oversized syslog hostname or
+// message cannot fill the whole toast.
+const MAX_NOTIFICATION_FIELD = 120;
+
+// sanitizeNotificationText neutralizes syslog content before it reaches the OS
+// notification layer. On Windows, Wails hands title/body to go-toast, which
+// interpolates them into a toast XML template inside <![CDATA[...]]> using
+// text/template — with no escaping. A message containing "]]>" therefore closes
+// the CDATA section early: at best the XML is malformed and the toast is never
+// shown (an attacker silently suppresses the very alerts their own traffic
+// triggers), at worst extra toast markup is injected. Syslog content is remote
+// and unauthenticated (UDP is on by default), so it is neutralized here, on the
+// single path into SendNotification.
+export function sanitizeNotificationText(input: string, max = MAX_NOTIFICATION_FIELD): string {
+    const cleaned = (input ?? '')
+        // Break the CDATA terminator so it cannot close the section.
+        .replace(/\]\]>/g, ']] >')
+        // Drop C0/C1 controls (XML-illegal, and usable to smuggle separators
+        // past naive checks); \n and \t are kept, as toasts render them.
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+    return cleaned.length > max ? cleaned.slice(0, max - 3) + '...' : cleaned;
+}
+
 function formatNotification(event: AlertEvent): { title: string; body: string } {
     const icon = SEVERITY_ICONS[event.severity] || '\u{1F514}';
-    const host = event.hostname || 'unknown host';
-    const msg = event.message.length > 120
-        ? event.message.slice(0, 117) + '...'
-        : event.message;
+    const host = sanitizeNotificationText(event.hostname) || 'unknown host';
+    const msg = sanitizeNotificationText(event.message);
+    // ruleName and severity are locally defined, but they render through the
+    // same unescaped CDATA template, so they are sanitized too.
+    const rule = sanitizeNotificationText(event.ruleName);
 
     return {
-        title: `${icon} ${event.ruleName}`,
-        body: `${event.severity} on ${host}\n${msg}`,
+        title: `${icon} ${rule}`,
+        body: `${sanitizeNotificationText(event.severity)} on ${host}\n${msg}`,
     };
 }
 
