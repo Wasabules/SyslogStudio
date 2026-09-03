@@ -4,8 +4,13 @@ on:
   push:
     tags: ["v*"]
 
+# The three build jobs run untrusted third-party code (npm packages, Go
+# modules, the Wails CLI) and only need to read the repo. Write access is
+# granted to the `release` job alone, which is what publishes the signed
+# assets — so a compromised build dependency cannot rewrite the repository or
+# tamper with an existing release.
 permissions:
-  contents: write
+  contents: read
 
 # Asset names are FIXED (no version in the filename) so the in-app updater can
 # match them by constant name across releases:
@@ -24,11 +29,11 @@ jobs:
     name: Windows (amd64)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: npm
@@ -40,7 +45,11 @@ jobs:
       - name: Verify NSIS
         run: makensis /VERSION
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        # Pinned, and kept in sync with the wails/v2 version in go.mod: this CLI
+        # produces the binaries that are then checksummed and signed, so an
+        # unpinned @latest would make releases non-reproducible and would put a
+        # compromised Wails release straight into a signed artifact.
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -63,7 +72,7 @@ jobs:
           cp build/bin/SyslogStudio.exe SyslogStudio-windows-amd64.exe
           mv build/bin/*installer*.exe SyslogStudio-windows-amd64-setup.exe
           powershell -Command "Compress-Archive -Path build/bin/SyslogStudio.exe -DestinationPath SyslogStudio-windows-amd64.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-amd64
           path: |
@@ -75,17 +84,21 @@ jobs:
     name: macOS (universal)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        # Pinned, and kept in sync with the wails/v2 version in go.mod: this CLI
+        # produces the binaries that are then checksummed and signed, so an
+        # unpinned @latest would make releases non-reproducible and would put a
+        # compromised Wails release straight into a signed artifact.
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -109,7 +122,7 @@ jobs:
           ln -s /Applications dmg-staging/Applications
           hdiutil create -volname "SyslogStudio" -srcfolder dmg-staging -ov -format UDZO \
             "SyslogStudio-macos-universal.dmg"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-universal
           path: |
@@ -120,11 +133,11 @@ jobs:
     name: Linux (amd64)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: npm
@@ -132,7 +145,11 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        # Pinned, and kept in sync with the wails/v2 version in go.mod: this CLI
+        # produces the binaries that are then checksummed and signed, so an
+        # unpinned @latest would make releases non-reproducible and would put a
+        # compromised Wails release straight into a signed artifact.
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -160,7 +177,7 @@ jobs:
           Depends: libgtk-3-0, libwebkit2gtk-4.1-0
           EOF
           dpkg-deb --build pkg "SyslogStudio-linux-amd64.deb"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-amd64
           path: |
@@ -172,12 +189,14 @@ jobs:
     name: Create release
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
@@ -203,7 +222,7 @@ jobs:
       - name: List release assets
         run: ls -lh artifacts/
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true
           files: artifacts/*
