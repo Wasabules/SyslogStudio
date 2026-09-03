@@ -540,11 +540,19 @@ func (a *App) UnlockDatabase(password string) error {
 }
 
 // EnableEncryption enables at-rest encryption with the given password.
+// It refuses to run when encryption is already on: silently accepting a new
+// password there would be an unauthenticated password change (the counterpart
+// of ChangeEncryptionPassword, which requires the current one), and against a
+// still-locked database it would re-key the store to a password that cannot
+// decrypt the existing logs.db.enc.
 func (a *App) EnableEncryption(password string) error {
 	if len(password) < minPasswordLen {
 		return fmt.Errorf("password must be at least %d characters", minPasswordLen)
 	}
 	cfg := a.configStore.LoadStorage()
+	if cfg.EncryptionEnabled {
+		return fmt.Errorf("encryption is already enabled; use the change-password action instead")
+	}
 	cfg.EncryptionEnabled = true
 	a.configStore.SaveStorage(cfg)
 	a.encryptionPassword = password

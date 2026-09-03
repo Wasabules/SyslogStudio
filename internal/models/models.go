@@ -432,6 +432,17 @@ func DefaultServerConfig() ServerConfig {
 // host from monopolizing the global connection pool.
 const DefaultMaxConnsPerIP = 128
 
+// MaxBufferLimit caps the in-memory ring buffer. Start() allocates
+// make([]SyslogMessage, MaxBuffer) up front, so an absurd value read back from
+// a hand-edited config.json would be an immediate out-of-memory abort rather
+// than a configuration error.
+const MaxBufferLimit = 5_000_000
+
+// MaxValidityDays caps certificate lifetimes at ~100 years. Beyond roughly
+// 106751 days, ValidityDays * 24 * time.Hour overflows int64 and NotAfter lands
+// in the past, silently producing an already-expired certificate.
+const MaxValidityDays = 36500
+
 // --- Validation ---
 
 // ValidateServerConfig checks the configuration for errors before starting.
@@ -444,6 +455,14 @@ func ValidateServerConfig(c ServerConfig) error {
 		if net.ParseIP(c.BindAddress) == nil {
 			return fmt.Errorf("bind address %q is not a valid IP address", c.BindAddress)
 		}
+	}
+
+	if c.MaxBuffer < 0 || c.MaxBuffer > MaxBufferLimit {
+		return fmt.Errorf("message buffer size %d is out of range (0-%d)", c.MaxBuffer, MaxBufferLimit)
+	}
+
+	if err := ValidateCertOptions(c.CertOptions); err != nil {
+		return err
 	}
 
 	for _, src := range c.AllowedSources {
@@ -521,6 +540,17 @@ func ValidateServerConfig(c ServerConfig) error {
 		}
 	}
 
+	return nil
+}
+
+// ValidateCertOptions checks certificate-generation parameters. Callers that
+// generate certificates directly (GenerateCA, GenerateServerCert,
+// GenerateCertificate) must call this too — they do not go through
+// ValidateServerConfig.
+func ValidateCertOptions(o CertOptions) error {
+	if o.ValidityDays < 0 || o.ValidityDays > MaxValidityDays {
+		return fmt.Errorf("certificate validity %d days is out of range (0-%d)", o.ValidityDays, MaxValidityDays)
+	}
 	return nil
 }
 

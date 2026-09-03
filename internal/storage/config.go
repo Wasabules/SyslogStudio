@@ -34,6 +34,13 @@ func NewConfigStore() *ConfigStore {
 	return &ConfigStore{dir: dir}
 }
 
+// NewConfigStoreAt creates a ConfigStore rooted at an explicit directory,
+// instead of the user's config directory. Used by tests in other packages so
+// they do not read or write the real user configuration.
+func NewConfigStoreAt(dir string) *ConfigStore {
+	return &ConfigStore{dir: dir}
+}
+
 func (cs *ConfigStore) path() string {
 	return filepath.Join(cs.dir, configFileName)
 }

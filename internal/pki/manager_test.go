@@ -1568,3 +1568,65 @@ func TestConcurrentAccess(t *testing.T) {
 		t.Errorf("concurrent error: %v", e)
 	}
 }
+
+func TestGenerate_RejectsOutOfRangeValidity(t *testing.T) {
+	// The generation entry points are called straight from App, bypassing
+	// ValidateServerConfig, so each must bound ValidityDays itself. Past
+	// ~106751 days the NotAfter arithmetic overflows int64 and the certificate
+	// comes back already expired instead of long-lived.
+	const overflowDays = 200000
+
+	t.Run("GenerateCA", func(t *testing.T) {
+		m := NewTLSManager()
+		opts := models.DefaultCertOptions()
+		opts.ValidityDays = overflowDays
+		if _, err := m.GenerateCA(opts); err == nil {
+			t.Fatal("GenerateCA accepted an out-of-range validity")
+		}
+		if m.HasCA() {
+			t.Error("a CA was stored despite the rejection")
+		}
+	})
+
+	t.Run("GenerateSelfSignedWithOptions", func(t *testing.T) {
+		m := NewTLSManager()
+		opts := models.DefaultCertOptions()
+		opts.ValidityDays = overflowDays
+		if _, _, err := m.GenerateSelfSignedWithOptions(opts); err == nil {
+			t.Fatal("GenerateSelfSignedWithOptions accepted an out-of-range validity")
+		}
+		if m.HasServerCert() {
+			t.Error("a server certificate was stored despite the rejection")
+		}
+	})
+
+	t.Run("GenerateServerCertSignedByCA", func(t *testing.T) {
+		m := NewTLSManager()
+		caOpts := models.DefaultCertOptions()
+		caOpts.Algorithm = "ECDSA-P256"
+		if _, err := m.GenerateCA(caOpts); err != nil {
+			t.Fatalf("CA setup failed: %v", err)
+		}
+		opts := models.DefaultCertOptions()
+		opts.ValidityDays = overflowDays
+		if _, err := m.GenerateServerCertSignedByCA(opts); err == nil {
+			t.Fatal("GenerateServerCertSignedByCA accepted an out-of-range validity")
+		}
+	})
+}
+
+func TestGenerateCA_MaxValidityStillInTheFuture(t *testing.T) {
+	// The accepted upper bound must produce a certificate that expires in the
+	// future — the property the bound exists to preserve.
+	m := NewTLSManager()
+	opts := models.DefaultCertOptions()
+	opts.Algorithm = "ECDSA-P256"
+	opts.ValidityDays = models.MaxValidityDays
+	info, err := m.GenerateCA(opts)
+	if err != nil {
+		t.Fatalf("GenerateCA at the limit failed: %v", err)
+	}
+	if info.IsExpired {
+		t.Errorf("certificate at the validity limit is already expired (notAfter=%s)", info.NotAfter)
+	}
+}
