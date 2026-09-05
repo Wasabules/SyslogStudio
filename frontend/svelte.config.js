@@ -1,7 +1,8 @@
-import sveltePreprocess from 'svelte-preprocess'
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 
 export default {
-  // Consult https://github.com/sveltejs/svelte-preprocess
-  // for more information about preprocessors
-  preprocess: sveltePreprocess()
+  // vitePreprocess replaces svelte-preprocess: it hands <script lang="ts"> to
+  // Vite's own esbuild pass, so there is one TypeScript pipeline instead of two
+  // that can disagree about tsconfig.
+  preprocess: vitePreprocess(),
 }

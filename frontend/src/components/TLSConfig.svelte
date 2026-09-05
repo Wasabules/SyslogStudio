@@ -30,7 +30,7 @@
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="modal-backdrop" role="presentation" on:click={onClose}>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation>
+        <div class="modal" role="dialog" aria-modal="true" tabindex="-1" on:click|stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">{$_('tls.title')}</span>
                 <button class="close-btn" on:click={onClose} aria-label={$_('tls.close')}>&times;</button>

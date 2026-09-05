@@ -1,15 +1,20 @@
 <script lang="ts">
+    import { _ } from 'svelte-i18n';
     import { toasts, dismissToast } from '../lib/toast';
 </script>
 
 {#if $toasts.length > 0}
     <div class="toast-container">
         {#each $toasts as toast (toast.id)}
-            <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-            <div class="toast toast-{toast.type}" role="alert"
-                 on:click={() => dismissToast(toast.id)}
-                 on:keydown={e => e.key === 'Enter' && dismissToast(toast.id)}
-                 tabindex="0">
+            <!--
+                The alert region announces; the button dismisses. They were the
+                same element, which is what role="alert" plus click and keydown
+                handlers means: a live region that is silently also a control.
+                Assistive technology announced the message but never offered the
+                dismissal, and the only keyboard route in was a tabindex on a
+                region that has no business holding focus.
+            -->
+            <div class="toast toast-{toast.type}" role="alert">
                 <span class="toast-icon">
                     {#if toast.type === 'success'}&#10003;
                     {:else if toast.type === 'error'}&#10007;
@@ -17,6 +22,9 @@
                     {/if}
                 </span>
                 <span class="toast-message">{toast.message}</span>
+                <button class="toast-close"
+                        on:click={() => dismissToast(toast.id)}
+                        aria-label={$_('common.close')}>&times;</button>
             </div>
         {/each}
     </div>
@@ -42,9 +50,31 @@
         border-radius: 6px;
         font-size: 12px;
         line-height: 1.4;
-        cursor: pointer;
         animation: slide-in 0.2s ease-out;
         box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .toast-close {
+        margin-left: auto;
+        flex-shrink: 0;
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 16px;
+        line-height: 1;
+        padding: 0 2px;
+        cursor: pointer;
+        opacity: 0.75;
+    }
+
+    .toast-close:hover {
+        opacity: 1;
+    }
+
+    .toast-close:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 2px;
+        opacity: 1;
     }
 
     .toast-success {

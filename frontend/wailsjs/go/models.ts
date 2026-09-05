@@ -342,7 +342,7 @@ export namespace models {
 	    mutualTLS: boolean;
 	    caFile: string;
 	    maxConnsPerIP: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ServerConfig(source);
 	    }
@@ -507,11 +507,11 @@ export namespace models {
 	    databaseSizeMB: number;
 	    oldestTimestamp: string;
 	    droppedWrites: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new StorageStats(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.messageCount = source["messageCount"];

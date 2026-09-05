@@ -111,8 +111,7 @@
                 <div class="dropdown">
                     {#each Object.entries(SEVERITY_LABELS) as [key, label]}
                         {@const sev = parseInt(key)}
-                        <!-- svelte-ignore a11y-click-events-have-key-events -->
-                        <label class="dropdown-item" on:click|stopPropagation>
+                        <label class="dropdown-item">
                             <input type="checkbox"
                                    checked={$filter.severities.includes(sev)}
                                    on:change={() => toggleSeverity(sev)} />
