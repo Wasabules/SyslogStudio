@@ -36,9 +36,9 @@ func eq(t *testing.T, got, want []string) {
 
 func TestFraming_OctetCounting_Single(t *testing.T) {
 	msg := "<34>1 2003-10-11T22:14:15.003Z host app - - - hello"
-	input := "51 " + msg // note: length must match msg byte length
-	// Recompute the correct length rather than hardcoding.
-	input = itoa(len(msg)) + " " + msg
+	// The octet count must be the byte length of msg, so compute it rather
+	// than hardcoding a number that silently rots when msg is edited.
+	input := itoa(len(msg)) + " " + msg
 	eq(t, scanAll(t, input), []string{msg})
 }
 

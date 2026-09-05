@@ -1,0 +1,45 @@
+version: 2
+
+# Dependabot is what makes SHA-pinned actions maintainable. Pinning without it
+# means the pins rot: an action stays frozen at whatever commit was current the
+# day someone wrote it, security fixes included.
+#
+# This covers version updates. Dependabot *security* updates (the automatic PRs
+# for a newly disclosed advisory) are a separate repository setting and are
+# already enabled.
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # golang.org/x/* move together and are almost always safe; one PR rather
+      # than five keeps the noise down without hiding anything.
+      golang-x:
+        patterns:
+          - golang.org/x/*
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The Svelte 3 / Vite 3 toolchain moves as a unit — svelte, svelte-check,
+      # svelte-preprocess and the Vite plugin are version-locked against each
+      # other, so separate PRs for them just fail each other's CI.
+      svelte-toolchain:
+        patterns:
+          - svelte
+          - svelte-*
+          - "@sveltejs/*"
+          - vite
+
+  # The workflows pin actions by commit SHA, so this is the only thing that
+  # ever moves them.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
