@@ -21,11 +21,17 @@ const (
 	logStoreFlushInterval   = 500 * time.Millisecond
 	logStoreCleanupInterval = 5 * time.Minute
 	dbFileName              = "logs.db"
-	// maxWriteBuffer caps the in-memory pending-write buffer so a message
-	// flood that outruns SQLite commits (slow disk, VACUUM, retention delete)
-	// bounds memory instead of growing without limit until OOM.
-	maxWriteBuffer = 200000
 )
+
+// maxWriteBuffer caps the in-memory pending-write buffer so a message flood
+// that outruns SQLite commits (slow disk, VACUUM, retention delete) bounds
+// memory instead of growing without limit until OOM.
+//
+// A variable rather than a constant so tests can lower it: exercising the
+// overflow path at the production value means actually buffering 200k messages
+// and letting the flush loop write them, which takes minutes under -race for a
+// branch that is three lines long.
+var maxWriteBuffer = 200000
 
 // LogStore handles SQLite-based message persistence.
 type LogStore struct {
