@@ -319,8 +319,12 @@
         return SEVERITY_BY_LABEL[label] ?? -1;
     }
 
-    function groupColor(key: string): string {
-        if ($groupBy === 'severity') {
+    // `mode` is a parameter rather than a $groupBy read, for the same reason as
+    // estimateMessagesForSize in Settings: the markup expression is what Svelte
+    // 5 tracks, and the call is untracked, so a store read in here would not
+    // repaint the dot when the grouping changes but a key survived the switch.
+    function groupColor(key: string, mode: string): string {
+        if (mode === 'severity') {
             const sev = SEVERITY_BY_LABEL[key];
             return sev !== undefined ? SEVERITY_COLORS[sev] : 'var(--accent)';
         }
@@ -415,10 +419,10 @@
                          on:click={() => $logViewMode === 'history' ? expandHistoryGroup(g) : toggleGroup(g.key)}
                          on:keydown={e => e.key === 'Enter' && ($logViewMode === 'history' ? expandHistoryGroup(g) : toggleGroup(g.key))}>
                         <span class="group-chevron">{g.expanded ? '\u25BC' : '\u25B6'}</span>
-                        <span class="group-dot" style="background: {groupColor(g.key)}"></span>
-                        <span class="group-label" style="color: {groupColor(g.key)}">{g.key}</span>
+                        <span class="group-dot" style="background: {groupColor(g.key, $groupBy)}"></span>
+                        <span class="group-label" style="color: {groupColor(g.key, $groupBy)}">{g.key}</span>
                         <span class="group-count">({g.count.toLocaleString()})</span>
-                        <span class="group-bar" style="background: {groupColor(g.key)}; opacity: 0.15; width: {Math.min(g.count / (groups[0]?.count || 1) * 100, 100)}%"></span>
+                        <span class="group-bar" style="background: {groupColor(g.key, $groupBy)}; opacity: 0.15; width: {Math.min(g.count / (groups[0]?.count || 1) * 100, 100)}%"></span>
                     </div>
                 {:else if row.msg}
                     {@const msg = row.msg}

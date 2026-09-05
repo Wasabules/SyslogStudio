@@ -311,12 +311,18 @@
         return `≈ ${(mb / 1024).toFixed(1)} GB`;
     }
 
-    function estimateMessagesForSize(sizeMB: number): string {
+    // The translated unit is a parameter, not a store read inside the body.
+    // Svelte 5 tracks what the *markup expression* reads and wraps the call
+    // itself in untrack(), so a `$_` read in here would be invisible to the
+    // renderer: switching language would leave this hint in the old one until
+    // sizeMB happened to change. Under Svelte 3 it worked by accident, because
+    // every update recomputed every expression.
+    function estimateMessagesForSize(sizeMB: number, unit: string): string {
         if (sizeMB === 0) return '';
         const count = Math.floor((sizeMB * 1024 * 1024) / BYTES_PER_MSG);
-        if (count >= 1000000) return `≈ ${(count / 1000000).toFixed(1)}M ${$_('settings.messagesApprox')}`;
-        if (count >= 1000) return `≈ ${(count / 1000).toFixed(0)}K ${$_('settings.messagesApprox')}`;
-        return `≈ ${count} ${$_('settings.messagesApprox')}`;
+        if (count >= 1000000) return `≈ ${(count / 1000000).toFixed(1)}M ${unit}`;
+        if (count >= 1000) return `≈ ${(count / 1000).toFixed(0)}K ${unit}`;
+        return `≈ ${count} ${unit}`;
     }
 
     function estimateRateForDays(days: number): string {
@@ -344,7 +350,7 @@
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="modal-backdrop" role="presentation" on:click={onClose}>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation>
+        <div class="modal" role="dialog" aria-modal="true" tabindex="-1" on:click|stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">{$_('settings.title')}</span>
                 <button class="close-btn" on:click={onClose} aria-label={$_('common.close')}>&times;</button>
@@ -485,7 +491,7 @@
                             </select>
                         </div>
                         {#if maxDbSize > 0}
-                            <span class="hint">{estimateMessagesForSize(maxDbSize)}</span>
+                            <span class="hint">{estimateMessagesForSize(maxDbSize, $_('settings.messagesApprox'))}</span>
                         {/if}
                     </div>
 
@@ -536,10 +542,13 @@
                     </div>
 
                     {#if showEncryptionWarning}
-                        <div class="enc-warning-overlay" on:click|self={cancelEnableEncryption}>
-                            <div class="enc-warning-card">
+                        <!-- svelte-ignore a11y-click-events-have-key-events -->
+                        <div class="enc-warning-overlay" role="presentation"
+                             on:click|self={cancelEnableEncryption}>
+                            <div class="enc-warning-card" role="dialog" aria-modal="true" tabindex="-1"
+                                 aria-labelledby="enc-warning-title">
                                 <div class="enc-warning-icon">&#9888;</div>
-                                <h4>{$_('encryption.warningTitle')}</h4>
+                                <h4 id="enc-warning-title">{$_('encryption.warningTitle')}</h4>
                                 <p>{$_('encryption.warningMessage')}</p>
                                 <ul class="enc-warning-list">
                                     <li>{$_('encryption.warningPoint1')}</li>
