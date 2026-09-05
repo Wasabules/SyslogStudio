@@ -1,0 +1,88 @@
+name: CodeQL
+
+# Static analysis of the code itself, which nothing else here does: go vet and
+# staticcheck look for mistakes, govulncheck and npm audit look for known
+# vulnerable dependencies, and none of them go looking for an exploitable
+# pattern in code we wrote. The weekly run matters as much as the per-push one —
+# a query added to CodeQL after a commit lands would otherwise never see it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    permissions:
+      # Only this job may write findings; everything else stays read-only.
+      security-events: write
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install Linux dependencies
+        if: matrix.language == 'go'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
+      # produced by the frontend build and gitignored — so a plain `go build`
+      # fails with "pattern all:frontend/dist: no matching files found" before a
+      # single query runs.
+      #
+      # A placeholder rather than a real frontend build: CodeQL analyses the Go
+      # code, not the bytes the binary embeds, so `npm ci && npm run build` would
+      # cost minutes to produce something no query looks at. The
+      # javascript-typescript leg analyses the frontend SOURCE, which is what
+      # matters there.
+      - name: Placeholder for the embedded frontend
+        if: matrix.language == 'go'
+        run: |
+          mkdir -p frontend/dist
+          echo '<!-- CodeQL placeholder -->' > frontend/dist/index.html
+
+      # The Go analysis needs a real build. Autobuild would not know about the
+      # webkit2_41 tag, and would analyse a subset of the tree without saying so.
+      - name: Build Go
+        if: matrix.language == 'go'
+        run: go build -tags webkit2_41 ./...
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          category: /language:${{ matrix.language }}

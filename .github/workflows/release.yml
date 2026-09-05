@@ -29,11 +29,13 @@ jobs:
     name: Windows (amd64)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
           cache: npm
@@ -72,7 +74,7 @@ jobs:
           cp build/bin/SyslogStudio.exe SyslogStudio-windows-amd64.exe
           mv build/bin/*installer*.exe SyslogStudio-windows-amd64-setup.exe
           powershell -Command "Compress-Archive -Path build/bin/SyslogStudio.exe -DestinationPath SyslogStudio-windows-amd64.zip"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-amd64
           path: |
@@ -84,11 +86,13 @@ jobs:
     name: macOS (universal)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
           cache: npm
@@ -122,7 +126,7 @@ jobs:
           ln -s /Applications dmg-staging/Applications
           hdiutil create -volname "SyslogStudio" -srcfolder dmg-staging -ov -format UDZO \
             "SyslogStudio-macos-universal.dmg"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: macos-universal
           path: |
@@ -133,11 +137,13 @@ jobs:
     name: Linux (amd64)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
           cache: npm
@@ -177,7 +183,7 @@ jobs:
           Depends: libgtk-3-0, libwebkit2gtk-4.1-0
           EOF
           dpkg-deb --build pkg "SyslogStudio-linux-amd64.deb"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-amd64
           path: |
@@ -191,12 +197,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Build provenance: id-token to get the OIDC token that proves the
+      # attestation came from this workflow run, attestations to record it.
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
           merge-multiple: true
@@ -219,10 +231,31 @@ jobs:
           fi
           go run ./tools/updatersign sign artifacts/SyslogStudio-checksums.txt
           test -s artifacts/SyslogStudio-checksums.txt.sig
+      # Signed, verifiable provenance for every published asset: which workflow,
+      # which commit, which runner produced these exact bytes. It answers a
+      # question the Ed25519 manifest signature does not — that signature proves
+      # the checksums were signed by the holder of the release key, not that the
+      # binaries were built from this repository by this workflow.
+      #
+      # Anyone can check a download without trusting this repo's tooling:
+      #   gh attestation verify SyslogStudio-windows-amd64.exe --repo Wasabules/SyslogStudio
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/SyslogStudio-windows-amd64.exe
+            artifacts/SyslogStudio-windows-amd64-setup.exe
+            artifacts/SyslogStudio-windows-amd64.zip
+            artifacts/SyslogStudio-macos-universal.dmg
+            artifacts/SyslogStudio-macos-universal.zip
+            artifacts/SyslogStudio-linux-amd64
+            artifacts/SyslogStudio-linux-amd64.deb
+            artifacts/SyslogStudio-linux-amd64.tar.gz
+
       - name: List release assets
         run: ls -lh artifacts/
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           generate_release_notes: true
           files: artifacts/*

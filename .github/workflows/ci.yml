@@ -11,23 +11,70 @@ on:
 permissions:
   contents: read
 
+# Superseded pushes to the same pull request are pointless work. Pushes to main
+# are never cancelled: every commit on the default branch gets its own verdict.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  backend:
-    name: Go (${{ matrix.os }})
+  # The full application build, on every platform we ship. This is deliberately
+  # `wails build` and not a bare `go build`: the CLI regenerates the JS bindings
+  # and builds the frontend before compiling, so this is the only check that
+  # covers the whole pipeline the release workflow runs. Without it, CI can be
+  # green while `wails build` is broken, and the breakage only surfaces when a
+  # tag is pushed — which is to say, when it is already a failed release.
+  build:
+    name: Build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            platform: linux/amd64
+          - os: windows-latest
+            platform: windows/amd64
+          - os: macos-latest
+            platform: darwin/universal
+
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # From go.mod, so the toolchain has exactly one source of truth.
           go-version-file: go.mod
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
-      - name: Create frontend/dist placeholder for go:embed
-        run: mkdir -p frontend/dist && touch frontend/dist/.gitkeep
+
+      - name: Install Wails CLI
+        # Pinned, and kept in sync with the wails/v2 version in go.mod. The CLI
+        # generates the bridge bindings and drives the build, so letting it
+        # float means a future release can change the output — or drift from the
+        # library it generates against — with nothing in this repository
+        # changing. The release workflow pins the same version.
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+
+      - name: Build
+        shell: bash
+        run: |
+          TAGS=""
+          if [ "$RUNNER_OS" = "Linux" ]; then TAGS="-tags webkit2_41"; fi
+          wails build -platform ${{ matrix.platform }} $TAGS
+
       - name: Vet & test
         shell: bash
         run: |
@@ -36,19 +83,149 @@ jobs:
           go vet $TAGS ./...
           go test $TAGS -race -count=1 ./...
 
-  frontend:
-    name: Frontend (check + build)
-    runs-on: ubuntu-latest
+  quality:
+    name: Quality (lint, types, tidy)
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+
+      - name: Install frontend deps
+        run: npm ci
         working-directory: frontend
-      - run: npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
+
+      - name: Svelte type check
+        run: npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
         working-directory: frontend
-      - run: npm run build
+
+      # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
+      # gitignored, so anything that compiles the main package fails with
+      # "pattern all:frontend/dist: no matching files found" before it analyses a
+      # line. staticcheck stops outright; govulncheck is worse — it carries on
+      # and silently reports on the subpackages alone, so main would look clean
+      # because it was never looked at. A placeholder rather than a real frontend
+      # build: neither tool inspects the bytes the binary embeds, and the build
+      # job already compiles the real thing on all three platforms.
+      - name: Placeholder for the embedded frontend
+        run: |
+          mkdir -p frontend/dist
+          echo '<!-- CI placeholder -->' > frontend/dist/index.html
+
+      - name: Staticcheck
+        # Catches what go vet does not: dead stores, misused stdlib contracts,
+        # simplifications that hide intent.
+        #
+        # Pinned, unlike govulncheck below. A linter that floats can fail a
+        # commit that changed nothing, because a newly added check fired — the
+        # finding may well be real, but it should arrive in its own deliberate
+        # bump, not as a surprise on someone else's pull request. Dependabot
+        # does not track versions inside a `run:` step, so this is bumped by
+        # hand.
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.1
+          staticcheck -tags webkit2_41 ./...
+
+      - name: go.mod is tidy
+        # A stale go.mod/go.sum means the dependency set that CI resolves is not
+        # the one recorded in the repo, so every other check here is verifying
+        # something slightly different from what a release builds.
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+  security:
+    name: Security audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
+      # gitignored, so anything that compiles the main package fails with
+      # "pattern all:frontend/dist: no matching files found" before it analyses a
+      # line. staticcheck stops outright; govulncheck is worse — it carries on
+      # and silently reports on the subpackages alone, so main would look clean
+      # because it was never looked at. A placeholder rather than a real frontend
+      # build: neither tool inspects the bytes the binary embeds, and the build
+      # job already compiles the real thing on all three platforms.
+      - name: Placeholder for the embedded frontend
+        run: |
+          mkdir -p frontend/dist
+          echo '<!-- CI placeholder -->' > frontend/dist/index.html
+
+      # govulncheck's analysis is only as complete as the packages it manages to
+      # load, and it does not fail when one of them does not build — it reports
+      # on the rest and prints a clean bill of health. On Linux the Wails
+      # packages need cgo against GTK/WebKit and the webkit2_41 tag, so without
+      # these the main package silently drops out of the scan. This build is the
+      # tripwire: it fails loudly if the toolchain cannot compile what the next
+      # step is supposed to analyse.
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+
+      - name: Confirm the tree builds before scanning it
+        run: go build -tags webkit2_41 ./...
+
+      - name: Go vulnerability check
+        # Reports only vulnerabilities in code paths the binary actually calls,
+        # standard library included — which is how the Go 1.25 -> 1.26 toolchain
+        # bump was found to be a security fix and not just housekeeping.
+        #
+        # Deliberately @latest, unlike staticcheck: the point of this step is to
+        # know about advisories published since the last commit, and an old
+        # scanner reports an old world. A new finding here means a real new
+        # advisory, not a new opinion about existing code.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -tags webkit2_41 ./...
+
+      - name: npm audit (production dependencies)
+        # --omit=dev because the Vite/esbuild advisories affect the developer
+        # machine during `wails dev`, not the shipped binary; they are tracked
+        # separately and must not block a release. No `|| true` here: a swallowed
+        # exit code turns this step into decoration.
+        run: npm audit --omit=dev --audit-level=high
         working-directory: frontend
+
+  # Blocks a pull request that introduces a dependency carrying a known
+  # advisory. govulncheck cannot do this: it reports on what is already merged.
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
