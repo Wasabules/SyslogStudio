@@ -56,11 +56,11 @@ func TestGenerateCA_DefaultOptions(t *testing.T) {
 
 func TestGenerateCA_RespectsOptions(t *testing.T) {
 	tests := []struct {
-		name      string
-		opts      models.CertOptions
-		wantCN    string
-		wantOrg   string
-		wantAlgo  string
+		name     string
+		opts     models.CertOptions
+		wantCN   string
+		wantOrg  string
+		wantAlgo string
 	}{
 		{
 			name: "ECDSA-P256 custom",
@@ -1087,10 +1087,10 @@ func TestBuildCertInfoFromX509_Dates(t *testing.T) {
 
 func TestBuildCertInfoFromX509_AlgorithmDetection(t *testing.T) {
 	tests := []struct {
-		name      string
-		genKey    func() (interface{}, interface{}) // returns (private, public)
-		wantAlgo  string
-		wantSize  string
+		name     string
+		genKey   func() (interface{}, interface{}) // returns (private, public)
+		wantAlgo string
+		wantSize string
 	}{
 		{
 			name: "ECDSA-P256",
@@ -1483,9 +1483,9 @@ func TestParsePrivateKey_UnsupportedType(t *testing.T) {
 
 func TestGenerateKeyPair_AllAlgorithms(t *testing.T) {
 	tests := []struct {
-		algorithm    string
-		wantPEMType  string
-		wantPubType  string
+		algorithm   string
+		wantPEMType string
+		wantPubType string
 	}{
 		{"ECDSA-P256", "EC PRIVATE KEY", "*ecdsa.PublicKey"},
 		{"ECDSA-P384", "EC PRIVATE KEY", "*ecdsa.PublicKey"},

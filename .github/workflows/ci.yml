@@ -106,6 +106,24 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Formatting
+        # Neither go vet nor staticcheck checks gofmt, so nothing here did.
+        # Runs before `npm ci` on purpose: gofmt -l walks the tree, and
+        # node_modules has no business being in that walk.
+        #
+        # Note for anyone reproducing this on Windows: a local run flags extra
+        # files because the working copy is CRLF while gofmt expects LF. That is
+        # a checkout artefact, not a formatting problem — the repository stores
+        # LF via .gitattributes, which is what this job sees.
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt-formatted:"
+            echo "$unformatted"
+            gofmt -d $unformatted
+            exit 1
+          fi
+
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
 
