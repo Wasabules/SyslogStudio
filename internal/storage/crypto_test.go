@@ -165,3 +165,36 @@ func TestEncryptEmptyFile(t *testing.T) {
 		t.Error("decrypted empty file should be empty")
 	}
 }
+
+func TestEncryptBytes_RejectsOversizedPlaintext(t *testing.T) {
+	// The capacity computed inside EncryptBytes is headerLen + len(plaintext) +
+	// the GCM tag, an int addition that would wrap on a 32-bit build before the
+	// allocation happened. The bound makes that unreachable and steers callers
+	// with real volume to EncryptFile, which streams.
+	oversized := make([]byte, maxInMemoryPlaintext+1)
+	if _, err := EncryptBytes(oversized, "password"); err == nil {
+		t.Fatal("EncryptBytes accepted a plaintext above the in-memory limit")
+	}
+
+	// The bound itself must still be usable, and must round-trip.
+	atLimit := make([]byte, 4096)
+	for i := range atLimit {
+		atLimit[i] = byte(i)
+	}
+	enc, err := EncryptBytes(atLimit, "password")
+	if err != nil {
+		t.Fatalf("EncryptBytes on a normal payload: %v", err)
+	}
+	dec, err := DecryptBytes(enc, "password")
+	if err != nil {
+		t.Fatalf("DecryptBytes: %v", err)
+	}
+	if len(dec) != len(atLimit) {
+		t.Fatalf("round-tripped %d bytes, want %d", len(dec), len(atLimit))
+	}
+	for i := range dec {
+		if dec[i] != atLimit[i] {
+			t.Fatalf("byte %d differs after round-trip", i)
+		}
+	}
+}
