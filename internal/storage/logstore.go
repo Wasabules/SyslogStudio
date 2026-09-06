@@ -83,7 +83,7 @@ func openDatabase(dbPath string, config models.StorageConfig, emitter event.Even
 		"?_pragma=journal_mode(wal)"+
 		"&_pragma=synchronous(normal)"+
 		"&_pragma=busy_timeout(5000)"+
-		"&_pragma=cache_size(-64000)"+  // 64 MB cache
+		"&_pragma=cache_size(-64000)"+ // 64 MB cache
 		"&_pragma=mmap_size(268435456)"+ // 256 MB mmap
 		"&_pragma=temp_store(memory)")
 	if err != nil {

@@ -112,7 +112,7 @@ func EncryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		return fmt.Errorf("create temp file: %w", err)
 	}
 	if _, err := f.Write(header); err != nil {
-		f.Close()
+		err = errors.Join(err, f.Close())
 		os.Remove(tmpPath)
 		return fmt.Errorf("write header: %w", err)
 	}
@@ -120,7 +120,7 @@ func EncryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		emit(progress, "writing", 75+pct*25, sizeMB)
 	})
 	if err != nil {
-		f.Close()
+		err = errors.Join(err, f.Close())
 		os.Remove(tmpPath)
 		return fmt.Errorf("write ciphertext: %w", err)
 	}
@@ -129,7 +129,7 @@ func EncryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 	// leave a renamed-but-unflushed (zero/partial) .enc — that would lose every
 	// stored log irreversibly.
 	if err := f.Sync(); err != nil {
-		f.Close()
+		err = errors.Join(err, f.Close())
 		os.Remove(tmpPath)
 		return fmt.Errorf("sync temp file: %w", err)
 	}
@@ -215,12 +215,12 @@ func DecryptFileWithProgress(srcPath, dstPath, password string, progress Progres
 		emit(progress, "writing", 75+pct*25, sizeMB)
 	})
 	if err != nil {
-		f.Close()
+		err = errors.Join(err, f.Close())
 		os.Remove(tmpPath)
 		return fmt.Errorf("write decrypted file: %w", err)
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
+		err = errors.Join(err, f.Close())
 		os.Remove(tmpPath)
 		return fmt.Errorf("sync temp file: %w", err)
 	}
@@ -292,10 +292,21 @@ func writeChunked(f *os.File, data []byte, onProgress func(pct float64)) error {
 	return nil
 }
 
+// maxInMemoryPlaintext bounds what EncryptBytes will take. Its only caller
+// passes a CA bundle of a few kilobytes, but it is an exported entry point, and
+// the capacity computed below (headerLen + len + tag) is an int addition that
+// would wrap on a 32-bit build before the allocation ever happened. Anything
+// approaching this size belongs in EncryptFile, which streams.
+const maxInMemoryPlaintext = 64 << 20 // 64 MiB
+
 // EncryptBytes encrypts plaintext with AES-256-GCM using a key derived
 // from password via Argon2id. Output format matches the file format:
 // [1 byte version][16 bytes salt][12 bytes nonce][ciphertext + GCM tag].
 func EncryptBytes(plaintext []byte, password string) ([]byte, error) {
+	if len(plaintext) > maxInMemoryPlaintext {
+		return nil, fmt.Errorf("plaintext of %d bytes exceeds the %d byte in-memory limit; use EncryptFile",
+			len(plaintext), maxInMemoryPlaintext)
+	}
 	salt := make([]byte, saltLen)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return nil, fmt.Errorf("generate salt: %w", err)
