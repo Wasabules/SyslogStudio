@@ -38,10 +38,10 @@ func TestValidateServerConfig_InvalidPort(t *testing.T) {
 
 func TestValidateServerConfig_PortConflict(t *testing.T) {
 	cfg := models.ServerConfig{
-		TCPEnabled: true,
-		TCPPort:    514,
-		TLSEnabled: true,
-		TLSPort:    514,
+		TCPEnabled:    true,
+		TCPPort:       514,
+		TLSEnabled:    true,
+		TLSPort:       514,
 		UseSelfSigned: true,
 	}
 	err := models.ValidateServerConfig(cfg)
