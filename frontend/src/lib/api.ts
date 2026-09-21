@@ -121,3 +121,50 @@ export const getNetworkInterfaces = (): Promise<NetworkInterface[]> => callGo('G
 export const selectCertFile = (): Promise<string> => _SelectCertFile();
 export const selectKeyFile = (): Promise<string> => _SelectKeyFile();
 export const selectCAFile = (): Promise<string> => _SelectCAFile();
+
+// --- Simulator ---
+export interface SimulatorDestination {
+    id: string;
+    name: string;
+    host: string;
+    port: number;
+    protocol: string;
+    enabled: boolean;
+    insecureSkipVerify: boolean;
+}
+export interface SimulatorConfig {
+    destinations: SimulatorDestination[];
+    mode: string;
+    profile: string;
+    format: string;
+    rate: number;
+    count: number;
+    durationSeconds: number;
+    customMessage: string;
+    hostname: string;
+    appName: string;
+}
+export interface SimulatorDestinationStatus {
+    id: string;
+    name: string;
+    sent: number;
+    failed: number;
+    connected: boolean;
+    lastError?: string;
+}
+export interface SimulatorStatus {
+    running: boolean;
+    mode: string;
+    sent: number;
+    failed: number;
+    ratePerSec: number;
+    elapsedMs: number;
+    phase?: string;
+    destinations: SimulatorDestinationStatus[];
+}
+export const startSimulator = (cfg: SimulatorConfig): Promise<void> => callGo('StartSimulator', cfg);
+export const stopSimulator = (): Promise<void> => callGo('StopSimulator');
+export const getSimulatorStatus = (): Promise<SimulatorStatus> => callGo('GetSimulatorStatus');
+export const getSimulatorConfig = (): Promise<SimulatorConfig> => callGo('GetSimulatorConfig');
+export const saveSimulatorConfig = (cfg: SimulatorConfig): Promise<void> => callGo('SaveSimulatorConfig', cfg);
+export const getScenarioDurationSeconds = (): Promise<number> => callGo('GetScenarioDurationSeconds');

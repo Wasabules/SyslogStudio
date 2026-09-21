@@ -15,6 +15,7 @@ import (
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/pki"
+	"SyslogStudio/internal/simulator"
 	"SyslogStudio/internal/storage"
 	"SyslogStudio/internal/syslog"
 	"SyslogStudio/internal/updater"
@@ -31,6 +32,7 @@ type App struct {
 	caStore     *storage.CAStore
 	logStore    *storage.LogStore
 	updater     *updater.Service
+	simulator   *simulator.Simulator
 
 	encryptionPassword string // in-memory only for session
 }
@@ -68,6 +70,7 @@ func (a *App) startup(ctx context.Context) {
 	a.updater.SetContext(ctx)
 	emitter := event.NewWailsEventEmitter(ctx)
 	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)
+	a.simulator = simulator.New(emitter)
 
 	// Initialize log store
 	storageCfg := a.configStore.LoadStorage()
@@ -101,6 +104,9 @@ func (a *App) startup(ctx context.Context) {
 
 // shutdown is called when the app is closing.
 func (a *App) shutdown(ctx context.Context) {
+	if a.simulator != nil {
+		a.simulator.Stop()
+	}
 	if a.server != nil {
 		a.server.Stop()
 		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
@@ -669,6 +675,56 @@ func (a *App) SkipUpdateVersion(version string) {
 	cfg := a.configStore.LoadUpdateConfig()
 	cfg.SkipVersion = version
 	a.configStore.SaveUpdateConfig(cfg)
+}
+
+// --- Simulator Methods ---
+
+// StartSimulator begins a traffic run. Progress arrives on the frontend through
+// syslog:simulatorStatus events rather than by polling.
+func (a *App) StartSimulator(cfg models.SimulatorConfig) error {
+	if a.simulator == nil {
+		return fmt.Errorf("simulator not initialized")
+	}
+	if err := a.simulator.Start(cfg); err != nil {
+		return err
+	}
+	a.configStore.SaveSimulator(cfg)
+	return nil
+}
+
+// StopSimulator ends the current run. It returns once the run has unwound.
+func (a *App) StopSimulator() error {
+	if a.simulator == nil {
+		return nil
+	}
+	return a.simulator.Stop()
+}
+
+// GetSimulatorStatus returns the live state of the run, for the initial render
+// before the first event arrives.
+func (a *App) GetSimulatorStatus() models.SimulatorStatus {
+	if a.simulator == nil {
+		return models.SimulatorStatus{}
+	}
+	return a.simulator.Status()
+}
+
+// GetSimulatorConfig returns the last saved run configuration, or a runnable
+// default aimed at this app's own UDP port.
+func (a *App) GetSimulatorConfig() models.SimulatorConfig {
+	return a.configStore.LoadSimulator()
+}
+
+// SaveSimulatorConfig persists the configuration without starting a run, so a
+// destination list survives a restart.
+func (a *App) SaveSimulatorConfig(cfg models.SimulatorConfig) {
+	a.configStore.SaveSimulator(cfg)
+}
+
+// GetScenarioDurationSeconds is how long a full scenario run lasts, so the UI
+// can show real progress instead of an open-ended spinner.
+func (a *App) GetScenarioDurationSeconds() int {
+	return int(simulator.ScenarioDuration().Seconds())
 }
 
 // --- File Selection Dialogs ---

@@ -183,7 +183,7 @@ export const filter = writable<FilterCriteria>({
 
 export const selectedMessage = writable<SyslogMessage | null>(null);
 export const autoScroll = writable<boolean>(true);
-export const activeView = writable<'logs' | 'dashboard' | 'alerts'>('logs');
+export const activeView = writable<'logs' | 'dashboard' | 'alerts' | 'simulator'>('logs');
 export const logViewMode = writable<'live' | 'history'>('live');
 export const historyResult = writable<PagedResult>({ messages: [], total: 0, page: 1, pageSize: 100 });
 export const alertRules = writable<AlertRule[]>([]);

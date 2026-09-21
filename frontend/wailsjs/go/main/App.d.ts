@@ -58,9 +58,15 @@ export function GetMessages(arg1:models.FilterCriteria):Promise<Array<models.Sys
 
 export function GetNetworkInterfaces():Promise<Array<models.NetworkInterface>>;
 
+export function GetScenarioDurationSeconds():Promise<number>;
+
 export function GetServerCertInfo():Promise<models.CertInfo>;
 
 export function GetServerStatus():Promise<models.ServerStatus>;
+
+export function GetSimulatorConfig():Promise<models.SimulatorConfig>;
+
+export function GetSimulatorStatus():Promise<models.SimulatorStatus>;
 
 export function GetStats():Promise<models.ServerStats>;
 
@@ -90,6 +96,8 @@ export function QueryMessageGroups(arg1:models.FilterCriteria,arg2:string):Promi
 
 export function QueryMessages(arg1:models.QueryOptions):Promise<models.PagedResult>;
 
+export function SaveSimulatorConfig(arg1:models.SimulatorConfig):Promise<void>;
+
 export function SelectCAFile():Promise<string>;
 
 export function SelectCertFile():Promise<string>;
@@ -104,7 +112,11 @@ export function SkipUpdateVersion(arg1:string):Promise<void>;
 
 export function StartServer(arg1:models.ServerConfig):Promise<void>;
 
+export function StartSimulator(arg1:models.SimulatorConfig):Promise<void>;
+
 export function StopServer():Promise<void>;
+
+export function StopSimulator():Promise<void>;
 
 export function UnlockDatabase(arg1:string):Promise<void>;
 
