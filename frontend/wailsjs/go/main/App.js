@@ -114,12 +114,24 @@ export function GetNetworkInterfaces() {
   return window['go']['main']['App']['GetNetworkInterfaces']();
 }
 
+export function GetScenarioDurationSeconds() {
+  return window['go']['main']['App']['GetScenarioDurationSeconds']();
+}
+
 export function GetServerCertInfo() {
   return window['go']['main']['App']['GetServerCertInfo']();
 }
 
 export function GetServerStatus() {
   return window['go']['main']['App']['GetServerStatus']();
+}
+
+export function GetSimulatorConfig() {
+  return window['go']['main']['App']['GetSimulatorConfig']();
+}
+
+export function GetSimulatorStatus() {
+  return window['go']['main']['App']['GetSimulatorStatus']();
 }
 
 export function GetStats() {
@@ -178,6 +190,10 @@ export function QueryMessages(arg1) {
   return window['go']['main']['App']['QueryMessages'](arg1);
 }
 
+export function SaveSimulatorConfig(arg1) {
+  return window['go']['main']['App']['SaveSimulatorConfig'](arg1);
+}
+
 export function SelectCAFile() {
   return window['go']['main']['App']['SelectCAFile']();
 }
@@ -206,8 +222,16 @@ export function StartServer(arg1) {
   return window['go']['main']['App']['StartServer'](arg1);
 }
 
+export function StartSimulator(arg1) {
+  return window['go']['main']['App']['StartSimulator'](arg1);
+}
+
 export function StopServer() {
   return window['go']['main']['App']['StopServer']();
+}
+
+export function StopSimulator() {
+  return window['go']['main']['App']['StopSimulator']();
 }
 
 export function UnlockDatabase(arg1) {

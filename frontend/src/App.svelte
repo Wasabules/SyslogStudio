@@ -13,6 +13,7 @@
     import Settings from './components/Settings.svelte';
     import ToastContainer from './components/ToastContainer.svelte';
     import AlertConfig from './components/AlertConfig.svelte';
+    import Simulator from './components/Simulator.svelte';
     import UnlockScreen from './components/UnlockScreen.svelte';
     import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted } from './lib/api';
     import { toastError } from './lib/toast';
@@ -118,6 +119,14 @@
                 </svg>
                 <span class="nav-label">{$_('nav.alerts')}</span>
             </button>
+            <button class="nav-btn" class:active={$activeView === 'simulator'}
+                    on:click={() => $activeView = 'simulator'} title={$_('nav.simulator')}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12h4l3-8 4 16 3-8h4"/>
+                </svg>
+                <span class="nav-label">{$_('nav.simulator')}</span>
+            </button>
         </div>
         <div class="sidebar-bottom">
             <button class="nav-btn settings-btn" on:click={() => showSettings = true}
@@ -182,6 +191,8 @@
             <Dashboard />
         {:else if $activeView === 'alerts'}
             <AlertConfig />
+        {:else if $activeView === 'simulator'}
+            <Simulator />
         {/if}
 
     </div>

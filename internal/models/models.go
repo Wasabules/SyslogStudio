@@ -261,6 +261,9 @@ type AppConfig struct {
 	Alerts  []AlertRule   `json:"alerts"`
 	Lockout LockoutState  `json:"lockout"`
 	Updates UpdateConfig  `json:"updates"`
+	// Simulator is the last simulator run configuration, so a destination list
+	// survives a restart.
+	Simulator SimulatorConfig `json:"simulator"`
 }
 
 // LockoutState persists failed unlock attempts across restarts so that a
@@ -299,6 +302,175 @@ type UpdateConfig struct {
 	// LastCheckUnix is the Unix time (seconds) of the last successful check.
 	LastCheckUnix int64 `json:"lastCheckUnix"`
 }
+
+// --- Simulator ---
+
+// SimulatorDestination is one collector the simulator sends to. Several can run
+// at once, which is the point: sending the same stream to this app and to the
+// collector it is meant to replace is how you tell them apart.
+type SimulatorDestination struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"` // udp, tcp, tls
+	Enabled  bool   `json:"enabled"`
+	// InsecureSkipVerify accepts any server certificate on a TLS destination.
+	// A generator pointed at a self-signed collector is the normal case, and
+	// refusing it would make the feature useless against this very app's
+	// default TLS setup.
+	InsecureSkipVerify bool `json:"insecureSkipVerify"`
+}
+
+// SimulatorMode is how messages are paced.
+type SimulatorMode string
+
+const (
+	// SimModeContinuous emits at a steady rate until stopped.
+	SimModeContinuous SimulatorMode = "continuous"
+	// SimModeBurst emits a fixed count as fast as the transport allows.
+	SimModeBurst SimulatorMode = "burst"
+	// SimModeScenario walks a scripted incident timeline, ramping severity and
+	// rate and then recovering.
+	SimModeScenario SimulatorMode = "scenario"
+	// SimModeAlertTest emits a fixed set of messages chosen to match typical
+	// alert rules, so rules can be verified without waiting for real trouble.
+	SimModeAlertTest SimulatorMode = "alertTest"
+)
+
+// SimulatorProfile weights the severity mix.
+type SimulatorProfile string
+
+const (
+	SimProfileQuiet    SimulatorProfile = "quiet"
+	SimProfileNormal   SimulatorProfile = "normal"
+	SimProfileStressed SimulatorProfile = "stressed"
+	SimProfileCritical SimulatorProfile = "critical"
+)
+
+// SimulatorConfig drives one run.
+type SimulatorConfig struct {
+	Destinations []SimulatorDestination `json:"destinations"`
+	Mode         SimulatorMode          `json:"mode"`
+	Profile      SimulatorProfile       `json:"profile"`
+	// Format is "rfc5424" or "rfc3164".
+	Format string `json:"format"`
+	// Rate is messages per second, for continuous mode.
+	Rate float64 `json:"rate"`
+	// Count is how many messages burst mode sends.
+	Count int `json:"count"`
+	// DurationSeconds stops a continuous run automatically; 0 runs until
+	// stopped.
+	DurationSeconds int `json:"durationSeconds"`
+	// CustomMessage replaces the generated text when set, so a specific line
+	// can be reproduced — the thing you actually want when chasing a parser
+	// bug or testing one alert rule.
+	CustomMessage string `json:"customMessage"`
+	// Hostname and AppName override the random catalog values when set.
+	Hostname string `json:"hostname"`
+	AppName  string `json:"appName"`
+}
+
+// SimulatorDestinationStatus reports one destination's progress.
+type SimulatorDestinationStatus struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Sent      int64  `json:"sent"`
+	Failed    int64  `json:"failed"`
+	Connected bool   `json:"connected"`
+	LastError string `json:"lastError,omitempty"`
+}
+
+// SimulatorStatus is the live state of a run.
+type SimulatorStatus struct {
+	Running      bool                         `json:"running"`
+	Mode         SimulatorMode                `json:"mode"`
+	Sent         int64                        `json:"sent"`
+	Failed       int64                        `json:"failed"`
+	RatePerSec   float64                      `json:"ratePerSec"`
+	ElapsedMs    int64                        `json:"elapsedMs"`
+	Phase        string                       `json:"phase,omitempty"`
+	Destinations []SimulatorDestinationStatus `json:"destinations"`
+}
+
+// DefaultSimulatorConfig returns a runnable starting point: one destination
+// aimed at this app's own default UDP port, so the first run needs no setup.
+func DefaultSimulatorConfig() SimulatorConfig {
+	return SimulatorConfig{
+		Destinations: []SimulatorDestination{{
+			ID: "default", Name: "Local collector",
+			Host: "127.0.0.1", Port: DefaultServerConfig().UDPPort,
+			Protocol: "udp", Enabled: true,
+		}},
+		Mode:    SimModeContinuous,
+		Profile: SimProfileNormal,
+		Format:  "rfc5424",
+		Rate:    5,
+		Count:   1000,
+	}
+}
+
+// ValidateSimulatorConfig checks a run before it starts.
+func ValidateSimulatorConfig(c SimulatorConfig) error {
+	enabled := 0
+	for _, d := range c.Destinations {
+		if !d.Enabled {
+			continue
+		}
+		enabled++
+		if d.Host == "" {
+			return fmt.Errorf("destination %q has no host", d.Name)
+		}
+		// A hostname is allowed as well as a literal, since a collector is
+		// often reached by name; only obvious nonsense is rejected here and
+		// resolution failures surface per-destination at send time.
+		if strings.ContainsAny(d.Host, " 	") {
+			return fmt.Errorf("destination %q has an invalid host %q", d.Name, d.Host)
+		}
+		if d.Port < 1 || d.Port > 65535 {
+			return fmt.Errorf("destination %q port %d is out of range (1-65535)", d.Name, d.Port)
+		}
+		switch d.Protocol {
+		case "udp", "tcp", "tls":
+		default:
+			return fmt.Errorf("destination %q has an unknown protocol %q", d.Name, d.Protocol)
+		}
+	}
+	if enabled == 0 {
+		return fmt.Errorf("enable at least one destination")
+	}
+
+	switch c.Mode {
+	case SimModeContinuous:
+		if c.Rate <= 0 || c.Rate > MaxSimulatorRate {
+			return fmt.Errorf("rate %.0f is out of range (1-%d messages per second)", c.Rate, MaxSimulatorRate)
+		}
+	case SimModeBurst:
+		if c.Count < 1 || c.Count > MaxSimulatorBurst {
+			return fmt.Errorf("burst count %d is out of range (1-%d)", c.Count, MaxSimulatorBurst)
+		}
+	case SimModeScenario, SimModeAlertTest:
+		// Both are scripted; rate and count do not apply.
+	default:
+		return fmt.Errorf("unknown simulator mode %q", c.Mode)
+	}
+
+	if c.Format != "rfc5424" && c.Format != "rfc3164" {
+		return fmt.Errorf("unknown message format %q", c.Format)
+	}
+	if c.DurationSeconds < 0 {
+		return fmt.Errorf("duration cannot be negative")
+	}
+	return nil
+}
+
+// MaxSimulatorRate and MaxSimulatorBurst bound a run. The simulator shares the
+// process with the collector, so an unbounded rate starves the very listener
+// being tested and the numbers stop meaning anything.
+const (
+	MaxSimulatorRate  = 50000
+	MaxSimulatorBurst = 5000000
+)
 
 // NetworkInterface describes a bindable local IPv4 address and the interface
 // it belongs to, for the bind-address selector in the UI.

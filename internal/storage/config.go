@@ -227,6 +227,27 @@ func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
 	cs.saveAll(all)
 }
 
+// LoadSimulator reads the saved simulator configuration, falling back to a
+// runnable default when nothing has been saved yet.
+func (cs *ConfigStore) LoadSimulator() models.SimulatorConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	cfg := cs.loadAll().Simulator
+	if len(cfg.Destinations) == 0 {
+		return models.DefaultSimulatorConfig()
+	}
+	return cfg
+}
+
+// SaveSimulator writes the simulator configuration.
+func (cs *ConfigStore) SaveSimulator(cfg models.SimulatorConfig) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.Simulator = cfg
+	cs.saveAll(all)
+}
+
 // LoadUpdateConfig reads the persisted update-check preferences.
 func (cs *ConfigStore) LoadUpdateConfig() models.UpdateConfig {
 	cs.mu.Lock()

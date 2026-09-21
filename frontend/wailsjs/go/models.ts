@@ -479,6 +479,145 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class SimulatorDestination {
+	    id: string;
+	    name: string;
+	    host: string;
+	    port: number;
+	    protocol: string;
+	    enabled: boolean;
+	    insecureSkipVerify: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SimulatorDestination(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.protocol = source["protocol"];
+	        this.enabled = source["enabled"];
+	        this.insecureSkipVerify = source["insecureSkipVerify"];
+	    }
+	}
+	export class SimulatorConfig {
+	    destinations: SimulatorDestination[];
+	    mode: string;
+	    profile: string;
+	    format: string;
+	    rate: number;
+	    count: number;
+	    durationSeconds: number;
+	    customMessage: string;
+	    hostname: string;
+	    appName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SimulatorConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.destinations = this.convertValues(source["destinations"], SimulatorDestination);
+	        this.mode = source["mode"];
+	        this.profile = source["profile"];
+	        this.format = source["format"];
+	        this.rate = source["rate"];
+	        this.count = source["count"];
+	        this.durationSeconds = source["durationSeconds"];
+	        this.customMessage = source["customMessage"];
+	        this.hostname = source["hostname"];
+	        this.appName = source["appName"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class SimulatorDestinationStatus {
+	    id: string;
+	    name: string;
+	    sent: number;
+	    failed: number;
+	    connected: boolean;
+	    lastError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SimulatorDestinationStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.sent = source["sent"];
+	        this.failed = source["failed"];
+	        this.connected = source["connected"];
+	        this.lastError = source["lastError"];
+	    }
+	}
+	export class SimulatorStatus {
+	    running: boolean;
+	    mode: string;
+	    sent: number;
+	    failed: number;
+	    ratePerSec: number;
+	    elapsedMs: number;
+	    phase?: string;
+	    destinations: SimulatorDestinationStatus[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SimulatorStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.mode = source["mode"];
+	        this.sent = source["sent"];
+	        this.failed = source["failed"];
+	        this.ratePerSec = source["ratePerSec"];
+	        this.elapsedMs = source["elapsedMs"];
+	        this.phase = source["phase"];
+	        this.destinations = this.convertValues(source["destinations"], SimulatorDestinationStatus);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	export class StorageConfig {
 	    enabled: boolean;
