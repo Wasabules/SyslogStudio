@@ -1,6 +1,9 @@
 package models
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func validBaseConfig() ServerConfig {
 	c := DefaultServerConfig()
@@ -161,5 +164,55 @@ func TestValidateServerConfig_RejectsBadCertOptions(t *testing.T) {
 	c.CertOptions.ValidityDays = MaxValidityDays + 1
 	if err := ValidateServerConfig(c); err == nil {
 		t.Error("out-of-range certificate validity accepted by ValidateServerConfig")
+	}
+}
+
+func TestParseFilterDate_ZonelessInputsAreLocal(t *testing.T) {
+	// These come from the UI's date and datetime-local inputs, which a user
+	// fills in wall-clock time. Reading them as UTC moved every filter boundary
+	// by the collector's UTC offset — same root cause as issue #24's timestamp
+	// shift. Asserted against the wall clock so this holds in any zone.
+	tests := []struct {
+		name  string
+		input string
+		want  string // wall clock, as it must read back
+	}{
+		{"date only", "2026-09-17", "2026-09-17 00:00:00"},
+		{"date and time", "2026-09-17T14:30", "2026-09-17 14:30:00"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := ParseFilterDate(tt.input)
+			if !ok {
+				t.Fatalf("ParseFilterDate(%q) did not parse", tt.input)
+			}
+			if got.Location() != time.Local {
+				t.Errorf("parsed into %v, want the local zone", got.Location())
+			}
+			if s := got.Format("2006-01-02 15:04:05"); s != tt.want {
+				t.Errorf("wall clock = %s, want %s", s, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseFilterDate_RFC3339KeepsItsOffset(t *testing.T) {
+	// An explicit offset is authoritative and must not be reinterpreted.
+	got, ok := ParseFilterDate("2026-09-17T14:30:00+02:00")
+	if !ok {
+		t.Fatal("RFC 3339 input did not parse")
+	}
+	want := time.Date(2026, 9, 17, 12, 30, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Errorf("parsed %v, want the same instant as %v", got, want)
+	}
+}
+
+func TestParseFilterDate_Rejects(t *testing.T) {
+	for _, s := range []string{"", "not-a-date", "17/09/2026", "2026-13-45"} {
+		if _, ok := ParseFilterDate(s); ok {
+			t.Errorf("ParseFilterDate(%q) accepted an invalid value", s)
+		}
 	}
 }

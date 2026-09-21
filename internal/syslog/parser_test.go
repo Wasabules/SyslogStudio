@@ -194,9 +194,15 @@ func TestParse_RFC3164_WithPID(t *testing.T) {
 	if msg.Message != "Failed password for user" {
 		t.Errorf("expected message 'Failed password for user', got %q", msg.Message)
 	}
-	// Timestamp year should be current year since BSD doesn't include year
-	if msg.Timestamp.Year() != now.Year() {
-		t.Errorf("expected timestamp year %d, got %d", now.Year(), msg.Timestamp.Year())
+	// BSD carries no year, so it is inferred from arrival: either the current
+	// year or the one before, whichever lands nearer. Asserting now.Year()
+	// literally would make this fixture's fixed "Oct 11" fail for half the
+	// calendar once that inference exists.
+	if y := msg.Timestamp.Year(); y != now.Year() && y != now.Year()-1 {
+		t.Errorf("timestamp year %d is neither the current year nor the one before", y)
+	}
+	if d := msg.Timestamp.Sub(now); d > 370*24*time.Hour || d < -370*24*time.Hour {
+		t.Errorf("timestamp %v is more than a year away from now (%v)", msg.Timestamp, now)
 	}
 }
 
@@ -730,5 +736,96 @@ func TestFacilityToLabel(t *testing.T) {
 				t.Errorf("FacilityToLabel(%d) = %q, want %q", tc.facility, got, tc.label)
 			}
 		})
+	}
+}
+
+// RFC 3164 carries no zone. Reading it as UTC — what time.Parse does with a
+// zone-less layout — shifted every BSD-framed message by the collector's UTC
+// offset, which is what issue #24 reported as "exactly two hours".
+//
+// These assertions are written against the wall clock and time.Local rather
+// than a fixed offset, so they hold wherever they run, CI's UTC included.
+func TestParse_RFC3164_UsesLocalZone(t *testing.T) {
+	raw := []byte("<189>Sep 17 20:26:32 firewall.example.net date=2026-09-17 time=20:26:32")
+	msg := Parse(raw, "10.211.8.13", "TLS")
+
+	if got := msg.Timestamp.Location(); got != time.Local {
+		t.Errorf("timestamp is in %v, want the collector's local zone", got)
+	}
+	// The wall clock must read back exactly what the device sent.
+	if got := msg.Timestamp.Format("01-02 15:04:05"); got != "09-17 20:26:32" {
+		t.Errorf("wall clock = %s, want 09-17 20:26:32", got)
+	}
+}
+
+// RFC 5424 timestamps carry their own offset, and it must be preserved rather
+// than reinterpreted — the fix for the BSD path must not touch this one.
+func TestParse_RFC5424_PreservesExplicitOffset(t *testing.T) {
+	msg := Parse([]byte("<34>1 2026-09-17T20:26:32+02:00 host app - - - hello"), "10.0.0.1", "UDP")
+
+	want := time.Date(2026, 9, 17, 18, 26, 32, 0, time.UTC)
+	if !msg.Timestamp.Equal(want) {
+		t.Errorf("timestamp = %v, want the same instant as %v", msg.Timestamp, want)
+	}
+}
+
+func TestResolveBSDYear(t *testing.T) {
+	// The BSD stamp has no year, so it is dated from when it arrived.
+	tests := []struct {
+		name       string
+		stamp      string // month-day hh:mm:ss, as parsed (year zero)
+		receivedAt string
+		wantYear   int
+	}{
+		{"same day", "06-15 12:00:00", "2026-06-15T12:00:01", 2026},
+		{"a few hours before arrival", "06-15 08:00:00", "2026-06-15T12:00:00", 2026},
+		// A device still sending December 31st, received on January 1st: dating
+		// it from the arrival year would put it eleven months in the future.
+		{"new year rollover", "12-31 23:59:00", "2027-01-01T00:05:00", 2026},
+		// The mirror case: a device whose clock has already rolled over sends
+		// "Jan 01" while the collector is still in December.
+		{"sender rolled over early", "01-01 00:05:00", "2026-12-31T23:59:00", 2027},
+		// Clock drift and eastward time zones legitimately put the sender's
+		// wall clock ahead; a few weeks of drift must not cost a year.
+		{"sender slightly ahead", "06-15 18:00:00", "2026-06-15T12:00:00", 2026},
+		{"sender ahead by under a day", "06-16 10:00:00", "2026-06-15T12:00:00", 2026},
+		{"sender weeks ahead", "10-11 22:14:15", "2026-09-22T12:00:00", 2026},
+		// A log arriving months late still belongs to the year it arrived in,
+		// because that year is the nearer of the two.
+		{"months late", "01-15 09:00:00", "2026-09-22T12:00:00", 2026},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := time.ParseInLocation("01-02 15:04:05", tt.stamp, time.Local)
+			if err != nil {
+				t.Fatalf("test fixture: %v", err)
+			}
+			received, err := time.ParseInLocation("2006-01-02T15:04:05", tt.receivedAt, time.Local)
+			if err != nil {
+				t.Fatalf("test fixture: %v", err)
+			}
+
+			got := resolveBSDYear(parsed, received)
+			if got.Year() != tt.wantYear {
+				t.Errorf("year = %d, want %d (stamp %s received %s)", got.Year(), tt.wantYear, tt.stamp, tt.receivedAt)
+			}
+			// The wall clock itself must survive untouched.
+			if got.Format("01-02 15:04:05") != tt.stamp {
+				t.Errorf("wall clock = %s, want %s", got.Format("01-02 15:04:05"), tt.stamp)
+			}
+		})
+	}
+}
+
+// A message whose year rolls over must still come out ordered before its
+// arrival, which is the property the correction exists to preserve.
+func TestResolveBSDYear_NeverFarInTheFuture(t *testing.T) {
+	received := time.Date(2027, 1, 1, 0, 5, 0, 0, time.Local)
+	parsed := time.Date(0, 12, 31, 23, 59, 0, 0, time.Local)
+
+	got := resolveBSDYear(parsed, received)
+	if got.After(received) {
+		t.Errorf("stamped %v, which is after arrival at %v", got, received)
 	}
 }
