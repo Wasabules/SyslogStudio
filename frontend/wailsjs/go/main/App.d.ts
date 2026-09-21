@@ -28,7 +28,7 @@ export function ExportCACertificate():Promise<string>;
 
 export function ExportCertificate():Promise<string>;
 
-export function ExportLogs(arg1:models.FilterCriteria,arg2:string):Promise<string>;
+export function ExportLogs(arg1:models.FilterCriteria,arg2:string,arg3:string):Promise<string>;
 
 export function ExportServerCertificate():Promise<string>;
 

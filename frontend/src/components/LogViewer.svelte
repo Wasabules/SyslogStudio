@@ -3,7 +3,8 @@
     import { filteredMessages, selectedMessage, autoScroll, logViewMode, historyResult, filter,
              stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages } from '../lib/stores';
     import type { SyslogMessage, SortColumn as SortCol, GroupBy as GroupByType, MessageGroup } from '../lib/stores';
-    import { SEVERITY_COLORS, formatTimestamp } from '../lib/constants';
+    import { SEVERITY_COLORS } from '../lib/constants';
+    import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
     import { _ } from 'svelte-i18n';
 
@@ -388,7 +389,7 @@
             {$_('log.severity')}{#if $sortColumn === 'severity'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
         <button class="col-header col-timestamp" class:sorted={$sortColumn === 'timestamp'} on:click={() => toggleSort('timestamp')}>
-            {$_('log.timestamp')}{#if $sortColumn === 'timestamp'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
+            {$_('log.timestamp')} <span class="col-zone">{$zoneAbbreviation}</span>{#if $sortColumn === 'timestamp'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
         </button>
         <button class="col-header col-protocol" class:sorted={$sortColumn === 'protocol'} on:click={() => toggleSort('protocol')}>
             {$_('log.proto')}{#if $sortColumn === 'protocol'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
@@ -438,7 +439,7 @@
                                 {msg.severityLabel}
                             </span>
                         </span>
-                        <span class="col-timestamp">{formatTimestamp(msg.timestamp)}</span>
+                        <span class="col-timestamp">{formatInZone(msg.timestamp, $activeZone)}</span>
                         <span class="col-protocol">{msg.protocol}</span>
                         <span class="col-source">{msg.sourceIP}</span>
                         <span class="col-hostname">{msg.hostname}</span>
@@ -596,6 +597,7 @@
 
     .col-severity { width: 80px; flex-shrink: 0; }
     .col-timestamp { width: 140px; flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); }
+    .col-zone { font-weight: 400; font-size: 10px; opacity: 0.7; }
     .col-protocol { width: 40px; flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
     .col-source { width: 110px; flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-hostname { width: 110px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

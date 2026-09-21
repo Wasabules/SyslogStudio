@@ -705,7 +705,11 @@ func (a *App) SelectCAFile() (string, error) {
 
 // --- Export Logs ---
 
-func (a *App) ExportLogs(filter models.FilterCriteria, format string) (string, error) {
+// ExportLogs writes the filtered messages to a file the user picks. timezone is
+// an IANA zone name from the display setting, so an export reads the same way as
+// the screen it was taken from; an empty or unknown name falls back to the
+// machine's zone rather than failing the export.
+func (a *App) ExportLogs(filter models.FilterCriteria, format string, timezone string) (string, error) {
 	var defaultFilename string
 	var filters []wailsRuntime.FileFilter
 
@@ -734,10 +738,11 @@ func (a *App) ExportLogs(filter models.FilterCriteria, format string) (string, e
 	}
 
 	messages := a.server.GetMessages(filter)
+	loc := resolveLocation(timezone)
 	if format == "csv" {
-		err = writeCSV(path, messages)
+		err = writeCSV(path, messages, loc)
 	} else {
-		err = writeText(path, messages)
+		err = writeText(path, messages, loc)
 	}
 
 	if err != nil {
@@ -764,7 +769,29 @@ func sanitizeCSVField(s string) string {
 	return s
 }
 
-func writeCSV(path string, messages []models.SyslogMessage) error {
+// resolveLocation turns an IANA zone name into a *time.Location, falling back to
+// the machine's zone. Export is a user action with a file dialog already behind
+// it; refusing to write because a zone name did not resolve would be a poor
+// trade against writing it in local time.
+func resolveLocation(name string) *time.Location {
+	if name == "" {
+		return time.Local
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		slog.Warn("unknown time zone for export, falling back to local", "zone", name, "error", err)
+		return time.Local
+	}
+	return loc
+}
+
+// exportTimeLayout carries the UTC offset. The previous layout printed a bare
+// wall clock, so an exported file could not be read without knowing which
+// machine and which setting produced it — the same ambiguity issue #24 was
+// about, one step further down the pipeline.
+const exportTimeLayout = "2006-01-02 15:04:05 -07:00"
+
+func writeCSV(path string, messages []models.SyslogMessage, loc *time.Location) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -783,7 +810,7 @@ func writeCSV(path string, messages []models.SyslogMessage) error {
 
 	for _, msg := range messages {
 		w.Write([]string{
-			msg.Timestamp.Format("2006-01-02 15:04:05"),
+			msg.Timestamp.In(loc).Format(exportTimeLayout),
 			msg.SeverityLabel,
 			msg.FacilityLabel,
 			sanitizeCSVField(msg.Hostname),
@@ -798,7 +825,7 @@ func writeCSV(path string, messages []models.SyslogMessage) error {
 	return w.Error()
 }
 
-func writeText(path string, messages []models.SyslogMessage) error {
+func writeText(path string, messages []models.SyslogMessage, loc *time.Location) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -808,7 +835,7 @@ func writeText(path string, messages []models.SyslogMessage) error {
 	var sb strings.Builder
 	for _, msg := range messages {
 		sb.WriteString(fmt.Sprintf("%s [%s] %s %s %s: %s\n",
-			msg.Timestamp.Format("2006-01-02 15:04:05"),
+			msg.Timestamp.In(loc).Format(exportTimeLayout),
 			msg.SeverityLabel,
 			msg.FacilityLabel,
 			msg.Hostname,

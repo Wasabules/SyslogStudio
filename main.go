@@ -7,6 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
+	// Embeds the IANA time zone database. Without it, time.LoadLocation depends
+	// on zone files being present on the host — which they are not on Windows,
+	// so a user picking "Asia/Tokyo" for exports would silently get UTC. 450 KB
+	// for a setting that is otherwise broken on the platform most users run.
+	_ "time/tzdata"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"

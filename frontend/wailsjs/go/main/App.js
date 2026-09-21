@@ -54,8 +54,8 @@ export function ExportCertificate() {
   return window['go']['main']['App']['ExportCertificate']();
 }
 
-export function ExportLogs(arg1, arg2) {
-  return window['go']['main']['App']['ExportLogs'](arg1, arg2);
+export function ExportLogs(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ExportLogs'](arg1, arg2, arg3);
 }
 
 export function ExportServerCertificate() {

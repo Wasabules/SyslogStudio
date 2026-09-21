@@ -40,7 +40,7 @@ export const getDefaultConfig = (): Promise<ServerConfig> => _GetDefaultConfig()
 export const getMessages = (filter: FilterCriteria): Promise<SyslogMessage[]> => _GetMessages(filter as any);
 export const clearMessages = (): Promise<void> => _ClearMessages();
 export const getStats = (): Promise<ServerStats> => _GetStats();
-export const exportLogs = (filter: FilterCriteria, format: string): Promise<string> => _ExportLogs(filter as any, format);
+export const exportLogs = (filter: FilterCriteria, format: string, timezone: string): Promise<string> => _ExportLogs(filter as any, format, timezone);
 
 // --- PKI / Certificates ---
 export const generateCA = (opts: CertOptions): Promise<CertInfo> => _GenerateCA(opts as any);

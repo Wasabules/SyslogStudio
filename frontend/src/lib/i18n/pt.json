@@ -195,7 +195,14 @@
     "upToDate": "Você está na versão mais recente.",
     "updateCheckFailed": "Falha ao procurar atualizações: {error}",
     "autoUpdateCheck": "Procurar atualizações ao iniciar",
-    "droppedWrites": "Logs descartados (sobrecarga)"
+    "droppedWrites": "Logs descartados (sobrecarga)",
+    "timezone": "Fuso horário",
+    "timezoneAuto": "Automático ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "Escolher fuso horário",
+    "timezoneZone": "Fuso",
+    "timezoneHint": "Aplica-se a cada data/hora exibida e exportada. Os dados armazenados não mudam.",
+    "timezonePreview": "Agora:"
   },
   "alerts": {
     "rules": "Regras de alerta",

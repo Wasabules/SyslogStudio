@@ -195,7 +195,14 @@
     "checkingUpdates": "Checking…",
     "upToDate": "You're on the latest version.",
     "updateCheckFailed": "Update check failed: {error}",
-    "droppedWrites": "Dropped logs (overload)"
+    "droppedWrites": "Dropped logs (overload)",
+    "timezone": "Time zone",
+    "timezoneAuto": "Automatic ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "Choose a time zone",
+    "timezoneZone": "Zone",
+    "timezoneHint": "Applies to every timestamp shown and exported. Stored data is unchanged.",
+    "timezonePreview": "Now:"
   },
   "alerts": {
     "rules": "Alert Rules",

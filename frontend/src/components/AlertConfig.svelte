@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { activeZone, formatInZone } from '../lib/timezone';
     import { onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { alertRules, alertHistory } from '../lib/stores';
@@ -111,11 +112,11 @@
         }
     }
 
-    function formatTime(ts: string): string {
+    // Takes the zone as an argument so the markup expression names it and
+    // Svelte re-renders the history when the setting changes.
+    function formatTime(ts: string, zone: string): string {
         if (!ts) return '';
-        const d = new Date(ts);
-        const pad = (n: number) => n.toString().padStart(2, '0');
-        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return formatInZone(ts, zone).slice(11); // keep HH:MM:SS
     }
 </script>
 
@@ -202,7 +203,7 @@
     <div class="history-list">
         {#each [...$alertHistory].reverse() as event}
             <div class="history-item">
-                <span class="history-time">{formatTime(event.timestamp)}</span>
+                <span class="history-time">{formatTime(event.timestamp, $activeZone)}</span>
                 <span class="history-rule">{event.ruleName}</span>
                 <span class="history-sev">{event.severity}</span>
                 <span class="history-msg" title={event.message}>{event.message}</span>
