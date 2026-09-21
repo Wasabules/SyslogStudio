@@ -592,6 +592,12 @@ func ParseSourceEntry(entry string) (*net.IPNet, error) {
 }
 
 // ParseFilterDate parses a date string in RFC 3339 or "YYYY-MM-DD" format.
+// The zone-less layouts are read in the collector's local zone, not UTC. These
+// values come from the UI's date and datetime-local inputs, which a user fills
+// in wall-clock time; reading them as UTC moved every filter boundary by the
+// UTC offset, so "from 2026-09-17" started at 02:00 for a CEST user. Same root
+// cause as the RFC 3164 timestamp shift in issue #24. RFC 3339 keeps its own
+// explicit offset and is parsed as-is.
 func ParseFilterDate(s string) (time.Time, bool) {
 	if s == "" {
 		return time.Time{}, false
@@ -600,11 +606,11 @@ func ParseFilterDate(s string) (time.Time, bool) {
 	if err == nil {
 		return t, true
 	}
-	t, err = time.Parse("2006-01-02", s)
+	t, err = time.ParseInLocation("2006-01-02", s, time.Local)
 	if err == nil {
 		return t, true
 	}
-	t, err = time.Parse("2006-01-02T15:04", s)
+	t, err = time.ParseInLocation("2006-01-02T15:04", s, time.Local)
 	if err == nil {
 		return t, true
 	}

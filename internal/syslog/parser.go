@@ -227,6 +227,65 @@ func findSDEnd(s string) int {
 	return -1
 }
 
+// resolveBSDYear gives an RFC 3164 timestamp its year. The BSD format carries
+// month, day and time but no year and no zone, so parseRFC3164 reads it in the
+// collector's local zone — the same assumption rsyslog and syslog-ng make, and
+// the one that matches reality when sender and collector sit in the same zone.
+// Reading it as UTC instead, which is what time.Parse does with a zone-less
+// layout, shifted every BSD-framed message by the collector's UTC offset: two
+// hours for a CEST host (issue #24).
+//
+// The year is inferred from arrival, trying the arrival year and both of its
+// neighbours. The choice is deliberately asymmetric, because a log is emitted
+// before it is received: a stamp in the past is ordinary — a device buffering,
+// a relay catching up, a clock running slow — while a stamp in the future can
+// only be clock skew. So candidates more than maxClockSkewAhead past the
+// arrival time are discarded, and the nearest of what remains wins.
+//
+// That is what separates the two New Year cases from an ordinary late log. A
+// device still sending "Dec 31 23:59" on January 1st lands in the year that
+// just ended; one whose clock already rolled over to "Jan 01" while the
+// collector is still in December lands in the year about to start, since it is
+// only minutes ahead. But "Jan 15" arriving in September stays in the current
+// year rather than jumping to next January, which is four months of skew and
+// far less likely than a log that is simply months late.
+func resolveBSDYear(t, receivedAt time.Time) time.Time {
+	if receivedAt.IsZero() {
+		receivedAt = time.Now()
+	}
+	var best time.Time
+	for _, year := range []int{receivedAt.Year() - 1, receivedAt.Year(), receivedAt.Year() + 1} {
+		candidate := time.Date(year, t.Month(), t.Day(),
+			t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+		if candidate.Sub(receivedAt) > maxClockSkewAhead {
+			continue
+		}
+		if best.IsZero() || absDuration(candidate.Sub(receivedAt)) < absDuration(best.Sub(receivedAt)) {
+			best = candidate
+		}
+	}
+	if best.IsZero() {
+		// Unreachable in practice: the previous year is always in the past.
+		return time.Date(receivedAt.Year(), t.Month(), t.Day(),
+			t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+	}
+	return best
+}
+
+// maxClockSkewAhead is how far ahead of arrival a BSD stamp may sit before its
+// year is treated as wrong rather than its clock. Generous on purpose: devices
+// with no NTP drift by days, and one a few zones east legitimately reports a
+// wall clock ahead of the collector's. A month is well beyond either, and well
+// short of the gap that distinguishes a New Year crossing.
+const maxClockSkewAhead = 31 * 24 * time.Hour
+
+func absDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return -d
+	}
+	return d
+}
+
 // parseRFC3164 parses a BSD-style syslog message.
 // Format: TIMESTAMP HOSTNAME MSG (after PRI is stripped)
 func parseRFC3164(remainder string, msg *models.SyslogMessage) {
@@ -242,9 +301,9 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 	// Minimum length: "Jan  1 00:00:00" = 15 characters
 	if len(remainder) >= 15 {
 		tsStr := remainder[:15]
-		t, err := time.Parse("Jan  2 15:04:05", tsStr)
+		t, err := time.ParseInLocation("Jan  2 15:04:05", tsStr, time.Local)
 		if err != nil {
-			t, err = time.Parse("Jan 2 15:04:05", tsStr[:14])
+			t, err = time.ParseInLocation("Jan 2 15:04:05", tsStr[:14], time.Local)
 			if err != nil {
 				// No valid timestamp, treat entire remainder as message
 				msg.Timestamp = msg.ReceivedAt
@@ -252,15 +311,10 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 				extractAppFromMsg(msg)
 				return
 			}
-			// Set year to current year
-			now := time.Now()
-			t = t.AddDate(now.Year()-t.Year(), 0, 0)
-			msg.Timestamp = t
+			msg.Timestamp = resolveBSDYear(t, msg.ReceivedAt)
 			remainder = remainder[14:]
 		} else {
-			now := time.Now()
-			t = t.AddDate(now.Year()-t.Year(), 0, 0)
-			msg.Timestamp = t
+			msg.Timestamp = resolveBSDYear(t, msg.ReceivedAt)
 			remainder = remainder[15:]
 		}
 	} else {
