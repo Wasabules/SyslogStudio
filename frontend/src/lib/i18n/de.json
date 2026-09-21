@@ -195,7 +195,14 @@
     "upToDate": "Sie verwenden die neueste Version.",
     "updateCheckFailed": "Update-Prüfung fehlgeschlagen: {error}",
     "autoUpdateCheck": "Beim Start nach Updates suchen",
-    "droppedWrites": "Verworfene Logs (Überlast)"
+    "droppedWrites": "Verworfene Logs (Überlast)",
+    "timezone": "Zeitzone",
+    "timezoneAuto": "Automatisch ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "Zeitzone wählen",
+    "timezoneZone": "Zone",
+    "timezoneHint": "Gilt für jeden angezeigten und exportierten Zeitstempel. Gespeicherte Daten bleiben unverändert.",
+    "timezonePreview": "Jetzt:"
   },
   "alerts": {
     "rules": "Warnregeln",

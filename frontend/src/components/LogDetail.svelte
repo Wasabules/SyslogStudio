@@ -1,6 +1,7 @@
 <script lang="ts">
     import { selectedMessage } from '../lib/stores';
-    import { SEVERITY_COLORS, formatTimestamp } from '../lib/constants';
+    import { SEVERITY_COLORS } from '../lib/constants';
+    import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { toastSuccess, toastError } from '../lib/toast';
     import { _ } from 'svelte-i18n';
 
@@ -46,12 +47,12 @@
 
             <div class="field">
                 <span class="label">{$_('log.timestamp')}</span>
-                <span class="value mono">{formatTimestamp(msg.timestamp)}</span>
+                <span class="value mono">{formatInZone(msg.timestamp, $activeZone)} <span class="tz-tag">{$zoneAbbreviation}</span></span>
             </div>
 
             <div class="field">
                 <span class="label">{$_('log.received')}</span>
-                <span class="value mono">{formatTimestamp(msg.receivedAt)}</span>
+                <span class="value mono">{formatInZone(msg.receivedAt, $activeZone)} <span class="tz-tag">{$zoneAbbreviation}</span></span>
             </div>
 
             <div class="field">
@@ -113,6 +114,8 @@
 {/if}
 
 <style>
+    .tz-tag { font-size: 10px; opacity: 0.6; }
+
     .detail-panel {
         width: 350px;
         background: var(--bg-secondary);

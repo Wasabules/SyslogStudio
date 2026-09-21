@@ -195,7 +195,14 @@
     "upToDate": "您使用的是最新版本。",
     "updateCheckFailed": "检查更新失败：{error}",
     "autoUpdateCheck": "启动时检查更新",
-    "droppedWrites": "丢弃的日志（过载）"
+    "droppedWrites": "丢弃的日志（过载）",
+    "timezone": "时区",
+    "timezoneAuto": "自动 ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "选择时区",
+    "timezoneZone": "时区",
+    "timezoneHint": "适用于所有显示和导出的时间戳。已存储的数据不会更改。",
+    "timezonePreview": "当前："
   },
   "alerts": {
     "rules": "告警规则",

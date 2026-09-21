@@ -195,7 +195,14 @@
     "upToDate": "Ya tienes la última versión.",
     "updateCheckFailed": "Error al buscar actualizaciones: {error}",
     "autoUpdateCheck": "Buscar actualizaciones al iniciar",
-    "droppedWrites": "Registros descartados (sobrecarga)"
+    "droppedWrites": "Registros descartados (sobrecarga)",
+    "timezone": "Zona horaria",
+    "timezoneAuto": "Automática ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "Elegir zona horaria",
+    "timezoneZone": "Zona",
+    "timezoneHint": "Se aplica a cada marca de tiempo mostrada y exportada. Los datos almacenados no cambian.",
+    "timezonePreview": "Ahora:"
   },
   "alerts": {
     "rules": "Reglas de alerta",

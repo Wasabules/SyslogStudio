@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { timezone, activeZone, zoneAbbreviation, zoneOffset, availableZones, systemZone, formatInZone } from '../lib/timezone';
+    import type { TimezoneMode } from '../lib/timezone';
     import { _ } from 'svelte-i18n';
     import { theme } from '../lib/theme';
     import { appLocale, setLocale, SUPPORTED_LOCALES } from '../lib/i18n';
@@ -258,6 +260,25 @@
         theme.set(val as 'dark' | 'light');
     }
 
+    // The zone list is fetched once: Intl.supportedValuesOf returns several
+    // hundred entries and the set never changes while the app runs.
+    const zones = availableZones();
+
+    function handleTimezoneModeChange(e: Event) {
+        const mode = (e.target as HTMLSelectElement).value as TimezoneMode;
+        timezone.update(tz => ({
+            mode,
+            // Switching to manual with nothing chosen yet starts from the
+            // machine's own zone, which is the least surprising first pick.
+            zone: mode === 'manual' && !tz.zone ? systemZone() : tz.zone,
+        }));
+    }
+
+    function handleTimezoneZoneChange(e: Event) {
+        const zone = (e.target as HTMLSelectElement).value;
+        timezone.update(tz => ({ ...tz, zone }));
+    }
+
     function handleLocaleChange(e: Event) {
         const val = (e.target as HTMLSelectElement).value;
         setLocale(val);
@@ -268,13 +289,9 @@
         saveStorageConfig();
     }
 
-    function formatOldest(ts: string): string {
+    function formatOldest(ts: string, zone: string): string {
         if (!ts) return '—';
-        try {
-            return new Date(ts).toLocaleString();
-        } catch {
-            return ts;
-        }
+        return formatInZone(ts, zone) || ts;
     }
 
     const retentionOptions = [
@@ -388,6 +405,43 @@
                                 <option value={loc.code}>{loc.label}</option>
                             {/each}
                         </select>
+                    </div>
+
+                    <!--
+                        form-group is a flex row, so a .hint placed directly
+                        inside it lands beside the select and squeezes it. The
+                        established pattern for a field with help text is
+                        form-group-with-hint, which stacks them.
+                    -->
+                    <div class="form-group-with-hint">
+                        <div class="form-group">
+                            <label for="settings-tz-mode">{$_('settings.timezone')}</label>
+                            <select id="settings-tz-mode" value={$timezone.mode} on:change={handleTimezoneModeChange}>
+                                <option value="auto">{$_('settings.timezoneAuto', { values: { zone: systemZone() } })}</option>
+                                <option value="utc">{$_('settings.timezoneUTC')}</option>
+                                <option value="manual">{$_('settings.timezoneManual')}</option>
+                            </select>
+                        </div>
+                        <span class="hint">{$_('settings.timezoneHint')}</span>
+                    </div>
+
+                    {#if $timezone.mode === 'manual'}
+                        <div class="form-group">
+                            <label for="settings-tz-zone">{$_('settings.timezoneZone')}</label>
+                            <select id="settings-tz-zone" value={$timezone.zone} on:change={handleTimezoneZoneChange}>
+                                {#each zones as z}
+                                    <option value={z}>{z}</option>
+                                {/each}
+                            </select>
+                        </div>
+                    {/if}
+
+                    <div class="tz-preview">
+                        <span class="tz-preview-label">{$_('settings.timezonePreview')}</span>
+                        <span class="tz-preview-value mono">
+                            {formatInZone(new Date().toISOString(), $activeZone)}
+                            <span class="tz-preview-zone">{$zoneAbbreviation} (UTC{$zoneOffset})</span>
+                        </span>
                     </div>
 
                     <div class="form-group checkbox-group">
@@ -582,7 +636,7 @@
                             </div>
                             <div class="info-row">
                                 <span class="info-label">{$_('settings.oldestMessage')}</span>
-                                <span class="info-value">{formatOldest(storageOldest)}</span>
+                                <span class="info-value">{formatOldest(storageOldest, $activeZone)}</span>
                             </div>
                             {#if storageDropped > 0}
                                 <div class="info-row">
@@ -816,6 +870,31 @@
         flex-direction: column;
         gap: 8px;
         margin-top: 4px;
+    }
+
+    .tz-preview {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 8px 10px;
+        margin-bottom: 12px;
+        border-radius: 4px;
+        background: var(--bg-secondary);
+        font-size: 12px;
+    }
+
+    .tz-preview-label {
+        color: var(--text-secondary);
+    }
+
+    .tz-preview-value {
+        font-family: monospace;
+    }
+
+    .tz-preview-zone {
+        opacity: 0.7;
+        font-size: 11px;
+        margin-left: 4px;
     }
 
     .enc-fields input[type="password"] {

@@ -195,7 +195,14 @@
     "upToDate": "最新バージョンを使用しています。",
     "updateCheckFailed": "更新の確認に失敗しました: {error}",
     "autoUpdateCheck": "起動時に更新を確認",
-    "droppedWrites": "破棄されたログ（過負荷）"
+    "droppedWrites": "破棄されたログ（過負荷）",
+    "timezone": "タイムゾーン",
+    "timezoneAuto": "自動 ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "タイムゾーンを選択",
+    "timezoneZone": "ゾーン",
+    "timezoneHint": "表示およびエクスポートされるすべてのタイムスタンプに適用されます。保存されたデータは変更されません。",
+    "timezonePreview": "現在:"
   },
   "alerts": {
     "rules": "アラートルール",

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { activeZone } from '../lib/timezone';
     import { onDestroy } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { filter, messages } from '../lib/stores';
@@ -76,7 +77,7 @@
 
     async function exportCSV() {
         try {
-            const path = await exportLogs($filter, 'csv');
+            const path = await exportLogs($filter, 'csv', $activeZone);
             if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
         } catch (e: any) {
             toastError(e?.message || $_('filter.csvExportFailed'));
@@ -85,7 +86,7 @@
 
     async function exportText() {
         try {
-            const path = await exportLogs($filter, 'text');
+            const path = await exportLogs($filter, 'text', $activeZone);
             if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
         } catch (e: any) {
             toastError(e?.message || $_('filter.textExportFailed'));

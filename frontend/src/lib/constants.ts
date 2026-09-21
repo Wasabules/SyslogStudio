@@ -47,9 +47,9 @@ export const FACILITY_LABELS: Record<number, string> = {
     23: 'local7',
 };
 
-export function formatTimestamp(isoString: string): string {
-    if (!isoString) return '';
-    const d = new Date(isoString);
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+// Timestamp rendering lives in lib/timezone.ts, as formatInZone(iso, zone).
+// It is deliberately not re-exported here: taking the zone as an argument is
+// what makes a markup expression name it, and therefore what makes Svelte 5
+// re-render every visible timestamp when the setting changes. A zero-argument
+// helper reading the store internally would look identical and silently never
+// update.

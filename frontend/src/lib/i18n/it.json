@@ -195,7 +195,14 @@
     "upToDate": "Stai usando l'ultima versione.",
     "updateCheckFailed": "Controllo aggiornamenti non riuscito: {error}",
     "autoUpdateCheck": "Controlla aggiornamenti all'avvio",
-    "droppedWrites": "Log scartati (sovraccarico)"
+    "droppedWrites": "Log scartati (sovraccarico)",
+    "timezone": "Fuso orario",
+    "timezoneAuto": "Automatico ({zone})",
+    "timezoneUTC": "UTC",
+    "timezoneManual": "Scegli un fuso orario",
+    "timezoneZone": "Fuso",
+    "timezoneHint": "Si applica a ogni data e ora mostrata ed esportata. I dati memorizzati non cambiano.",
+    "timezonePreview": "Adesso:"
   },
   "alerts": {
     "rules": "Regole di avviso",
