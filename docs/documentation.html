@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1e1e1e" media="(prefers-color-scheme: dark)" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyslogStudio documentation — receiving, searching, alerting and routing</title>
+<meta name="description" content="How to use SyslogStudio: set up the listeners, point devices at it, search the history, write alert rules, and route messages on to a collector, a webhook or e-mail." />
+<link rel="icon" type="image/png" sizes="48x48" href="assets/img/favicon-48.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="SyslogStudio" />
+<meta property="og:title" content="SyslogStudio documentation" />
+<meta property="og:description" content="Set up the listeners, point devices at it, search the history, write alert rules, route messages on." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+<script>
+try {
+  var t = localStorage.getItem('site-theme');
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+} catch (e) {}
+</script>
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="assets/img/favicon-48.png" alt="" width="26" height="26" />
+      SyslogStudio
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="documentation.html" aria-current="page">Documentation</a>
+      <a href="download.html">Download</a>
+      <a href="demo.html">Demo</a>
+      <a href="changelog.html" class="hide-sm">Changelog</a>
+      <a class="gh" href="https://github.com/Wasabules/SyslogStudio">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+      <div data-theme-toggle hidden></div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="wrap wrap-narrow" style="padding-block:3rem 1rem">
+    <p class="eyebrow">Documentation</p>
+    <h1 style="margin-top:0">From nothing to logs on screen.</h1>
+    <p class="lede">
+      Everything here can be tried without installing anything, in the
+      <a href="demo.html">browser demo</a>. What the demo cannot do is open a socket, so
+      the receiving half needs the real application.
+    </p>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">1 · Start listening</h2>
+      <p>
+        The bar across the top of the window is the server. Tick the transports you want,
+        set their ports, choose an interface, and press <strong>Start</strong>.
+      </p>
+      <ul>
+        <li><strong>UDP</strong> — what almost every device speaks. Port 514 by default.</li>
+        <li><strong>TCP</strong> — no message loss and no size limit. Port 601 by convention.</li>
+        <li><strong>TLS</strong> — TCP with the transport encrypted. Port 6514.</li>
+      </ul>
+      <p>
+        On Unix, a port below 1024 needs privilege. Rather than running the whole
+        application as root, grant the binary the one capability it needs:
+      </p>
+      <pre><code>sudo setcap 'cap_net_bind_service=+ep' /usr/bin/syslogstudio</code></pre>
+      <p>
+        Or listen on 1514 and point your devices there — nothing in syslog requires 514.
+      </p>
+
+      <h3>Restricting who may send</h3>
+      <p>
+        <strong>Allowed sources</strong> takes IP literals and CIDR ranges. Leave it empty
+        to accept anything.
+      </p>
+      <p class="callout">
+        A UDP source address is trivially forged. This filter is hygiene — it keeps a
+        misconfigured host out of your database — not authentication. Where senders must
+        genuinely be authenticated, use TLS with client certificates.
+      </p>
+
+      <h3>Pointing devices at it</h3>
+      <pre><code># Linux, rsyslog — add to /etc/rsyslog.conf
+*.*  @192.0.2.10:514      # UDP
+*.*  @@192.0.2.10:601     # TCP
+
+# Cisco IOS
+logging host 192.0.2.10 transport udp port 514
+logging trap informational
+
+# A quick test from any Unix box
+logger -n 192.0.2.10 -P 514 -d "hello from $(hostname)"</code></pre>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">2 · Read what arrives</h2>
+      <p>
+        The viewer has two modes, switched at the bottom left. <strong>Live</strong> shows
+        the in-memory ring buffer — the last ten thousand messages, updating as they
+        arrive. <strong>History</strong> queries the database, page by page, and reaches as
+        far back as your retention window.
+      </p>
+      <p>
+        Filter by severity, source address, hostname, application, a time range, or free
+        text. Three search modes are available in history: substring, full-text (SQLite
+        FTS5, so <code>error AND disk</code> works), and regular expression.
+      </p>
+      <p>
+        Click a row to see every parsed field and the raw frame it arrived as. Sort by any
+        column, or group by severity, host, application or source.
+      </p>
+
+      <h3>Timestamps</h3>
+      <p>
+        The column header says which zone it is showing. By default that is your machine's;
+        in <strong>Settings</strong> you can pin it to UTC or to a named zone, which is what
+        you want when the devices and the reader are not in the same place.
+      </p>
+      <p class="callout">
+        RFC 3164 messages carry no year and no zone. They are interpreted in the configured
+        zone, and the year is chosen as the nearest one that does not put the message
+        implausibly far in the future — a device whose clock runs a few days ahead still
+        lands on the right date.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">3 · Keep it</h2>
+      <p>
+        Persistence is a local SQLite file. In <strong>Settings</strong> you choose whether
+        it is on, where it lives, how many days to keep and how large to let it grow. Old
+        messages are removed in the background.
+      </p>
+      <h3>Encryption at rest</h3>
+      <p>
+        Turning on encryption asks for a password and re-writes the database encrypted with
+        AES-256-GCM, the key derived with Argon2id. The password is held in memory for the
+        session only; it is not stored anywhere, so losing it means losing the history.
+      </p>
+      <p>
+        With encryption on, the application asks for the password at startup. Repeated wrong
+        answers back off, and the lockout survives a restart — so a stolen laptop cannot be
+        brute-forced by relaunching the application.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">4 · Notice things</h2>
+      <p>
+        An alert rule is a pattern — a substring or a regular expression — plus a severity
+        floor and, optionally, a hostname or application to narrow it. When a message
+        matches, the rule raises an event and, if you asked for it, a desktop notification.
+      </p>
+      <p>
+        The <strong>cooldown</strong> is the important field. A flapping port produces a
+        message every few seconds; without a cooldown that becomes a few hundred
+        notifications, and the next real alert arrives in a crowd.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">5 · Send it somewhere</h2>
+      <p>
+        Routing is a pair: <strong>rules</strong> decide which messages are interesting,
+        <strong>destinations</strong> decide where they go. Every received message is
+        offered to the router, not only the ones that trip an alert — which is what makes
+        relaying a whole stream possible.
+      </p>
+
+      <h3>Rules</h3>
+      <p>
+        A rule can match on a severity range, a facility, a hostname or application glob, a
+        source CIDR, a substring or regular expression, and a time window that may cross
+        midnight. An empty field is no constraint, so a rule with none matches everything —
+        which is what a plain relay wants.
+      </p>
+      <p>
+        Rules run in priority order, lowest first. <strong>Stop</strong> ends the chain, so
+        a narrow rule placed early can divert something before a broad rule sees it.
+      </p>
+
+      <h3>Destinations</h3>
+      <ul>
+        <li>
+          <strong>Syslog</strong> — UDP, TCP or TLS to another collector. With
+          <em>keep the original hostname</em> the far end still attributes each line to the
+          device that emitted it, which is what makes this a relay rather than a new source.
+        </li>
+        <li>
+          <strong>Webhook</strong> — a JSON envelope with every field, or your own template
+          sent as-is. An optional bearer token is stored write-only.
+        </li>
+        <li>
+          <strong>E-mail</strong> — SMTP with STARTTLS, implicit TLS or none, authenticated
+          or anonymous, text or HTML.
+        </li>
+      </ul>
+
+      <h3>TLS and mutual TLS</h3>
+      <p>
+        For a syslog or e-mail destination the <strong>security</strong> selector chooses
+        between verifying the far end and also presenting a certificate of your own. The CA
+        you supply is that destination's trust anchor and may be an entirely different
+        authority from the one signing your client certificate, or the one this application
+        serves its own listener with.
+      </p>
+
+      <h3>Credentials</h3>
+      <p class="callout">
+        A token or password is write-only and bound to the destination it was given for.
+        Moving a webhook to another host, or downgrading SMTP from STARTTLS to none, drops
+        the stored credential rather than following it somewhere it was never meant to go.
+      </p>
+
+      <h3>Loops</h3>
+      <p>
+        A destination pointing back at this application's own listener is refused when you
+        save it, and again at delivery in case the listener moved onto that port afterwards.
+        A message that has already been relayed recently is not relayed again. And a
+        destination being flooded with repeating content is cut off, disabled and reported,
+        rather than quietly filling a disk.
+      </p>
+      <p>
+        Suppression stops a message being <em>forwarded</em>, never received: it is still
+        parsed, counted, stored and shown. A false positive costs one duplicate line not
+        reaching a second collector, not a lost log.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">6 · Prove it works</h2>
+      <p>
+        The <strong>Simulator</strong> tab generates syslog traffic and sends it to
+        destinations you choose — including this application itself. Pick a profile, a rate
+        and a mode, and you can see the whole chain work before a single device is pointed
+        at it.
+      </p>
+      <p>
+        It is also the fastest way to reproduce a problem: set a rate that matches what your
+        network does at its worst and watch what the buffer, the database and the routing
+        do about it.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">7 · Share a screen safely</h2>
+      <p>
+        Anonymous mode — the small ghost at the bottom of the sidebar, or the switch in
+        Settings — replaces hostnames, IP addresses, MAC addresses, e-mail addresses and
+        user names with stable stand-ins drawn from the documentation ranges reserved for
+        exactly this (RFC 5737 and RFC 3849).
+      </p>
+      <p>
+        Stable matters: the same host is always the same stand-in, so two lines from one
+        device still obviously came from one device. The masking is display-only, so your
+        stored data is untouched — and because it is display-only it cannot govern what the
+        router sends, which is why each destination has its own
+        <em>mask identifying values</em> switch.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">Where things are kept</h2>
+      <table>
+        <thead><tr><th>Platform</th><th>Configuration and database</th></tr></thead>
+        <tbody>
+          <tr><td>Windows</td><td><code>%APPDATA%\SyslogStudio\</code></td></tr>
+          <tr><td>macOS</td><td><code>~/Library/Application Support/SyslogStudio/</code></td></tr>
+          <tr><td>Linux</td><td><code>~/.config/SyslogStudio/</code></td></tr>
+        </tbody>
+      </table>
+      <p class="muted small">
+        <code>config.json</code> holds the settings, rules and destinations;
+        <code>logs.db</code> the messages; <code>sinksecrets.json</code> the destination
+        credentials, encrypted when at-rest encryption is on. No credential is ever written
+        to <code>config.json</code>.
+      </p>
+      <p>
+        Longer guides live in the repository:
+        <a href="https://github.com/Wasabules/SyslogStudio/blob/main/docs/USER_GUIDE.md">the user guide</a>
+        and
+        <a href="https://github.com/Wasabules/SyslogStudio/blob/main/docs/TLS_SETUP.md">the TLS setup notes</a>.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="./" style="margin-bottom:0.6rem">
+          <img src="assets/img/favicon-48.png" alt="" width="26" height="26" />
+          SyslogStudio
+        </a>
+        <p class="muted small" style="max-width:34ch">
+          A desktop syslog server, log viewer and alert router. MIT licensed, built in the
+          open.
+        </p>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="documentation.html">Documentation</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="changelog.html">Changelog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Contribute</h2>
+        <ul>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/blob/main/CONTRIBUTING.md">Contributing guide</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/issues">Issue tracker</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Source</h2>
+        <ul>
+          <li><a href="https://github.com/Wasabules/SyslogStudio">Repository</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/releases">Releases</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/blob/main/LICENSE">MIT licence</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="colophon">
+      <p>© 2026 Geoffrey Lecoq · Released under the MIT licence.</p>
+      <p>Built with <a href="https://wails.io/">Wails</a>, <a href="https://go.dev/">Go</a> and <a href="https://svelte.dev/">Svelte</a>.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>

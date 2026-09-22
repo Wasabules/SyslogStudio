@@ -1,0 +1,39 @@
+<!--
+  The demo's own banner, injected into the application's page.
+
+  Says the two things a visitor needs within a second: this is the real
+  application, and nothing here reaches the network. Scoped styles with a
+  prefix, because it lives inside the product's own document and must not
+  inherit or leak.
+-->
+<style>
+  #demo-banner {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+    display: flex; gap: 12px; align-items: center; justify-content: center;
+    padding: 8px 16px; box-sizing: border-box;
+    font: 500 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #e6edf3; background: rgba(13, 17, 23, 0.94);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(6px);
+  }
+  #demo-banner a { color: #58a6ff; text-decoration: none; font-weight: 600; }
+  #demo-banner a:hover { text-decoration: underline; }
+  #demo-banner .db-text { opacity: 0.85; }
+  #demo-banner .db-close {
+    background: none; border: 0; color: inherit; opacity: 0.6;
+    cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px;
+  }
+  #demo-banner .db-close:hover { opacity: 1; }
+  @media (max-width: 720px) {
+    #demo-banner { font-size: 11px; padding: 7px 10px; gap: 8px; }
+    #demo-banner .db-text { display: none; }
+  }
+</style>
+
+<span><strong>Demo</strong></span>
+<span class="db-text">
+  The real SyslogStudio, running on sample data in your browser. Nothing is sent anywhere.
+</span>
+<a href="../download.html">Download the app</a>
+<button class="db-close" type="button" aria-label="Hide this banner"
+        onclick="this.parentElement.remove()">&times;</button>

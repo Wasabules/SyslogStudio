@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1e1e1e" media="(prefers-color-scheme: dark)" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Download SyslogStudio — Windows, macOS and Linux</title>
+<meta name="description" content="Download SyslogStudio for Windows, macOS or Linux. One executable, no runtime to install, MIT licensed. Every release is signed and carries build provenance." />
+<link rel="icon" type="image/png" sizes="48x48" href="assets/img/favicon-48.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="SyslogStudio" />
+<meta property="og:title" content="Download SyslogStudio" />
+<meta property="og:description" content="One executable, no runtime to install. Windows, macOS and Linux." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+<script>
+try {
+  var t = localStorage.getItem('site-theme');
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+} catch (e) {}
+</script>
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="assets/img/favicon-48.png" alt="" width="26" height="26" />
+      SyslogStudio
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="documentation.html">Documentation</a>
+      <a href="download.html" aria-current="page">Download</a>
+      <a href="demo.html">Demo</a>
+      <a href="changelog.html" class="hide-sm">Changelog</a>
+      <a class="gh" href="https://github.com/Wasabules/SyslogStudio">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+      <div data-theme-toggle hidden></div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="wrap" style="padding-block:3rem 1rem">
+    <p class="eyebrow">Download</p>
+    <h1 style="margin-top:0">One executable. No runtime to install.</h1>
+    <p class="lede">
+      SyslogStudio is a single native binary with the interface compiled in. There is no
+      Java, no Node, no Docker and no service to register — you can run it from a USB stick
+      and delete it afterwards.
+    </p>
+
+    <!-- Filled in from the GitHub releases API by assets/github.js. Every link
+         already points at the releases page, so a reader with scripts blocked
+         gets the same downloads one click later rather than a dead button. -->
+    <div data-gh="release" class="release-card" style="margin-top:2rem">
+      <div class="release-head">
+        <span class="tag skeleton" data-release="tag" data-fallback="Latest release">Latest release</span>
+        <span class="muted small skeleton" data-release="date" data-fallback=""></span>
+        <a class="small" data-release="link" href="https://github.com/Wasabules/SyslogStudio/releases/latest">release notes &rarr;</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding-bottom:3.5rem">
+    <h2 style="margin:0 0 1.5rem">Pick your platform</h2>
+    <div class="grid grid-3">
+
+      <div class="panel" data-platform="windows" data-gh="release">
+        <h3 style="margin-top:0">
+          Windows
+          <span class="badge badge-good" data-platform-hint hidden>your platform</span>
+        </h3>
+        <p class="small muted">Windows 10 or later, 64-bit.</p>
+        <div class="btn-row" style="margin-bottom:1rem">
+          <a class="btn btn-primary" data-asset="SyslogStudio-windows-amd64-setup.exe"
+             href="https://github.com/Wasabules/SyslogStudio/releases/latest">Installer</a>
+          <a class="btn" data-asset="SyslogStudio-windows-amd64.zip"
+             href="https://github.com/Wasabules/SyslogStudio/releases/latest">Portable .zip</a>
+        </div>
+        <p class="small muted" style="margin:0">
+          The installer registers an uninstaller and lets the application update itself in
+          place. The portable zip writes nothing outside your configuration directory.
+        </p>
+      </div>
+
+      <div class="panel" data-platform="macos" data-gh="release">
+        <h3 style="margin-top:0">
+          macOS
+          <span class="badge badge-good" data-platform-hint hidden>your platform</span>
+        </h3>
+        <p class="small muted">Universal &mdash; Apple Silicon and Intel.</p>
+        <div class="btn-row" style="margin-bottom:1rem">
+          <a class="btn btn-primary" data-asset="SyslogStudio-macos-universal.dmg"
+             href="https://github.com/Wasabules/SyslogStudio/releases/latest">Disk image</a>
+          <a class="btn" data-asset="SyslogStudio-macos-universal.zip"
+             href="https://github.com/Wasabules/SyslogStudio/releases/latest">.zip</a>
+        </div>
+        <p class="small muted" style="margin:0">
+          The build is not notarised by Apple, so the first launch needs <em>Open</em> from
+          the right-click menu, or <em>System Settings &rarr; Privacy &amp; Security &rarr;
+          Open Anyway</em>.
+        </p>
+      </div>
+
+      <div class="panel" data-platform="linux" data-gh="release">
+        <h3 style="margin-top:0">
+          Linux
+          <span class="badge badge-good" data-platform-hint hidden>your platform</span>
+        </h3>
+        <p class="small muted">x86-64, GTK 3 and WebKit2GTK.</p>
+        <div class="btn-row" style="margin-bottom:1rem">
+          <a class="btn btn-primary" data-asset="SyslogStudio-linux-amd64.deb"
+             href="https://github.com/Wasabules/SyslogStudio/releases/latest">Debian package</a>
+          <a class="btn" data-asset="SyslogStudio-linux-amd64.tar.gz"
+             href="https://github.com/Wasabules/SyslogStudio/releases/latest">Tarball</a>
+        </div>
+        <p class="small muted" style="margin:0">
+          The <code>.deb</code> declares its dependencies. With the tarball, install
+          <code>libgtk-3-0</code> and <code>libwebkit2gtk-4.1-0</code> yourself.
+        </p>
+      </div>
+
+    </div>
+
+    <p class="js-fallback" style="margin-top:1.5rem">
+      These buttons point at the latest release. If your browser is blocking scripts they go
+      to the <a href="https://github.com/Wasabules/SyslogStudio/releases/latest">releases page</a>, where every asset is listed.
+    </p>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow" data-gh="release">
+      <h2 style="margin-top:0">Everything in the latest release</h2>
+      <ul class="asset-list" data-release="assets">
+        <li class="js-fallback">
+          <a href="https://github.com/Wasabules/SyslogStudio/releases/latest">See the full asset list on GitHub</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2 style="margin-top:0">Ports below 1024</h2>
+      <p>
+        The syslog default is UDP 514, and on Unix a port under 1024 needs privilege. You do
+        not have to run the whole application as root:
+      </p>
+      <pre><code># Linux — grant the binary the one capability it needs
+sudo setcap 'cap_net_bind_service=+ep' /usr/bin/syslogstudio</code></pre>
+      <p>
+        On Windows no privilege is needed for 514. The simplest alternative on any platform
+        is to listen on 1514 and point your devices there, which is what the demo shows.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2 style="margin-top:0">Verifying what you downloaded</h2>
+      <p>
+        Every release carries SLSA build provenance: a signed statement of which workflow
+        built which file, from which commit. With the GitHub CLI:
+      </p>
+      <pre><code>gh attestation verify SyslogStudio-windows-amd64.zip --repo Wasabules/SyslogStudio</code></pre>
+      <p>
+        Each release also publishes SHA-256 checksums and a signed manifest. The updater
+        inside the application checks the same signature before it replaces anything, and
+        refuses a manifest that does not name the version it is being offered.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="./" style="margin-bottom:0.6rem">
+          <img src="assets/img/favicon-48.png" alt="" width="26" height="26" />
+          SyslogStudio
+        </a>
+        <p class="muted small" style="max-width:34ch">
+          A desktop syslog server, log viewer and alert router. MIT licensed, built in the
+          open.
+        </p>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="documentation.html">Documentation</a></li>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="changelog.html">Changelog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Contribute</h2>
+        <ul>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/blob/main/CONTRIBUTING.md">Contributing guide</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/issues">Issue tracker</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Source</h2>
+        <ul>
+          <li><a href="https://github.com/Wasabules/SyslogStudio">Repository</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/releases">Releases</a></li>
+          <li><a href="https://github.com/Wasabules/SyslogStudio/blob/main/LICENSE">MIT licence</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="colophon">
+      <p>© 2026 Geoffrey Lecoq · Released under the MIT licence.</p>
+      <p>Built with <a href="https://wails.io/">Wails</a>, <a href="https://go.dev/">Go</a> and <a href="https://svelte.dev/">Svelte</a>.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+<script src="assets/github.js" defer></script>
+</body>
+</html>

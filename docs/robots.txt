@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# The demo is the application itself, not a page worth indexing: it has no
+# content of its own and every crawl of it fetches the whole bundle.
+Disallow: /demo/

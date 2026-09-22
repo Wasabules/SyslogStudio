@@ -29,3 +29,7 @@ CLAUDE.md
 # OS files
 .DS_Store
 Thumbs.db
+
+# The screenshot bundle is an intermediate: the images it produces are what the
+# site serves, and they are committed. Rebuilding it is one command.
+frontend/screenshots/dist/

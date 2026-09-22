@@ -1,0 +1,70 @@
+/**
+ * Serve docs/ the way GitHub Pages does, for looking at the site before pushing
+ * it.
+ *
+ *   node tools/serve-site.mjs [port]
+ *
+ * Pages resolves /foo to /foo.html and a directory to its index.html, and
+ * `file://` does neither — nor does it allow the demo's module imports. Hence a
+ * server rather than opening the file.
+ */
+
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { join, extname, normalize, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs');
+const port = Number(process.argv[2] || 8080);
+
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.woff2': 'font/woff2',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
+};
+
+async function serve(urlPath) {
+  // normalize() collapses "..", so a request cannot climb out of docs/.
+  const rel = normalize(decodeURIComponent(urlPath.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
+  const candidates = [join(root, rel)];
+  if (!extname(rel)) {
+    candidates.push(join(root, `${rel}.html`), join(root, rel, 'index.html'));
+  }
+  for (const p of candidates) {
+    try {
+      // Opened rather than tested-then-opened. Asking whether a path is a file
+      // and then reading it is two operations on something that can change in
+      // between, and the answer buys nothing a failed read does not already
+      // give: a directory raises EISDIR and a missing file ENOENT, both of
+      // which mean "try the next shape". Handing back the bytes with the path
+      // is what keeps it to one operation — returning a path for the caller to
+      // open would put the gap straight back.
+      return { path: p, body: await readFile(p) };
+    } catch { /* try the next shape */ }
+  }
+  return null;
+}
+
+createServer(async (req, res) => {
+  const hit = await serve(req.url || '/');
+  if (!hit) {
+    const notFound = await serve('/404.html');
+    res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(notFound ? notFound.body : 'Not found');
+    return;
+  }
+  res.writeHead(200, { 'content-type': TYPES[extname(hit.path)] || 'application/octet-stream' });
+  res.end(hit.body);
+}).listen(port, () => {
+  console.log(`docs/ on http://localhost:${port}/  (demo at /demo/)`);
+});
