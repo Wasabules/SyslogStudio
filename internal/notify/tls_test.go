@@ -305,10 +305,31 @@ func TestSyslogSink_MutualTLS_RejectsClientFromAnotherCA(t *testing.T) {
 		t.Fatalf("collector completed a handshake with %q", peers[0])
 	}
 
-	// A second attempt must fail, so the operator sees it in the delivery log
-	// instead of losing messages silently.
-	if firstErr == nil && sink.Send(rendered) == nil {
-		t.Fatal("a rejected client kept reporting success")
+	// The failure must also become visible to the operator rather than the sink
+	// reporting success forever into a socket nobody reads.
+	//
+	// This is an eventual property, not an immediate one: writes land in the
+	// kernel buffer, so how many succeed before the peer's reset is noticed is
+	// a matter of the platform's TCP stack — two is enough on Linux and
+	// Windows, not always on macOS. So poll for it instead of assuming a count.
+	if firstErr == nil {
+		visible := false
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); {
+			if sink.Send(rendered) != nil {
+				visible = true
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		if !visible {
+			t.Fatal("a rejected client kept reporting success, so the loss would go unnoticed")
+		}
+	}
+
+	// Whatever happened client-side, the collector must still have stored none
+	// of it.
+	if lines, _, _ := c.snapshot(); len(lines) > 0 {
+		t.Fatalf("collector recorded %q from a rejected client", lines[0])
 	}
 }
 
