@@ -98,11 +98,112 @@
         } catch { /* the operator cancelled the dialog */ }
     }
 
+    // The backend dials a "host:port" string, which is the right shape for a
+    // dialler and the wrong one for a form. Split on the way in, joined on the
+    // way out, IPv6 literals included.
+    let sinkHost = '';
+    let sinkPort = '';
+
+    function splitAddress(addr: string): [string, string] {
+        const at = (addr ?? '').trim();
+        if (!at) return ['', ''];
+        const colon = at.lastIndexOf(':');
+        // No colon at all, or the colon belongs to an unbracketed IPv6 literal.
+        if (colon < 0 || (at.indexOf(':') !== colon && !at.startsWith('['))) return [at, ''];
+        return [at.slice(0, colon).replace(/^\[|\]$/g, ''), at.slice(colon + 1)];
+    }
+
+    function joinAddress(host: string, port: string): string {
+        const h = (host ?? '').trim();
+        const pt = (port ?? '').toString().trim();
+        if (!h && !pt) return '';
+        // An IPv6 literal must be bracketed or the port cannot be told apart
+        // from the address itself.
+        const bracketed = h.includes(':') && !h.startsWith('[') ? '[' + h + ']' : h;
+        return bracketed + ':' + pt;
+    }
+
+    $: if (editingSink && editingSink.kind === 'syslog') {
+        editingSink.syslog.address = joinAddress(sinkHost, sinkPort);
+    }
+
+    // TLS and mutual TLS differ by whether a client certificate is required,
+    // so the mode decides which fields appear rather than showing every field
+    // at once and leaving the operator to guess which matter.
+    type TlsMode = 'none' | 'tls' | 'mtls';
+    let tlsMode: TlsMode = 'none';
+
+    function applyTlsMode(mode: TlsMode) {
+        tlsMode = mode;
+        if (!editingSink || mode === 'mtls') return;
+        // A half-configured pair left behind would be refused on save with an
+        // error about a field that is no longer on screen.
+        if (editingSink.kind === 'syslog') {
+            editingSink.syslog.clientCertFile = '';
+            editingSink.syslog.clientKeyFile = '';
+        } else if (editingSink.kind === 'email') {
+            editingSink.email.tls.clientCertFile = '';
+            editingSink.email.tls.clientKeyFile = '';
+        }
+    }
+
+    // Anonymous is a real choice, not an empty field somebody forgot: a relay
+    // on a trusted network commonly takes no credential at all.
+    let emailAuth: 'none' | 'password' = 'none';
+
+    function applyEmailAuth(mode: 'none' | 'password') {
+        emailAuth = mode;
+        if (!editingSink) return;
+        if (mode === 'none') {
+            editingSink.email.username = '';
+            editingSink.secret = '';
+        }
+    }
+
+    // Go omits an empty nested struct entirely, so a saved destination comes
+    // back without `template`, without `email.tls`, and without any field left
+    // at its zero value. Reading those straight into the form throws on the
+    // first `.subject`. Filling the gaps from a fresh template once, here,
+    // spares every field in the form from having to guard itself.
+    function withDefaults(s: NotifySink): NotifySink {
+        const base = newSink(s.kind) as any;
+        const merge = (into: any, from: any) => {
+            if (!from) return into;
+            for (const k of Object.keys(from)) {
+                const v = from[k];
+                if (v && typeof v === 'object' && !Array.isArray(v) && into[k] && typeof into[k] === 'object') {
+                    merge(into[k], v);
+                } else if (v !== undefined && v !== null) {
+                    into[k] = v;
+                }
+            }
+            return into;
+        };
+        return merge(base, s) as NotifySink;
+    }
+
     function editSink(s: NotifySink | null, kind = 'syslog') {
         // Cloned, so cancelling an edit does not leave the list showing changes
         // that were never saved.
-        editingSink = s ? JSON.parse(JSON.stringify(s)) : newSink(kind);
-        if (editingSink) editingSink.secret = '';
+        editingSink = s ? withDefaults(JSON.parse(JSON.stringify(s))) : newSink(kind);
+        if (!editingSink) return;
+        editingSink.secret = '';
+
+        const parts = splitAddress(editingSink.syslog ? editingSink.syslog.address : '');
+        sinkHost = parts[0];
+        sinkPort = parts[1];
+
+        if (editingSink.kind === 'email') {
+            tlsMode = editingSink.email.encryption === 'none'
+                ? 'none'
+                : (editingSink.email.tls.clientCertFile ? 'mtls' : 'tls');
+        } else {
+            tlsMode = editingSink.syslog && editingSink.syslog.protocol === 'tls'
+                ? (editingSink.syslog.clientCertFile ? 'mtls' : 'tls')
+                : 'none';
+        }
+        emailAuth = (editingSink.email && editingSink.email.username) || editingSink.hasSecret
+            ? 'password' : 'none';
     }
 
     async function persistSink() {
@@ -351,11 +452,18 @@
                 <input id="sk-enabled" type="checkbox" bind:checked={editingSink.enabled} />
 
                 {#if editingSink.kind === 'syslog'}
-                    <label for="sk-addr">{$_('notify.address')}</label>
-                    <input id="sk-addr" type="text" bind:value={editingSink.syslog.address} placeholder="10.0.0.9:514" />
+                    <label for="sk-host">{$_('notify.host')} *</label>
+                    <input id="sk-host" type="text" bind:value={sinkHost} placeholder="10.0.0.9" />
+
+                    <label for="sk-port">{$_('notify.port')} *</label>
+                    <input id="sk-port" class="nf-narrow" type="number" min="1" max="65535"
+                           bind:value={sinkPort} placeholder="514" />
 
                     <label for="sk-proto">{$_('notify.protocol')}</label>
-                    <select id="sk-proto" bind:value={editingSink.syslog.protocol}>
+                    <select id="sk-proto" bind:value={editingSink.syslog.protocol}
+                            on:change={() => applyTlsMode(
+                                editingSink && editingSink.syslog.protocol === 'tls'
+                                    ? (tlsMode === 'none' ? 'tls' : tlsMode) : 'none')}>
                         {#each PROTOCOLS as p}<option value={p}>{p.toUpperCase()}</option>{/each}
                     </select>
 
@@ -366,32 +474,44 @@
                     <input id="sk-origin" type="checkbox" bind:checked={editingSink.syslog.preserveOrigin} />
 
                     {#if editingSink.syslog.protocol === 'tls'}
-                        <label for="sk-ca">{$_('notify.caFile')}</label>
+                        <label for="sk-tlsmode">{$_('notify.security')}</label>
+                        <select id="sk-tlsmode" value={tlsMode}
+                                on:change={e => applyTlsMode((e.currentTarget as HTMLSelectElement).value as TlsMode)}>
+                            <option value="tls">{$_('notify.securityTls')}</option>
+                            <option value="mtls">{$_('notify.securityMtls')}</option>
+                        </select>
+
+                        <label for="sk-ca">{$_('notify.caFile')} <span class="nf-optional">{$_('notify.optional')}</span></label>
                         <div class="nf-file">
-                            <input id="sk-ca" type="text" bind:value={editingSink.syslog.caFile} />
+                            <input id="sk-ca" type="text" bind:value={editingSink.syslog.caFile}
+                                   placeholder={$_('notify.caFilePlaceholder')} />
                             <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.syslog.caFile = p))}>{$_('tls.browse')}</button>
                         </div>
 
-                        <label for="sk-ccert">{$_('notify.clientCert')}</label>
-                        <div class="nf-file">
-                            <input id="sk-ccert" type="text" bind:value={editingSink.syslog.clientCertFile} />
-                            <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.syslog.clientCertFile = p))}>{$_('tls.browse')}</button>
-                        </div>
+                        {#if tlsMode === 'mtls'}
+                            <label for="sk-ccert">{$_('notify.clientCert')} *</label>
+                            <div class="nf-file">
+                                <input id="sk-ccert" type="text" bind:value={editingSink.syslog.clientCertFile} />
+                                <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.syslog.clientCertFile = p))}>{$_('tls.browse')}</button>
+                            </div>
 
-                        <label for="sk-ckey">{$_('notify.clientKey')}</label>
-                        <div class="nf-file">
-                            <input id="sk-ckey" type="text" bind:value={editingSink.syslog.clientKeyFile} />
-                            <button class="nf-btn small" on:click={() => browse('key', p => editingSink && (editingSink.syslog.clientKeyFile = p))}>{$_('tls.browse')}</button>
-                        </div>
+                            <label for="sk-ckey">{$_('notify.clientKey')} *</label>
+                            <div class="nf-file">
+                                <input id="sk-ckey" type="text" bind:value={editingSink.syslog.clientKeyFile} />
+                                <button class="nf-btn small" on:click={() => browse('key', p => editingSink && (editingSink.syslog.clientKeyFile = p))}>{$_('tls.browse')}</button>
+                            </div>
+                        {/if}
 
                         <label for="sk-skip">{$_('notify.skipVerify')}</label>
                         <input id="sk-skip" type="checkbox" bind:checked={editingSink.syslog.insecureSkipVerify} />
 
                         <span></span>
-                        <span class="nf-hint">{$_('notify.mtlsHint')}</span>
+                        <span class="nf-hint">
+                            {tlsMode === 'mtls' ? $_('notify.securityMtlsHint') : $_('notify.securityTlsHint')}
+                        </span>
                     {/if}
                 {:else if editingSink.kind === 'webhook'}
-                    <label for="sk-url">URL</label>
+                    <label for="sk-url">URL *</label>
                     <input id="sk-url" type="text" bind:value={editingSink.webhook.url} placeholder="https://hooks.example.com/..." />
 
                     <label for="sk-mode">{$_('notify.payloadMode')}</label>
@@ -404,53 +524,84 @@
                     <input id="sk-token" type="password" bind:value={editingSink.secret}
                            placeholder={editingSink.hasSecret ? $_('notify.credentialSet') : ''} />
                 {:else}
-                    <label for="sk-host">{$_('notify.smtpHost')}</label>
-                    <input id="sk-host" type="text" bind:value={editingSink.email.host} />
+                    <label for="sk-host">{$_('notify.smtpHost')} *</label>
+                    <input id="sk-host" type="text" bind:value={editingSink.email.host} placeholder="smtp.example.com" />
 
-                    <label for="sk-port">{$_('notify.port')}</label>
-                    <input id="sk-port" type="number" min="1" max="65535" bind:value={editingSink.email.port} />
+                    <label for="sk-port">{$_('notify.port')} *</label>
+                    <input id="sk-port" class="nf-narrow" type="number" min="1" max="65535"
+                           bind:value={editingSink.email.port} />
 
                     <label for="sk-enc">{$_('notify.encryption')}</label>
-                    <select id="sk-enc" bind:value={editingSink.email.encryption}>
+                    <select id="sk-enc" bind:value={editingSink.email.encryption}
+                            on:change={() => applyTlsMode(
+                                editingSink && editingSink.email.encryption === 'none'
+                                    ? 'none' : (tlsMode === 'none' ? 'tls' : tlsMode))}>
                         {#each ENCRYPTIONS as e}<option value={e}>{e}</option>{/each}
                     </select>
 
-                    <label for="sk-user">{$_('notify.username')}</label>
-                    <input id="sk-user" type="text" bind:value={editingSink.email.username} />
+                    <label for="sk-auth">{$_('notify.auth')}</label>
+                    <select id="sk-auth" value={emailAuth}
+                            on:change={e => applyEmailAuth((e.currentTarget as HTMLSelectElement).value as 'none' | 'password')}>
+                        <option value="none">{$_('notify.authNone')}</option>
+                        <option value="password">{$_('notify.authPassword')}</option>
+                    </select>
 
-                    <label for="sk-pass">{$_('notify.password')}</label>
-                    <input id="sk-pass" type="password" bind:value={editingSink.secret}
-                           placeholder={editingSink.hasSecret ? $_('notify.credentialSet') : ''} />
+                    {#if emailAuth === 'password'}
+                        <label for="sk-user">{$_('notify.username')} *</label>
+                        <input id="sk-user" type="text" bind:value={editingSink.email.username} />
 
-                    <label for="sk-from">{$_('notify.from')}</label>
+                        <label for="sk-pass">{$_('notify.password')} *</label>
+                        <input id="sk-pass" type="password" bind:value={editingSink.secret}
+                               placeholder={editingSink.hasSecret ? $_('notify.credentialSet') : ''} />
+                    {:else}
+                        <span></span>
+                        <span class="nf-hint">{$_('notify.authNoneHint')}</span>
+                    {/if}
+
+                    <label for="sk-from">{$_('notify.from')} *</label>
                     <input id="sk-from" type="text" bind:value={editingSink.email.from} />
 
-                    <label for="sk-to">{$_('notify.to')}</label>
+                    <label for="sk-to">{$_('notify.to')} *</label>
                     <input id="sk-to" type="text" value={fromList(editingSink.email.to)}
                            on:input={e => editingSink && (editingSink.email.to = toList((e.target as HTMLInputElement).value))}
                            placeholder="ops@example.com, oncall@example.com" />
 
                     {#if editingSink.email.encryption !== 'none'}
-                        <label for="sk-eca">{$_('notify.caFile')}</label>
+                        <label for="sk-etlsmode">{$_('notify.security')}</label>
+                        <select id="sk-etlsmode" value={tlsMode}
+                                on:change={e => applyTlsMode((e.currentTarget as HTMLSelectElement).value as TlsMode)}>
+                            <option value="tls">{$_('notify.securityTls')}</option>
+                            <option value="mtls">{$_('notify.securityMtls')}</option>
+                        </select>
+
+                        <label for="sk-eca">{$_('notify.caFile')} <span class="nf-optional">{$_('notify.optional')}</span></label>
                         <div class="nf-file">
-                            <input id="sk-eca" type="text" bind:value={editingSink.email.tls.caFile} />
+                            <input id="sk-eca" type="text" bind:value={editingSink.email.tls.caFile}
+                                   placeholder={$_('notify.caFilePlaceholder')} />
                             <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.email.tls.caFile = p))}>{$_('tls.browse')}</button>
                         </div>
 
-                        <label for="sk-ecc">{$_('notify.clientCert')}</label>
-                        <div class="nf-file">
-                            <input id="sk-ecc" type="text" bind:value={editingSink.email.tls.clientCertFile} />
-                            <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.email.tls.clientCertFile = p))}>{$_('tls.browse')}</button>
-                        </div>
+                        {#if tlsMode === 'mtls'}
+                            <label for="sk-ecc">{$_('notify.clientCert')} *</label>
+                            <div class="nf-file">
+                                <input id="sk-ecc" type="text" bind:value={editingSink.email.tls.clientCertFile} />
+                                <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.email.tls.clientCertFile = p))}>{$_('tls.browse')}</button>
+                            </div>
 
-                        <label for="sk-eck">{$_('notify.clientKey')}</label>
-                        <div class="nf-file">
-                            <input id="sk-eck" type="text" bind:value={editingSink.email.tls.clientKeyFile} />
-                            <button class="nf-btn small" on:click={() => browse('key', p => editingSink && (editingSink.email.tls.clientKeyFile = p))}>{$_('tls.browse')}</button>
-                        </div>
+                            <label for="sk-eck">{$_('notify.clientKey')} *</label>
+                            <div class="nf-file">
+                                <input id="sk-eck" type="text" bind:value={editingSink.email.tls.clientKeyFile} />
+                                <button class="nf-btn small" on:click={() => browse('key', p => editingSink && (editingSink.email.tls.clientKeyFile = p))}>{$_('tls.browse')}</button>
+                            </div>
+                        {/if}
 
                         <label for="sk-eskip">{$_('notify.skipVerify')}</label>
                         <input id="sk-eskip" type="checkbox" bind:checked={editingSink.email.tls.insecureSkipVerify} />
+
+                        <span></span>
+                        <span class="nf-hint">
+                            {tlsMode === 'mtls' ? $_('notify.securityMtlsHint') : $_('notify.securityTlsHint')}
+                        </span>
                     {/if}
 
                     <label for="sk-fmt">{$_('notify.format')}</label>
@@ -576,6 +727,9 @@
     .nf-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
     .nf-header h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
     .nf-subtitle { font-size: 11px; color: var(--text-secondary); }
+
+    .nf-narrow { max-width: 110px; }
+    .nf-optional { color: var(--text-secondary); font-weight: 400; font-size: 10px; }
 
     .nf-badge.danger { color: var(--error, #f87171); border-color: var(--error, #f87171); }
 
