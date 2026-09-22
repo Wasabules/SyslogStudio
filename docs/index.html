@@ -155,6 +155,43 @@ try {
     </figure>
   </section>
 
+
+  <!-- ================= REPO STATS ================= -->
+  <!-- Read from the GitHub API at load, never written here: a number typed
+       into a page is wrong the day after it is typed. Every figure has a
+       fallback in the markup, so a reader with scripts blocked, or a rate
+       limit, sees an em dash rather than an empty row. -->
+  <section class="wrap" style="padding-bottom:3rem">
+    <dl class="repo-stats" data-gh="stats">
+      <div>
+        <dt>Stars</dt>
+        <dd><span class="skeleton" data-stat="stars" data-fallback="&mdash;">&mdash;</span></dd>
+      </div>
+      <div>
+        <dt>Forks</dt>
+        <dd><span class="skeleton" data-stat="forks" data-fallback="&mdash;">&mdash;</span></dd>
+      </div>
+      <div>
+        <dt>Downloads</dt>
+        <dd><span class="skeleton" data-stat="downloads" data-fallback="&mdash;">&mdash;</span></dd>
+      </div>
+      <div>
+        <dt>Open issues</dt>
+        <dd><span class="skeleton" data-stat="issues" data-fallback="&mdash;">&mdash;</span></dd>
+      </div>
+      <div>
+        <dt>Last commit</dt>
+        <dd style="font-size:1rem"><span class="skeleton" data-stat="updated" data-fallback="see GitHub">see GitHub</span></dd>
+      </div>
+      <div>
+        <dt>Latest release</dt>
+        <dd style="font-size:1rem" data-gh="release">
+          <a data-release="link" href="https://github.com/Wasabules/SyslogStudio/releases/latest"><span class="skeleton" data-release="tag" data-fallback="Releases">Releases</span></a>
+        </dd>
+      </div>
+    </dl>
+  </section>
+
   <!-- ================= WHAT IT IS ================= -->
   <section class="section">
     <div class="wrap">
@@ -407,5 +444,6 @@ try {
 </footer>
 
 <script src="assets/site.js" defer></script>
+<script src="assets/github.js" defer></script>
 </body>
 </html>

@@ -69,17 +69,22 @@ try {
         set their ports, choose an interface, and press <strong>Start</strong>.
       </p>
       <ul>
-        <li><strong>UDP</strong> — what almost every device speaks. Port 514 by default.</li>
-        <li><strong>TCP</strong> — no message loss and no size limit. Port 601 by convention.</li>
-        <li><strong>TLS</strong> — TCP with the transport encrypted. Port 6514.</li>
+        <li><strong>UDP</strong> — what almost every device speaks. The syslog standard is
+          port 514.</li>
+        <li><strong>TCP</strong> — no message loss and no size limit. 514, or 601 by
+          convention.</li>
+        <li><strong>TLS</strong> — TCP with the transport encrypted. 6514.</li>
       </ul>
       <p>
-        On Unix, a port below 1024 needs privilege. Rather than running the whole
-        application as root, grant the binary the one capability it needs:
+        The application starts on <strong>1514, 1514 and 6514</strong> rather than the
+        standard numbers, so a first run binds without elevation on Linux and macOS, where
+        anything below 1024 needs privilege. Set the standard ports whenever you want them;
+        on Unix, rather than running the whole application as root, grant the binary the one
+        capability it needs:
       </p>
       <pre><code>sudo setcap 'cap_net_bind_service=+ep' /usr/bin/syslogstudio</code></pre>
       <p>
-        Or listen on 1514 and point your devices there — nothing in syslog requires 514.
+        Or stay on 1514 and point your devices there — nothing in syslog requires 514.
       </p>
 
       <h3>Restricting who may send</h3>
@@ -103,7 +108,7 @@ logging host 192.0.2.10 transport udp port 514
 logging trap informational
 
 # A quick test from any Unix box
-logger -n 192.0.2.10 -P 514 -d "hello from $(hostname)"</code></pre>
+logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
     </div>
   </section>
 

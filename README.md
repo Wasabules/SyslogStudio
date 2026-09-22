@@ -4,250 +4,332 @@
   <img src="logo.png" alt="SyslogStudio" width="128" />
 </p>
 
-A lightweight, cross-platform desktop application for receiving and analyzing syslog messages in real time. Built with [Wails](https://wails.io/) (Go + Svelte).
+<p align="center">
+  A syslog server, log viewer and alert router in one native binary.<br />
+  Built with <a href="https://wails.io/">Wails</a> — Go and Svelte.
+</p>
+
+<p align="center">
+  <a href="http://geoffrey-lecoq.fr/SyslogStudio/"><b>Website</b></a> ·
+  <a href="http://geoffrey-lecoq.fr/SyslogStudio/demo.html"><b>Try it in your browser</b></a> ·
+  <a href="http://geoffrey-lecoq.fr/SyslogStudio/download.html"><b>Download</b></a> ·
+  <a href="http://geoffrey-lecoq.fr/SyslogStudio/documentation.html"><b>Documentation</b></a>
+</p>
 
 <p align="center">
   <a href="https://github.com/Wasabules/SyslogStudio/actions/workflows/ci.yml"><img src="https://github.com/Wasabules/SyslogStudio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/Wasabules/SyslogStudio/releases/latest"><img src="https://img.shields.io/github/v/release/Wasabules/SyslogStudio?include_prereleases&label=release" alt="Release"></a>
+  <a href="https://github.com/Wasabules/SyslogStudio/releases"><img src="https://img.shields.io/github/downloads/Wasabules/SyslogStudio/total?label=downloads" alt="Downloads"></a>
   <a href="https://github.com/Wasabules/SyslogStudio/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Wasabules/SyslogStudio" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue" alt="Platform">
-  <img src="https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white" alt="Go">
-  <img src="https://img.shields.io/badge/Svelte-3-FF3E00?logo=svelte&logoColor=white" alt="Svelte">
+  <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white" alt="Svelte">
 </p>
+
+Point your switches, firewalls and servers at it and read what they say. Receive over
+UDP, TCP or TLS, search months of history in a local database, raise alerts on the lines
+that matter, and relay those lines on to another collector, a webhook or your inbox.
+No agent, no account, no service to stand up.
+
+> **Try it without installing anything.** The
+> [browser demo](http://geoffrey-lecoq.fr/SyslogStudio/demo.html) is the real application
+> running on sample data, with the Go backend replaced by fixtures. Every screenshot below
+> comes from that same bundle, so none of them can show an interface the product does not
+> actually produce.
+
+---
 
 ## Screenshots
 
-### Live Log Viewer
-> Real-time message reception with severity badges, sortable columns, and auto-scroll.
+### Live log viewer
 
-<!-- Replace with actual screenshot: capture the main window with logs flowing in -->
-<p align="center">
-  <img src="docs/screenshots/live-viewer.png" alt="Live log viewer" width="900" />
-</p>
+Messages as they arrive, with severity badges, sortable columns, filtering and group-by.
 
-### Filtering & Regex Search
-> Filter by severity, hostname, app, source IP, date range, and regex patterns.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/live-dark.png" />
+  <img src="docs/assets/img/live-light.png" alt="The log viewer: severity badges, timestamp, protocol, source, host, application and message, with a filter bar above." width="900" />
+</picture>
 
-<!-- Replace with actual screenshot: show the filter bar with active filters and filtered results -->
-<p align="center">
-  <img src="docs/screenshots/filtering.png" alt="Filtering and regex search" width="900" />
-</p>
+### Routing and notifications
 
-### Group By
-> Organize messages by severity, hostname, app, or source IP with expandable groups and color-coded headers.
+Rules decide which messages are interesting; destinations decide where they go — another
+syslog collector, a webhook, or e-mail.
 
-<!-- Replace with actual screenshot: show grouped view with some groups expanded -->
-<p align="center">
-  <img src="docs/screenshots/group-by.png" alt="Group by severity" width="900" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/routing-dark.png" />
+  <img src="docs/assets/img/routing-light.png" alt="The routing tab: three destinations and the rules that feed them, with a delivery log underneath." width="900" />
+</picture>
 
-### History Mode
-> Browse stored logs from the SQLite database with pagination, even after restarting the app.
+### Statistics
 
-<!-- Replace with actual screenshot: show history mode with pagination controls visible -->
-<p align="center">
-  <img src="docs/screenshots/history-mode.png" alt="History mode with pagination" width="900" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/dashboard-dark.png" />
+  <img src="docs/assets/img/dashboard-light.png" alt="Total messages, messages per second, buffer use, a breakdown by severity and the top sources." width="900" />
+</picture>
 
-### Alert System
-> Configure alert rules with pattern matching, severity thresholds, and cooldown. Receive system notifications when rules trigger.
+### Alerts
 
-<!-- Replace with actual screenshot: show the alerts view with rules and alert history -->
-<p align="center">
-  <img src="docs/screenshots/alerts.png" alt="Alert rules and history" width="900" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/alerts-dark.png" />
+  <img src="docs/assets/img/alerts-light.png" alt="Alert rules with their patterns and severity thresholds, and the events they caught." width="900" />
+</picture>
 
-### Statistics Dashboard
-> Monitor message rates, severity distribution, top sources, and buffer usage at a glance.
+### Anonymous mode
 
-<!-- Replace with actual screenshot: show the dashboard with charts populated -->
-<p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="Statistics dashboard" width="900" />
-</p>
+Hostnames, addresses and user names replaced by stable stand-ins, so a screenshot can go
+in a ticket without going through a redaction tool first.
 
-### TLS / PKI Assistant
-> Generate CA and server certificates directly from the UI. No command-line tools required.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/anonymous-dark.png" />
+  <img src="docs/assets/img/anonymous-light.png" alt="The same log viewer with anonymous mode on: identifying values replaced by stable stand-ins." width="900" />
+</picture>
 
-<!-- Replace with actual screenshot: show the TLS config modal with PKI assistant steps -->
-<p align="center">
-  <img src="docs/screenshots/tls-assistant.png" alt="TLS PKI Assistant" width="600" />
-</p>
+### Built-in traffic generator
 
-### Settings
-> Configure theme, language, storage retention, and database management.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/simulator-dark.png" />
+  <img src="docs/assets/img/simulator-light.png" alt="The simulator tab: destinations with host and port, a mode, a profile and a rate." width="900" />
+</picture>
 
-<!-- Replace with actual screenshot: show the settings modal on the Storage tab -->
-<p align="center">
-  <img src="docs/screenshots/settings.png" alt="Settings panel" width="600" />
-</p>
-
-### Light Theme
-> Full light theme support with a single click.
-
-<!-- Replace with actual screenshot: show the app in light theme with logs -->
-<p align="center">
-  <img src="docs/screenshots/light-theme.png" alt="Light theme" width="900" />
-</p>
+---
 
 ## Features
 
-- **Multi-protocol syslog server** — UDP, TCP, and TLS (RFC 5424 & RFC 3164)
-- **Real-time log viewer** — virtualized list with auto-scroll, sortable columns, and group-by (severity, hostname, app, source IP)
-- **Advanced filtering** — severity, facility, hostname, app name, source IP, date range, and 3 search modes (see below)
-- **Log persistence** — SQLite database with configurable retention (by age, count, or size). Browse historical logs with pagination even after restart
-- **Database encryption** — AES-256-GCM at-rest encryption with Argon2id key derivation. Database is encrypted on exit and decrypted on launch with a user password. Brute-force protection (5 attempts then lockout). Progress reporting for large databases
-- **Alert system** — configurable rules (pattern, severity threshold, hostname/app filter, cooldown) with system notifications
-- **TLS / PKI assistant** — generate CA and server certificates from the UI, mutual TLS support, certificate export
-- **Statistics dashboard** — message rates, severity distribution, top sources, buffer usage
-- **Log export** — CSV and plain text formats
-- **Settings panel** — theme, language, storage retention policy, database management (compact, clear), encryption toggle, size estimations
-- **Light & dark themes** — persisted across sessions
-- **8 languages** — English, French, German, Spanish, Portuguese, Italian, Japanese, Chinese
-- **Full persistence** — server config, alert rules, and logs saved across restarts
-- **Cross-platform** — Windows (portable + NSIS installer), macOS (universal .app + .dmg), Linux (portable + .deb)
-- **Auto-update check** — notifies when a new version is available on GitHub
-- **Memory-efficient** — in-memory ring buffer for live view, SQLite for history, bounded worker pool, async FTS indexing
+### Receiving
 
-### Search Modes
+- **UDP, TCP and TLS** listeners, any port, bound to one interface or all of them
+- **RFC 5424 with an RFC 3164 fallback**, on every transport — the switch that has not been
+  updated since 2009 still parses
+- **Mutual TLS** where senders must prove who they are
+- **Allowed sources** by IP literal or CIDR (hygiene, not authentication — see the note below)
+- **Per-IP connection cap** so one host cannot occupy every slot
 
-The search bar supports 3 modes, toggled by clicking the mode button:
+### Reading
 
-| Mode | Button | Speed | Syntax | Example |
-|------|--------|-------|--------|---------|
-| **Text** | `Aa` | Instant | Simple substring match | `connection refused` |
-| **FTS** | `FTS` | Instant | SQLite FTS5 full-text search | `error OR fail OR timeout` |
-| **Regex** | `.*` | Slower | Go regular expressions | `(error\|fail)\s+.*timeout` |
+- **Live view** — an in-memory ring buffer of the last 10 000 messages, updating as they arrive
+- **History** — server-side paginated queries over the database, as far back as your retention
+- **Three search modes** — substring, SQLite FTS5 full-text, and Go regular expressions
+- **Filter, sort and group** by severity, facility, host, application, source IP or time range
+- **Explicit timezones** — follow the machine, pin to UTC, or name a zone; the column header
+  says which one it is showing
+- **Export** as CSV or plain text
 
-**FTS syntax reference:**
-- `error` — single word
-- `error fail` — both words (AND)
-- `error OR fail` — either word
-- `error NOT debug` — exclude word
-- `"connection refused"` — exact phrase
-- `err*` — prefix wildcard
-- `NEAR(error timeout, 5)` — words within 5 tokens
+### Keeping
 
-## Quick Start
+- **SQLite persistence** with retention by age, count and size, cleaned in the background
+- **At-rest encryption** — AES-256-GCM with Argon2id key derivation, the password held in
+  memory only
+- **Brute-force protection** that survives a restart, so a stolen laptop cannot be
+  brute-forced by relaunching the application
 
-### Prerequisites
+### Noticing
 
-- [Go](https://go.dev/dl/) 1.23+
-- [Node.js](https://nodejs.org/) 18+
-- [Wails CLI](https://wails.io/docs/gettingstarted/installation) v2
+- **Alert rules** on a substring or regular expression, a severity floor, a host or an
+  application, with a cooldown so one flapping port is not four hundred notifications
+- **Desktop notifications** and an alert history
+
+### Forwarding
+
+- **Rule-based routing** of *every* received message, not only the ones that trip an alert —
+  which is what makes relaying a whole stream possible
+- **Three destination kinds** — syslog (UDP/TCP/TLS, keeping the origin hostname), webhook
+  (JSON envelope or your own template), and e-mail (STARTTLS, implicit TLS or none;
+  authenticated or anonymous)
+- **Mutual TLS** for syslog and e-mail destinations, each with its own trust anchor
+- **Write-only credentials bound to their destination** — moving a webhook to another host
+  drops the stored token rather than following it there
+- **Loop detection** — a destination aimed at this application's own listener is refused, and
+  a message already relayed is not relayed again
+- **Rate breaker** — a destination flooded with repeating content is cut off, disabled and
+  reported, rather than quietly filling a disk
+
+### The rest
+
+- **Built-in traffic generator** to prove the chain works before a device is pointed at it
+- **Anonymous mode** masking hosts, addresses, MACs, e-mails and user names with stable
+  stand-ins from the documentation ranges (RFC 5737, RFC 3849)
+- **TLS/PKI assistant** — generate a CA and server certificates from the interface
+- **Light and dark themes**, persisted
+- **Eight languages** — English, French, German, Spanish, Portuguese, Italian, Japanese, Chinese
+- **Signed releases** with SLSA build provenance and an in-application updater that verifies
+  it before replacing anything
+
+### Search syntax
+
+| Mode | Button | Syntax | Example |
+|------|--------|--------|---------|
+| Text | `Aa` | substring | `connection refused` |
+| FTS | `FTS` | SQLite FTS5 | `error OR fail OR timeout` |
+| Regex | `.*` | Go regular expressions | `(error\|fail)\s+.*timeout` |
+
+FTS accepts `error fail` (both), `error OR fail`, `error NOT debug`,
+`"connection refused"` (phrase), `err*` (prefix) and `NEAR(error timeout, 5)`.
+
+---
+
+## Install
+
+Download a build from the [releases page](https://github.com/Wasabules/SyslogStudio/releases/latest)
+or the [download page](http://geoffrey-lecoq.fr/SyslogStudio/download.html). One executable,
+no runtime to install.
+
+| Platform | Files |
+|---|---|
+| Windows | NSIS installer, or portable `.zip` |
+| macOS | universal `.dmg` or `.zip` (Apple Silicon and Intel) |
+| Linux | `.deb`, or portable `.tar.gz` — needs GTK 3 and WebKit2GTK |
+
+Verify what you downloaded:
 
 ```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+gh attestation verify SyslogStudio-windows-amd64.zip --repo Wasabules/SyslogStudio
 ```
 
-### Development
+### Default ports
+
+| Protocol | Default | Standard |
+|----------|---------|----------|
+| UDP | 1514 | 514 |
+| TCP | 1514 | 514 or 601 |
+| TLS | 6514 | 6514 |
+
+The defaults are deliberately above 1024 so the first run binds without elevation on Linux
+and macOS. To use 514 there, either run with privilege or grant the binary the one
+capability it needs:
 
 ```bash
-# Install frontend dependencies
-cd frontend && npm install && cd ..
-
-# Run in development mode (hot reload)
-wails dev
+sudo setcap 'cap_net_bind_service=+ep' /usr/bin/syslogstudio
 ```
 
-The app opens in a native window. A dev server is also available at `http://localhost:34115` for browser-based development with access to Go methods.
-
-### Build
-
-```bash
-wails build
-```
-
-Produces `build/bin/SyslogStudio.exe` (Windows) or the corresponding binary for your platform.
-
-To set the version for auto-update:
-
-```bash
-wails build -ldflags "-X main.AppVersion=v1.0.0"
-```
+---
 
 ## Usage
 
-1. **Configure protocols** — enable UDP, TCP, and/or TLS with desired port numbers
-2. **TLS setup** (optional) — click "TLS Config" to generate a CA + server certificate, or load your own
-3. **Start the server** — click Start; active listeners appear as badges (e.g., `UDP:514`)
-4. **View logs** — messages appear in real time (Live mode); switch to History mode to browse stored logs with pagination
-5. **Sort & group** — click column headers to sort (asc/desc); use the group-by dropdown to organize by severity, hostname, app, or source IP
-6. **Filter** — use the filter bar to narrow by severity, hostname, source IP, date range, or regex
-7. **Alerts** — configure alert rules to get notified when specific patterns or severities are detected
-8. **Settings** — configure retention policy (days, max messages, max DB size), theme, language
-9. **Encryption** (optional) — enable at-rest encryption in Settings > Storage to protect stored logs with a password
-9. **Export** — export filtered logs as CSV or TXT
+1. **Choose the transports** in the bar across the top, set their ports, and press **Start**
+2. **Point a device at it** — `logger -n <host> -P 1514 -d "hello"` is the quickest test
+3. **Read** — Live for what is arriving, History for what is stored; filter, sort, group,
+   and click a row for every parsed field and the raw frame
+4. **Alerts** — write rules for the lines you must not miss, with a cooldown
+5. **Routing** — add a destination, then a rule that feeds it
+6. **Settings** — retention, encryption, timezone, theme, language
 
-### Testing with the Generator
+The [documentation](http://geoffrey-lecoq.fr/SyslogStudio/documentation.html) walks through
+each of these, and everything except receiving can be tried in the
+[demo](http://geoffrey-lecoq.fr/SyslogStudio/demo.html).
 
-A Python test generator is included (no dependencies, Python 3.7+):
+> **On UDP and trust.** A UDP source address is trivially forged. The allowed-sources list
+> keeps a misconfigured host out of your database; it is not authentication. Where senders
+> must genuinely be authenticated, use TLS with client certificates.
 
-```bash
-# Send 10 messages/second with realistic content
-python tools/syslog_generator.py --rate 10
+### Where things are kept
 
-# Simulate a full incident timeline
-python tools/syslog_generator.py --mode scenario
+| Platform | Directory |
+|---|---|
+| Windows | `%APPDATA%\SyslogStudio\` |
+| macOS | `~/Library/Application Support/SyslogStudio/` |
+| Linux | `~/.config/SyslogStudio/` |
 
-# Test alert rules with specific severity/pattern messages
-python tools/syslog_generator.py --mode alert-test
+`config.json` holds settings, rules and destinations; `logs.db` the messages;
+`sinksecrets.json` the destination credentials, encrypted when at-rest encryption is on.
+No credential is ever written to `config.json`.
 
-# Stress test (30 seconds, max throughput)
-python tools/syslog_generator.py --mode stress
-```
-
-See [tools/README.md](tools/README.md) for all options (UDP/TCP/TLS, RFC 5424/3164, severity profiles, burst mode).
-
-### Default Ports
-
-| Protocol | Port |
-|----------|------|
-| UDP      | 514  |
-| TCP      | 514  |
-| TLS      | 6514 |
-
-> Ports below 1024 may require elevated privileges depending on your OS.
-
-## Storage
-
-Messages are persisted in a local SQLite database with configurable retention:
+### Storage and encryption
 
 | Setting | Options | Default |
 |---------|---------|---------|
 | Retention | 1, 7, 30, 90 days, unlimited | 7 days |
 | Max messages | 10K, 100K, 1M, 10M, unlimited | 1M |
-| Max DB size | 100 MB, 500 MB, 1 GB, 5 GB, unlimited | 500 MB |
+| Max size | 100 MB, 500 MB, 1 GB, 5 GB, unlimited | 500 MB |
 
-Approximate storage: **~560 bytes per message** (1M messages ~ 530 MB).
+Roughly 560 bytes per message, so a million messages is about 530 MB.
 
-## Encryption
+At-rest encryption uses AES-256-GCM with Argon2id (64 MB, 3 iterations, 4 threads). The
+password exists only in memory while the application runs.
 
-At-rest encryption protects the log database when the application is closed.
+> **If you forget it, the database is gone.** There is no recovery mechanism, by design.
 
-| | Details |
-|---|---|
-| **Algorithm** | AES-256-GCM (authenticated encryption) |
-| **Key derivation** | Argon2id (64 MB memory, 3 iterations, 4 threads) |
-| **What's encrypted** | The SQLite database file (`logs.db`) |
-| **When** | Encrypted on app exit, decrypted on app launch |
-| **Password storage** | Never saved to disk — exists only in memory while the app runs |
-| **Brute-force protection** | 5 attempts per session, then the app closes |
+---
 
-> **Warning:** If you forget your password, the database is permanently inaccessible. There is no recovery mechanism.
+## Building it
 
-Enable encryption in **Settings > Storage > Encrypt database at rest**.
+### Prerequisites
+
+- [Go](https://go.dev/dl/) 1.26+
+- [Node.js](https://nodejs.org/) 18+
+- [Wails CLI](https://wails.io/docs/gettingstarted/installation) v2
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+cd frontend && npm install && cd ..
+```
+
+### Development
+
+```bash
+wails dev
+```
+
+The application opens in a native window. A dev server is also available at
+`http://localhost:34115`, which serves the same interface in a browser with the Go methods
+bridged — handy for anything that is easier to inspect with devtools.
+
+### Build
+
+```bash
+wails build
+wails build -ldflags "-X main.AppVersion=v1.4.0"   # with a version, for the updater
+```
+
+### Tests
+
+```bash
+go test -race ./...
+cd frontend && npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
+```
+
+### The site and the demo
+
+The project site lives in `docs/` and is published by GitHub Pages. The demo and the
+screenshots are built from the real application with fixtures instead of a backend, which
+is what stops the site showing something the product does not do.
+
+```bash
+node tools/demo.mjs          # build docs/demo/
+node tools/screenshots.mjs   # photograph the application into docs/assets/img/
+node tools/webp.mjs          # derive the responsive images the site serves
+node tools/serve-site.mjs    # read docs/ the way Pages serves it
+node tools/check-links.mjs   # what the Pages workflow checks before deploying
+```
+
+### Generating traffic
+
+The application has a generator built in, on the Simulator tab. There is also a standalone
+Python one with no dependencies:
+
+```bash
+python tools/syslog_generator.py --rate 10
+python tools/syslog_generator.py --mode scenario
+python tools/syslog_generator.py --mode stress
+```
+
+See [tools/README.md](tools/README.md) for every option.
+
+---
 
 ## Documentation
 
-- [User Guide](docs/USER_GUIDE.md) — complete usage documentation
-- [TLS Setup Guide](docs/TLS_SETUP.md) — TLS configuration, PKI assistant, mutual TLS
-- [Architecture](CLAUDE.md) — detailed technical architecture
-- [Test Generator](tools/README.md) — syslog message generator for testing
+- [Website](http://geoffrey-lecoq.fr/SyslogStudio/) and
+  [browser demo](http://geoffrey-lecoq.fr/SyslogStudio/demo.html)
+- [Usage documentation](http://geoffrey-lecoq.fr/SyslogStudio/documentation.html)
+- [User guide](docs/USER_GUIDE.md) and [TLS setup](docs/TLS_SETUP.md)
+- [Architecture](CLAUDE.md) — how the code is organised and why
+- [Changelog](CHANGELOG.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, workflow, and code style guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports go through
+[SECURITY.md](SECURITY.md) rather than the issue tracker.
 
-## License
+## Licence
 
 [MIT](LICENSE)
