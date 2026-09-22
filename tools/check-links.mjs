@@ -41,7 +41,13 @@ let missing = 0;
 let checked = 0;
 
 for (const page of walk(root)) {
-  const html = readFileSync(page, 'utf8');
+  // A <base> href is the deployment prefix, not a reference to a file in this
+  // repository: on a GitHub project site it names the /<repo>/ the whole thing
+  // is served under, which exists on the server and not on disk. Dropping the
+  // element before scanning is what stops it being reported as missing — and
+  // the relative links it governs still resolve against docs/, which is the
+  // same directory this checker walks.
+  const html = readFileSync(page, 'utf8').replace(/<base\b[^>]*>/gi, '');
   const refs = [];
 
   for (const m of html.matchAll(REF)) refs.push(m[1]);

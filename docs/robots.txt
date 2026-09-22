@@ -1,6 +1,9 @@
+# Served from /SyslogStudio/robots.txt, which crawlers do NOT read: they fetch
+# it from the domain root only. It is kept for the day this site moves to one.
+#
+# What actually keeps the demo out of an index is the noindex meta tag the demo
+# build injects into its own page — see frontend/vite.demo.config.js.
 User-agent: *
 Allow: /
 
-# The demo is the application itself, not a page worth indexing: it has no
-# content of its own and every crawl of it fetches the whole bundle.
-Disallow: /demo/
+Disallow: /SyslogStudio/demo/
