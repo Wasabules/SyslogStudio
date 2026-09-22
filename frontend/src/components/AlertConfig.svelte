@@ -1,5 +1,6 @@
 <script lang="ts">
     import { activeZone, formatInZone } from '../lib/timezone';
+    import { anonymous, redactText } from '../lib/anonymize';
     import { onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { alertRules, alertHistory } from '../lib/stores';
@@ -206,7 +207,7 @@
                 <span class="history-time">{formatTime(event.timestamp, $activeZone)}</span>
                 <span class="history-rule">{event.ruleName}</span>
                 <span class="history-sev">{event.severity}</span>
-                <span class="history-msg" title={event.message}>{event.message}</span>
+                <span class="history-msg" title={redactText(event.message, $anonymous)}>{redactText(event.message, $anonymous)}</span>
             </div>
         {:else}
             <div class="empty">{$_('alerts.noAlerts')}</div>

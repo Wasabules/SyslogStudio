@@ -329,5 +329,14 @@
     "subtitle": "Genera tráfico y lo envía a uno o varios colectores.",
     "title": "Simulador syslog",
     "traffic": "Tráfico"
+  },
+  "anonymous": {
+    "active": "Modo anónimo activo",
+    "disable": "Desactivar modo anónimo",
+    "enable": "Activar modo anónimo",
+    "hint": "Sustituye nombres de host, direcciones, usuarios, dominios y correos por alias estables, para poder compartir una captura. Solo la visualización — los datos almacenados y las exportaciones no cambian.",
+    "reshuffle": "Generar nuevos alias",
+    "reshuffled": "Nuevos alias generados",
+    "setting": "Modo anónimo"
   }
 }

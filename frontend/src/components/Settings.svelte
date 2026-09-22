@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { anonymous, resetAnonymousMapping } from '../lib/anonymize';
     import { timezone, activeZone, zoneAbbreviation, zoneOffset, availableZones, systemZone, formatInZone } from '../lib/timezone';
     import type { TimezoneMode } from '../lib/timezone';
     import { _ } from 'svelte-i18n';
@@ -452,6 +453,22 @@
                         </label>
                     </div>
 
+                    <div class="form-group-with-hint">
+                        <div class="form-group checkbox-group">
+                            <label>
+                                <input type="checkbox" bind:checked={$anonymous} />
+                                {$_('anonymous.setting')}
+                            </label>
+                        </div>
+                        <span class="hint">{$_('anonymous.hint')}</span>
+                        {#if $anonymous}
+                            <button class="action-btn compact-btn reshuffle-btn"
+                                    on:click={() => { resetAnonymousMapping(); $anonymous = $anonymous; toastSuccess($_('anonymous.reshuffled')); }}>
+                                {$_('anonymous.reshuffle')}
+                            </button>
+                        {/if}
+                    </div>
+
                     <div class="form-group checkbox-group">
                         <label>
                             <input type="checkbox" bind:checked={autoUpdateCheck}
@@ -870,6 +887,11 @@
         flex-direction: column;
         gap: 8px;
         margin-top: 4px;
+    }
+
+    .reshuffle-btn {
+        align-self: flex-start;
+        margin-top: 6px;
     }
 
     .tz-preview {

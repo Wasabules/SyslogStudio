@@ -329,5 +329,14 @@
     "subtitle": "Genera traffico e lo invia a uno o più collettori.",
     "title": "Simulatore syslog",
     "traffic": "Traffico"
+  },
+  "anonymous": {
+    "active": "Modalità anonima attiva",
+    "disable": "Disattiva modalità anonima",
+    "enable": "Attiva modalità anonima",
+    "hint": "Sostituisce nomi host, indirizzi, utenti, domini ed e-mail con segnaposto stabili, per poter condividere uno screenshot. Solo visualizzazione — i dati memorizzati e le esportazioni restano invariati.",
+    "reshuffle": "Genera nuovi segnaposto",
+    "reshuffled": "Nuovi segnaposto generati",
+    "setting": "Modalità anonima"
   }
 }

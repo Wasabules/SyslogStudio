@@ -329,5 +329,14 @@
     "subtitle": "Erzeugt Datenverkehr und sendet ihn an einen oder mehrere Kollektoren.",
     "title": "Syslog-Simulator",
     "traffic": "Datenverkehr"
+  },
+  "anonymous": {
+    "active": "Anonymer Modus ist aktiv",
+    "disable": "Anonymen Modus deaktivieren",
+    "enable": "Anonymen Modus aktivieren",
+    "hint": "Ersetzt Hostnamen, Adressen, Benutzernamen, Domains und E-Mail-Adressen durch feste Platzhalter, damit ein Screenshot geteilt werden kann. Nur die Anzeige — gespeicherte Daten und Exporte bleiben unverändert.",
+    "reshuffle": "Neue Platzhalter erzeugen",
+    "reshuffled": "Neue Platzhalter erzeugt",
+    "setting": "Anonymer Modus"
   }
 }
