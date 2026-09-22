@@ -5,7 +5,7 @@ go 1.26.8
 require (
 	github.com/google/uuid v1.6.0
 	github.com/minio/selfupdate v0.6.0
-	github.com/wailsapp/wails/v2 v2.15.0
+	github.com/wailsapp/wails/v2 v2.16.0
 	golang.org/x/crypto v0.56.0
 	golang.org/x/mod v0.40.0
 	golang.org/x/sys v0.47.0
