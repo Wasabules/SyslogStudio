@@ -452,7 +452,18 @@ kbd {
 
 /* Until the script has run, no button is pressed and the control would flash
  * three identical states. It is revealed by the script instead. */
-.theme-toggle[hidden] { display: none; }
+/* The `hidden` attribute must win.
+ *
+ * The browser's own rule for it is [hidden] { display: none }, which any
+ * author rule that sets `display` on a class outranks — so a .badge or a
+ * .theme-toggle marked hidden stayed on screen. That is how all three
+ * "your platform" badges came to show at once on the download page, which
+ * is worse than showing none: it tells the reader something untrue.
+ *
+ * !important is right here rather than a longer selector: `hidden` means
+ * hidden, and a per-component override would only be rediscovered the next
+ * time somebody adds a component. */
+[hidden] { display: none !important; }
 
 .shot figcaption {
   border-top: 1px solid var(--line);
