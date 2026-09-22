@@ -270,6 +270,36 @@ type AppConfig struct {
 	// make the dependency circular. ConfigStore does the decoding.
 	NotifyRoutes json.RawMessage `json:"notifyRoutes,omitempty"`
 	NotifySinks  json.RawMessage `json:"notifySinks,omitempty"`
+	// CloseAction is what pressing the window's close button does.
+	CloseAction CloseAction `json:"closeAction,omitempty"`
+}
+
+// CloseAction is what closing the window means.
+//
+// A syslog receiver is a thing you want left running, so closing the window is
+// genuinely ambiguous: it can mean "stop listening" or "get out of my way". The
+// application asks, and remembers the answer if told to.
+type CloseAction string
+
+const (
+	// CloseAsk shows the dialog. The default, because guessing wrong either
+	// loses messages or leaves a process the user did not know was there.
+	CloseAsk CloseAction = "ask"
+	// CloseQuit exits, stopping the receiver.
+	CloseQuit CloseAction = "quit"
+	// CloseBackground hides the window and keeps receiving.
+	CloseBackground CloseAction = "background"
+)
+
+// Valid reports whether a stored value is one this build understands. A
+// configuration written by a newer version, or edited by hand, falls back to
+// asking rather than to a silent choice the user never made.
+func (a CloseAction) Valid() bool {
+	switch a {
+	case CloseAsk, CloseQuit, CloseBackground:
+		return true
+	}
+	return false
 }
 
 // LockoutState persists failed unlock attempts across restarts so that a

@@ -7,6 +7,8 @@ export function AddAlertRule(arg1:models.AlertRule):Promise<models.AlertRule>;
 
 export function AreSinkCredentialsUnencrypted():Promise<boolean>;
 
+export function CancelClose():Promise<void>;
+
 export function ChangeEncryptionPassword(arg1:string,arg2:string):Promise<void>;
 
 export function CheckForUpdate():Promise<models.UpdateInfo>;
@@ -57,6 +59,8 @@ export function GetCACertInfo():Promise<models.CertInfo>;
 
 export function GetCertificateInfo(arg1:models.ServerConfig):Promise<models.CertInfo>;
 
+export function GetCloseAction():Promise<string>;
+
 export function GetDefaultCertOptions():Promise<models.CertOptions>;
 
 export function GetDefaultConfig():Promise<models.ServerConfig>;
@@ -97,6 +101,8 @@ export function GetUnlockLockoutSeconds():Promise<number>;
 
 export function GetUpdateConfig():Promise<models.UpdateConfig>;
 
+export function HideToBackground():Promise<void>;
+
 export function IsCAKeyUnencrypted():Promise<boolean>;
 
 export function IsEncryptionEnabled():Promise<boolean>;
@@ -105,6 +111,8 @@ export function IsEncryptionLocked():Promise<boolean>;
 
 export function IsStorageReady():Promise<boolean>;
 
+export function IsTrayAvailable():Promise<boolean>;
+
 export function LoadPersistedCA():Promise<void>;
 
 export function OpenURL(arg1:string):Promise<void>;
@@ -112,6 +120,10 @@ export function OpenURL(arg1:string):Promise<void>;
 export function QueryMessageGroups(arg1:models.FilterCriteria,arg2:string):Promise<Array<models.GroupSummary>>;
 
 export function QueryMessages(arg1:models.QueryOptions):Promise<models.PagedResult>;
+
+export function QuitApplication():Promise<void>;
+
+export function RevealWindow():Promise<void>;
 
 export function SaveNotifyRoute(arg1:notify.Route):Promise<void>;
 
@@ -125,7 +137,11 @@ export function SelectCertFile():Promise<string>;
 
 export function SelectKeyFile():Promise<string>;
 
+export function SetCloseAction(arg1:string):Promise<void>;
+
 export function SetStorageConfig(arg1:models.StorageConfig):Promise<void>;
+
+export function SetTrayLabels(arg1:string,arg2:string):Promise<void>;
 
 export function SetUpdateConfig(arg1:models.UpdateConfig):Promise<void>;
 

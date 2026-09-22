@@ -330,6 +330,30 @@ func (cs *ConfigStore) LoadUpdateConfig() models.UpdateConfig {
 	return cs.loadAll().Updates
 }
 
+// LoadCloseAction reads what the close button should do. An absent or
+// unrecognised value means ask, which is the only answer that cannot be wrong.
+func (cs *ConfigStore) LoadCloseAction() models.CloseAction {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	a := cs.loadAll().CloseAction
+	if !a.Valid() {
+		return models.CloseAsk
+	}
+	return a
+}
+
+// SaveCloseAction records the choice, so the dialog can stop appearing.
+func (cs *ConfigStore) SaveCloseAction(a models.CloseAction) {
+	if !a.Valid() {
+		return
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.CloseAction = a
+	cs.saveAll(all)
+}
+
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
 	cs.mu.Lock()

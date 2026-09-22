@@ -432,5 +432,24 @@
     "trippedHint": "Dieses Ziel wurde automatisch abgeschaltet. Der Grund steht im Zustellprotokoll; aktivieren Sie es wieder, sobald die Ursache behoben ist.",
     "useRegex": "Regulärer Ausdruck",
     "username": "Benutzername"
+  },
+  "close": {
+    "background": "Im Hintergrund weiterlaufen",
+    "backgroundHint": "Das Fenster wird ausgeblendet. Nachrichten kommen weiter an, der Verlauf füllt sich, das Routing stellt weiter zu. Über das Symbol im Infobereich wieder öffnen.",
+    "backgroundNoTrayHint": "Das Fenster wird ausgeblendet und alles läuft weiter. Es wurde kein Infobereich gefunden — starten Sie SyslogStudio erneut, um das Fenster zurückzuholen.",
+    "cancel": "Abbrechen",
+    "question": "Was soll das Schließen des Fensters bewirken?",
+    "questionRunning": "Der Empfänger läuft. Was soll das Schließen des Fensters bewirken?",
+    "quit": "Beenden",
+    "quitHint": "Beendet das Zuhören. Solange die Anwendung geschlossen ist, wird nichts empfangen.",
+    "remember": "Immer so verfahren",
+    "rememberHint": "Später in den Einstellungen änderbar.",
+    "setting": "Fenster schließen",
+    "settingAsk": "Jedes Mal fragen",
+    "settingBackground": "Im Hintergrund weiterlaufen",
+    "settingQuit": "Beenden",
+    "title": "SyslogStudio schließen",
+    "trayQuit": "Beenden",
+    "trayShow": "SyslogStudio öffnen"
   }
 }

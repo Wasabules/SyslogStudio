@@ -432,5 +432,24 @@
     "trippedHint": "Questa destinazione è stata interrotta automaticamente. Il registro consegne spiega perché; riattivala una volta risolta la causa.",
     "useRegex": "Espressione regolare",
     "username": "Nome utente"
+  },
+  "close": {
+    "background": "Continuare in background",
+    "backgroundHint": "La finestra si nasconde. I messaggi continuano ad arrivare, lo storico a riempirsi e l’instradamento a consegnare. Riaprila dall’icona nell’area di notifica.",
+    "backgroundNoTrayHint": "La finestra si nasconde e tutto continua a funzionare. Nessuna area di notifica trovata: riavvia SyslogStudio per far tornare la finestra.",
+    "cancel": "Annulla",
+    "question": "Cosa deve fare la chiusura della finestra?",
+    "questionRunning": "Il ricevitore è in funzione. Cosa deve fare la chiusura della finestra?",
+    "quit": "Esci",
+    "quitHint": "Smette di ascoltare. Nulla viene ricevuto mentre l’applicazione è chiusa.",
+    "remember": "Fai sempre così",
+    "rememberHint": "Modificabile poi nelle impostazioni.",
+    "setting": "Alla chiusura della finestra",
+    "settingAsk": "Chiedi ogni volta",
+    "settingBackground": "Continuare in background",
+    "settingQuit": "Esci",
+    "title": "Chiudi SyslogStudio",
+    "trayQuit": "Esci",
+    "trayShow": "Apri SyslogStudio"
   }
 }

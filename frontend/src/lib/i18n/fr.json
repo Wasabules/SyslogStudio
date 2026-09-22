@@ -432,5 +432,24 @@
     "trippedHint": "Cette destination a été coupée automatiquement. Consultez le journal des livraisons pour en connaître la raison, puis réactivez-la une fois la cause corrigée.",
     "useRegex": "Expression régulière",
     "username": "Identifiant"
+  },
+  "close": {
+    "background": "Continuer en arrière-plan",
+    "backgroundHint": "La fenêtre se masque. Les messages continuent d’arriver, l’historique de se remplir et le routage de livrer. Rouvrez-la depuis l’icône de la zone de notification.",
+    "backgroundNoTrayHint": "La fenêtre se masque et tout continue de tourner. Aucune zone de notification n’a été trouvée : relancez SyslogStudio pour faire revenir la fenêtre.",
+    "cancel": "Annuler",
+    "question": "Que doit faire la fermeture de la fenêtre ?",
+    "questionRunning": "Le serveur reçoit des messages. Que doit faire la fermeture de la fenêtre ?",
+    "quit": "Quitter",
+    "quitHint": "Arrête l’écoute. Plus rien n’est reçu tant que l’application est fermée.",
+    "remember": "Toujours faire ceci",
+    "rememberHint": "Modifiable ensuite dans les paramètres.",
+    "setting": "Fermeture de la fenêtre",
+    "settingAsk": "Demander à chaque fois",
+    "settingBackground": "Continuer en arrière-plan",
+    "settingQuit": "Quitter",
+    "title": "Fermer SyslogStudio",
+    "trayQuit": "Quitter",
+    "trayShow": "Ouvrir SyslogStudio"
   }
 }

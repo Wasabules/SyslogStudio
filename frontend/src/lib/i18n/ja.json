@@ -432,5 +432,24 @@
     "trippedHint": "この送信先は自動的に遮断されました。理由は送信ログを確認し、原因を修正してから再有効化してください。",
     "useRegex": "正規表現",
     "username": "ユーザー名"
+  },
+  "close": {
+    "background": "バックグラウンドで継続",
+    "backgroundHint": "ウィンドウを非表示にします。メッセージの受信、履歴の蓄積、ルーティングは続きます。通知領域のアイコンから再び開けます。",
+    "backgroundNoTrayHint": "ウィンドウを非表示にし、動作は継続します。通知領域が見つからないため、SyslogStudio を再度起動するとウィンドウが戻ります。",
+    "cancel": "キャンセル",
+    "question": "ウィンドウを閉じたときの動作を選んでください。",
+    "questionRunning": "受信中です。ウィンドウを閉じたときの動作を選んでください。",
+    "quit": "終了",
+    "quitHint": "受信を停止します。終了中は何も受信されません。",
+    "remember": "常にこの動作にする",
+    "rememberHint": "設定であとから変更できます。",
+    "setting": "ウィンドウを閉じたとき",
+    "settingAsk": "毎回尋ねる",
+    "settingBackground": "バックグラウンドで継続",
+    "settingQuit": "終了する",
+    "title": "SyslogStudio を閉じる",
+    "trayQuit": "終了",
+    "trayShow": "SyslogStudio を開く"
   }
 }
