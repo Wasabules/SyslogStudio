@@ -8,8 +8,9 @@
  * `file://` does neither — nor does it allow the demo's module imports. Hence a
  * server rather than opening the file.
  */
+
 import { createServer } from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join, extname, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,7 +33,7 @@ const TYPES = {
   '.xml': 'application/xml; charset=utf-8',
 };
 
-async function resolve(urlPath) {
+async function serve(urlPath) {
   // normalize() collapses "..", so a request cannot climb out of docs/.
   const rel = normalize(decodeURIComponent(urlPath.split('?')[0])).replace(/^(\.\.[/\\])+/, '');
   const candidates = [join(root, rel)];
@@ -41,24 +42,29 @@ async function resolve(urlPath) {
   }
   for (const p of candidates) {
     try {
-      const st = await stat(p);
-      if (st.isFile()) return p;
+      // Opened rather than tested-then-opened. Asking whether a path is a file
+      // and then reading it is two operations on something that can change in
+      // between, and the answer buys nothing a failed read does not already
+      // give: a directory raises EISDIR and a missing file ENOENT, both of
+      // which mean "try the next shape". Handing back the bytes with the path
+      // is what keeps it to one operation — returning a path for the caller to
+      // open would put the gap straight back.
+      return { path: p, body: await readFile(p) };
     } catch { /* try the next shape */ }
   }
   return null;
 }
 
 createServer(async (req, res) => {
-  const file = await resolve(req.url || '/');
-  if (!file) {
-    const notFound = await resolve('/404.html');
-    const body = notFound ? await readFile(notFound) : 'Not found';
+  const hit = await serve(req.url || '/');
+  if (!hit) {
+    const notFound = await serve('/404.html');
     res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
-    res.end(body);
+    res.end(notFound ? notFound.body : 'Not found');
     return;
   }
-  res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' });
-  res.end(await readFile(file));
+  res.writeHead(200, { 'content-type': TYPES[extname(hit.path)] || 'application/octet-stream' });
+  res.end(hit.body);
 }).listen(port, () => {
   console.log(`docs/ on http://localhost:${port}/  (demo at /demo/)`);
 });

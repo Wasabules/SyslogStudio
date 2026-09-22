@@ -18,7 +18,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readFile, mkdir, stat } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname, extname, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -71,14 +71,24 @@ const server = createServer(async (req, res) => {
   const rel = normalize(decodeURIComponent((req.url || '/').split('?')[0]))
     .replace(/^(\.\.[/\\])+/, '');
   const candidates = [join(dist, rel), join(dist, rel, 'index.html')];
+
   for (const p of candidates) {
+    // Opened rather than tested-then-opened. Asking whether a path is a file
+    // and then reading it is two operations on something that can change in
+    // between, and the answer buys nothing a failed read does not already
+    // give: a directory raises EISDIR and a missing file ENOENT, both of
+    // which mean "try the next shape".
+    let body;
     try {
-      if ((await stat(p)).isFile()) {
-        res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' });
-        res.end(await readFile(p));
-        return;
-      }
-    } catch { /* try the next shape */ }
+      body = await readFile(p);
+    } catch {
+      continue;
+    }
+    // Headers only once the content is in hand, so a read that fails cannot
+    // leave a 200 already on the wire with a 404 behind it.
+    res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' });
+    res.end(body);
+    return;
   }
   res.writeHead(404).end('not found');
 });
