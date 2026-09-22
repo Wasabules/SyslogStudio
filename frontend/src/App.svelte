@@ -16,6 +16,7 @@
     import AlertConfig from './components/AlertConfig.svelte';
     import Simulator from './components/Simulator.svelte';
     import Notify from './components/Notify.svelte';
+    import CloseDialog from './components/CloseDialog.svelte';
     import UnlockScreen from './components/UnlockScreen.svelte';
     import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted } from './lib/api';
     import { toastError } from './lib/toast';
@@ -234,6 +235,7 @@
     onClose={() => showSettings = false}
 />
 
+<CloseDialog />
 <ToastContainer />
 {/if}
 

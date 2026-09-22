@@ -254,3 +254,16 @@ export const getNotifyLog = (): Promise<DeliveryEntry[]> => callGo('GetNotifyLog
 export const clearNotifyLog = (): Promise<void> => callGo('ClearNotifyLog');
 export const getNotifyStats = (): Promise<NotifyStats> => callGo('GetNotifyStats');
 export const areSinkCredentialsUnencrypted = (): Promise<boolean> => callGo('AreSinkCredentialsUnencrypted');
+
+// --- Window and tray ---
+// What the close button does: 'ask' (the default), 'quit' or 'background'.
+export type CloseAction = 'ask' | 'quit' | 'background';
+export const quitApplication = (): Promise<void> => callGo('QuitApplication');
+export const hideToBackground = (): Promise<void> => callGo('HideToBackground');
+export const revealWindow = (): Promise<void> => callGo('RevealWindow');
+export const cancelClose = (): Promise<void> => callGo('CancelClose');
+export const isTrayAvailable = (): Promise<boolean> => callGo('IsTrayAvailable');
+export const getCloseAction = (): Promise<CloseAction> => callGo('GetCloseAction');
+export const setCloseAction = (a: CloseAction): Promise<void> => callGo('SetCloseAction', a);
+export const setTrayLabels = (show: string, quit: string): Promise<void> =>
+    callGo('SetTrayLabels', show, quit);

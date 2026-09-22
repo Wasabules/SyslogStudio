@@ -432,5 +432,24 @@
     "trippedHint": "Este destino foi cortado automaticamente. Veja o registo de entregas para saber porquê e reative-o depois de corrigir a causa.",
     "useRegex": "Expressão regular",
     "username": "Utilizador"
+  },
+  "close": {
+    "background": "Continuar em segundo plano",
+    "backgroundHint": "A janela esconde-se. As mensagens continuam a chegar, o histórico a encher e o encaminhamento a entregar. Reabra pelo ícone na área de notificação.",
+    "backgroundNoTrayHint": "A janela esconde-se e tudo continua a funcionar. Não foi encontrada área de notificação: inicie o SyslogStudio novamente para trazer a janela de volta.",
+    "cancel": "Cancelar",
+    "question": "O que deve fazer fechar a janela?",
+    "questionRunning": "O recetor está a funcionar. O que deve fazer fechar a janela?",
+    "quit": "Sair",
+    "quitHint": "Deixa de escutar. Nada é recebido enquanto a aplicação estiver fechada.",
+    "remember": "Fazer sempre isto",
+    "rememberHint": "Pode mudar depois nas definições.",
+    "setting": "Ao fechar a janela",
+    "settingAsk": "Perguntar sempre",
+    "settingBackground": "Continuar em segundo plano",
+    "settingQuit": "Sair",
+    "title": "Fechar o SyslogStudio",
+    "trayQuit": "Sair",
+    "trayShow": "Abrir o SyslogStudio"
   }
 }

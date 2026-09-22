@@ -432,5 +432,24 @@
     "trippedHint": "Este destino se cortó automáticamente. Consulte el registro de entregas para saber por qué y vuelva a activarlo cuando corrija la causa.",
     "useRegex": "Expresión regular",
     "username": "Usuario"
+  },
+  "close": {
+    "background": "Seguir en segundo plano",
+    "backgroundHint": "La ventana se oculta. Los mensajes siguen llegando, el historial sigue llenándose y el enrutado sigue entregando. Ábrela de nuevo desde el icono del área de notificación.",
+    "backgroundNoTrayHint": "La ventana se oculta y todo sigue funcionando. No se encontró área de notificación: vuelve a iniciar SyslogStudio para recuperar la ventana.",
+    "cancel": "Cancelar",
+    "question": "¿Qué debe hacer cerrar la ventana?",
+    "questionRunning": "El receptor está en marcha. ¿Qué debe hacer cerrar la ventana?",
+    "quit": "Salir",
+    "quitHint": "Deja de escuchar. No se recibe nada mientras la aplicación esté cerrada.",
+    "remember": "Hacer esto siempre",
+    "rememberHint": "Puedes cambiarlo después en los ajustes.",
+    "setting": "Al cerrar la ventana",
+    "settingAsk": "Preguntar cada vez",
+    "settingBackground": "Seguir en segundo plano",
+    "settingQuit": "Salir",
+    "title": "Cerrar SyslogStudio",
+    "trayQuit": "Salir",
+    "trayShow": "Abrir SyslogStudio"
   }
 }

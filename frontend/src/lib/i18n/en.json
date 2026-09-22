@@ -432,5 +432,24 @@
     "trippedHint": "This destination was cut off automatically. See the delivery log for why, then re-enable it once the cause is fixed.",
     "useRegex": "Regular expression",
     "username": "Username"
+  },
+  "close": {
+    "background": "Keep running in the background",
+    "backgroundHint": "The window hides. Messages keep arriving, history keeps filling and routing keeps delivering. Open it again from the tray icon.",
+    "backgroundNoTrayHint": "The window hides and everything keeps running. No system tray was found, so start SyslogStudio again to bring the window back.",
+    "cancel": "Cancel",
+    "question": "What should closing the window do?",
+    "questionRunning": "The receiver is running. What should closing the window do?",
+    "quit": "Quit",
+    "quitHint": "Stops listening. Nothing is received while the application is closed.",
+    "remember": "Always do this",
+    "rememberHint": "You can change it later in Settings.",
+    "setting": "Closing the window",
+    "settingAsk": "Ask every time",
+    "settingBackground": "Keep running in the background",
+    "settingQuit": "Quit",
+    "title": "Close SyslogStudio",
+    "trayQuit": "Quit",
+    "trayShow": "Open SyslogStudio"
   }
 }

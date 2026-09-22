@@ -3,6 +3,7 @@ module SyslogStudio
 go 1.26.8
 
 require (
+	fyne.io/systray v1.12.2
 	github.com/google/uuid v1.6.0
 	github.com/minio/selfupdate v0.6.0
 	github.com/wailsapp/wails/v2 v2.16.0

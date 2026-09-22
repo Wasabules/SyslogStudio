@@ -432,5 +432,24 @@
     "trippedHint": "此目标已被自动断开。请查看发送日志了解原因，修复后重新启用。",
     "useRegex": "正则表达式",
     "username": "用户名"
+  },
+  "close": {
+    "background": "在后台继续运行",
+    "backgroundHint": "窗口将隐藏。消息继续接收，历史继续写入，路由继续投递。可从通知区图标重新打开。",
+    "backgroundNoTrayHint": "窗口将隐藏，一切照常运行。未找到系统通知区，请重新启动 SyslogStudio 以恢复窗口。",
+    "cancel": "取消",
+    "question": "关闭窗口时应该做什么？",
+    "questionRunning": "接收器正在运行。关闭窗口时应该做什么？",
+    "quit": "退出",
+    "quitHint": "停止监听。应用关闭期间不会接收任何内容。",
+    "remember": "总是这样做",
+    "rememberHint": "稍后可在设置中更改。",
+    "setting": "关闭窗口时",
+    "settingAsk": "每次询问",
+    "settingBackground": "在后台继续运行",
+    "settingQuit": "退出",
+    "title": "关闭 SyslogStudio",
+    "trayQuit": "退出",
+    "trayShow": "打开 SyslogStudio"
   }
 }

@@ -10,6 +10,10 @@ export function AreSinkCredentialsUnencrypted() {
   return window['go']['main']['App']['AreSinkCredentialsUnencrypted']();
 }
 
+export function CancelClose() {
+  return window['go']['main']['App']['CancelClose']();
+}
+
 export function ChangeEncryptionPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeEncryptionPassword'](arg1, arg2);
 }
@@ -110,6 +114,10 @@ export function GetCertificateInfo(arg1) {
   return window['go']['main']['App']['GetCertificateInfo'](arg1);
 }
 
+export function GetCloseAction() {
+  return window['go']['main']['App']['GetCloseAction']();
+}
+
 export function GetDefaultCertOptions() {
   return window['go']['main']['App']['GetDefaultCertOptions']();
 }
@@ -190,6 +198,10 @@ export function GetUpdateConfig() {
   return window['go']['main']['App']['GetUpdateConfig']();
 }
 
+export function HideToBackground() {
+  return window['go']['main']['App']['HideToBackground']();
+}
+
 export function IsCAKeyUnencrypted() {
   return window['go']['main']['App']['IsCAKeyUnencrypted']();
 }
@@ -206,6 +218,10 @@ export function IsStorageReady() {
   return window['go']['main']['App']['IsStorageReady']();
 }
 
+export function IsTrayAvailable() {
+  return window['go']['main']['App']['IsTrayAvailable']();
+}
+
 export function LoadPersistedCA() {
   return window['go']['main']['App']['LoadPersistedCA']();
 }
@@ -220,6 +236,14 @@ export function QueryMessageGroups(arg1, arg2) {
 
 export function QueryMessages(arg1) {
   return window['go']['main']['App']['QueryMessages'](arg1);
+}
+
+export function QuitApplication() {
+  return window['go']['main']['App']['QuitApplication']();
+}
+
+export function RevealWindow() {
+  return window['go']['main']['App']['RevealWindow']();
 }
 
 export function SaveNotifyRoute(arg1) {
@@ -246,8 +270,16 @@ export function SelectKeyFile() {
   return window['go']['main']['App']['SelectKeyFile']();
 }
 
+export function SetCloseAction(arg1) {
+  return window['go']['main']['App']['SetCloseAction'](arg1);
+}
+
 export function SetStorageConfig(arg1) {
   return window['go']['main']['App']['SetStorageConfig'](arg1);
+}
+
+export function SetTrayLabels(arg1, arg2) {
+  return window['go']['main']['App']['SetTrayLabels'](arg1, arg2);
 }
 
 export function SetUpdateConfig(arg1) {

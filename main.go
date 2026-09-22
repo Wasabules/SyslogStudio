@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 
 	// Embeds the IANA time zone database. Without it, time.LoadLocation depends
 	// on zone files being present on the host — which they are not on Windows,
@@ -13,11 +15,28 @@ import (
 	// for a setting that is otherwise broken on the platform most users run.
 	_ "time/tzdata"
 
+	"SyslogStudio/internal/tray"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
+
+// The tray icon. Windows wants an .ico; everything else takes the PNG.
+//
+//go:embed build/windows/icon.ico
+var trayIconWindows []byte
+
+//go:embed build/appicon.png
+var trayIconOther []byte
+
+func trayIcon() []byte {
+	if goruntime.GOOS == "windows" {
+		return trayIconWindows
+	}
+	return trayIconOther
+}
 
 //go:embed all:frontend/dist
 var assets embed.FS
@@ -51,8 +70,46 @@ func main() {
 		Windows: &windows.Options{
 			WebviewUserDataPath: webviewDataPath,
 		},
-		OnStartup:  app.startup,
-		OnShutdown: app.shutdown,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+
+			// Started after startup so the callbacks have a context to act on,
+			// and so a desktop with no tray host delays nothing the user can
+			// see: Start gives up after its own timeout and reports that no
+			// icon appeared.
+			ctrl, ok := tray.Start(tray.Options{
+				Icon:    trayIcon(),
+				Tooltip: "SyslogStudio",
+				Labels:  tray.DefaultLabels(),
+				OnShow:  app.RevealWindow,
+				OnQuit:  app.QuitApplication,
+			})
+			setTray(ctrl, ok)
+			app.refreshTrayStatus()
+		},
+		OnShutdown: func(ctx context.Context) {
+			// Before the application's own shutdown, so the icon goes away
+			// promptly rather than lingering while the database is flushed.
+			trayController().Stop()
+			app.shutdown(ctx)
+		},
+		// HideWindowOnClose is deliberately NOT set. It is fixed here, before
+		// we know whether a tray icon actually appeared, and an application
+		// that refuses to close with no tray to quit from is one you escape
+		// with the task manager. beforeClose makes the same decision later,
+		// when the answer is known — and asks the user rather than assuming.
+		OnBeforeClose: func(context.Context) bool {
+			return app.beforeClose()
+		},
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "com.wasabules.syslogstudio",
+			// Relaunching is the second way back to a hidden window, and it is
+			// the one that still works on a desktop with no usable tray. It
+			// also stops a second instance fighting the first for port 514.
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+				app.RevealWindow()
+			},
+		},
 		Bind: []interface{}{
 			app,
 		},

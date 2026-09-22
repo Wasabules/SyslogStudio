@@ -7,7 +7,21 @@
     import { appLocale, setLocale, SUPPORTED_LOCALES } from '../lib/i18n';
     import { toastSuccess, toastError } from '../lib/toast';
     import { dbStatsVersion, historyResult } from '../lib/stores';
-    import { enableEncryption, disableEncryption, isEncryptionEnabled, getUpdateConfig, setUpdateConfig } from '../lib/api';
+
+    // What the close button does. Held here rather than in a store because it
+    // lives in the Go configuration, not in browser storage: the decision has
+    // to survive a reinstall of the WebView data directory.
+    let closeAction: CloseAction = 'ask';
+
+    async function loadCloseAction() {
+        try { closeAction = await getCloseAction(); } catch { /* keep asking */ }
+    }
+
+    async function onCloseActionChange() {
+        try { await setCloseAction(closeAction); } catch { /* preference only */ }
+    }
+    import { enableEncryption, disableEncryption, isEncryptionEnabled, getUpdateConfig, setUpdateConfig,
+             getCloseAction, setCloseAction, type CloseAction } from '../lib/api';
     import { updateStore } from '../lib/updateStore';
 
     export let visible = false;
@@ -120,6 +134,9 @@
                 maxDbSize = cfg.maxSizeMB ?? 0;
             }
         } catch {}
+
+        // Load what the close button does
+        await loadCloseAction();
 
         // Load encryption state
         try {
@@ -451,6 +468,19 @@
                                    on:change={onNotificationsChange} />
                             {$_('settings.systemNotifications')}
                         </label>
+                    </div>
+
+                    <div class="form-group-with-hint">
+                        <div class="form-group">
+                            <label for="close-action">{$_('close.setting')}</label>
+                            <select id="close-action" bind:value={closeAction}
+                                    on:change={onCloseActionChange}>
+                                <option value="ask">{$_('close.settingAsk')}</option>
+                                <option value="background">{$_('close.settingBackground')}</option>
+                                <option value="quit">{$_('close.settingQuit')}</option>
+                            </select>
+                        </div>
+                        <span class="hint">{$_('close.backgroundHint')}</span>
                     </div>
 
                     <div class="form-group-with-hint">
