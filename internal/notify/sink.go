@@ -162,6 +162,11 @@ func validateSyslogSink(c SyslogSinkConfig) error {
 	if c.Facility < 0 || c.Facility > 23 {
 		return errf("syslog facility %d is out of range (0-23)", c.Facility)
 	}
+	if c.Protocol == "tls" {
+		if err := validateTLSFiles(c.tlsFiles()); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -217,6 +222,11 @@ func validateEmailSink(c EmailSinkConfig) error {
 	}
 	if c.Format != "" && c.Format != "text" && c.Format != "html" {
 		return errf("unknown e-mail format %q", c.Format)
+	}
+	if c.Encryption != "none" {
+		if err := validateTLSFiles(c.TLS); err != nil {
+			return err
+		}
 	}
 	return nil
 }

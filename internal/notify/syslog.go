@@ -2,7 +2,6 @@ package notify
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -95,38 +94,25 @@ func newSyslogSink(cfg SinkConfig, _ string) (Sink, error) {
 	return s, nil
 }
 
+// tlsFiles adapts the flat configuration fields to the shared shape. They stay
+// flat on SyslogSinkConfig so existing config.json files keep loading.
+func (c SyslogSinkConfig) tlsFiles() TLSFiles {
+	return TLSFiles{
+		CAFile:             c.CAFile,
+		ClientCertFile:     c.ClientCertFile,
+		ClientKeyFile:      c.ClientKeyFile,
+		InsecureSkipVerify: c.InsecureSkipVerify,
+	}
+}
+
 func buildClientTLS(c SyslogSinkConfig) (*tls.Config, error) {
-	cfg := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: c.InsecureSkipVerify, //nolint:gosec // opt-in, per sink, shown in the UI
-	}
-	if c.CAFile != "" {
-		pem, err := os.ReadFile(c.CAFile)
-		if err != nil {
-			return nil, errf("read CA file: %w", err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(pem) {
-			return nil, errf("CA file %q contains no usable certificate", c.CAFile)
-		}
-		cfg.RootCAs = pool
-	}
-	// Both halves or neither: a cert without its key is a configuration that
-	// silently falls back to anonymous, which is not what was asked for.
-	if (c.ClientCertFile == "") != (c.ClientKeyFile == "") {
-		return nil, errf("mutual TLS needs both a client certificate and a key")
-	}
-	if c.ClientCertFile != "" {
-		pair, err := tls.LoadX509KeyPair(c.ClientCertFile, c.ClientKeyFile)
-		if err != nil {
-			return nil, errf("load client certificate: %w", err)
-		}
-		cfg.Certificates = []tls.Certificate{pair}
-	}
+	// The name to verify comes from the address, not from a separate setting:
+	// a collector reached as host:port is the host it claims to be.
+	serverName := ""
 	if host, _, err := net.SplitHostPort(c.Address); err == nil {
-		cfg.ServerName = host
+		serverName = host
 	}
-	return cfg, nil
+	return buildTLS(serverName, c.tlsFiles())
 }
 
 func (s *syslogSink) Describe() string {

@@ -758,6 +758,24 @@ export namespace notify {
 		    return a;
 		}
 	}
+	export class TLSFiles {
+	    caFile?: string;
+	    clientCertFile?: string;
+	    clientKeyFile?: string;
+	    insecureSkipVerify?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TLSFiles(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.caFile = source["caFile"];
+	        this.clientCertFile = source["clientCertFile"];
+	        this.clientKeyFile = source["clientKeyFile"];
+	        this.insecureSkipVerify = source["insecureSkipVerify"];
+	    }
+	}
 	export class EmailSinkConfig {
 	    host: string;
 	    port: number;
@@ -767,6 +785,7 @@ export namespace notify {
 	    encryption: string;
 	    format?: string;
 	    timeout: number;
+	    tls: TLSFiles;
 	
 	    static createFrom(source: any = {}) {
 	        return new EmailSinkConfig(source);
@@ -782,7 +801,26 @@ export namespace notify {
 	        this.encryption = source["encryption"];
 	        this.format = source["format"];
 	        this.timeout = source["timeout"];
+	        this.tls = this.convertValues(source["tls"], TLSFiles);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class MessageTemplate {
 	    subject?: string;
@@ -1027,6 +1065,7 @@ export namespace notify {
 	        this.queued = source["queued"];
 	    }
 	}
+	
 	
 	
 

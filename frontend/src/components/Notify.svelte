@@ -5,7 +5,7 @@
         getNotifyRoutes, getNotifySinks, saveNotifyRoute, deleteNotifyRoute,
         saveNotifySink, deleteNotifySink, testNotifySink,
         getNotifyLog, clearNotifyLog, getNotifyStats,
-        areSinkCredentialsUnencrypted,
+        areSinkCredentialsUnencrypted, selectCertFile, selectKeyFile,
         type NotifyRoute, type NotifySink, type DeliveryEntry, type NotifyStats,
     } from '../lib/api';
     import { SEVERITY_LABELS } from '../lib/constants';
@@ -77,11 +77,25 @@
             template: { subject: '', body: '' },
             syslog: { address: '', protocol: 'udp', facility: 16, hostname: '', appName: '',
                       timeout: 0, preserveOrigin: true, preserveFacility: false,
-                      caFile: '', clientCertFile: '', clientKeyFile: '', insecureSkipVerify: true },
+                      caFile: '', clientCertFile: '', clientKeyFile: '', insecureSkipVerify: false },
             webhook: { url: '', method: 'POST', headers: {}, timeout: 0, payloadMode: 'envelope' },
             email: { host: '', port: 587, username: '', from: '', to: [], encryption: 'starttls',
-                     format: 'text', timeout: 0 },
+                     format: 'text', timeout: 0,
+                     tls: { caFile: '', clientCertFile: '', clientKeyFile: '', insecureSkipVerify: false } },
         } as NotifySink;
+    }
+
+    // The certificate fields hold paths, not contents: the files must stay
+    // readable at delivery time, and copying them into the config would put a
+    // private key in config.json.
+    async function browse(kind: 'cert' | 'key', apply: (path: string) => void) {
+        try {
+            const path = kind === 'cert' ? await selectCertFile() : await selectKeyFile();
+            if (path) {
+                apply(path);
+                editingSink = editingSink;
+            }
+        } catch { /* the operator cancelled the dialog */ }
     }
 
     function editSink(s: NotifySink | null, kind = 'syslog') {
@@ -343,8 +357,29 @@
                     <input id="sk-origin" type="checkbox" bind:checked={editingSink.syslog.preserveOrigin} />
 
                     {#if editingSink.syslog.protocol === 'tls'}
+                        <label for="sk-ca">{$_('notify.caFile')}</label>
+                        <div class="nf-file">
+                            <input id="sk-ca" type="text" bind:value={editingSink.syslog.caFile} />
+                            <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.syslog.caFile = p))}>{$_('tls.browse')}</button>
+                        </div>
+
+                        <label for="sk-ccert">{$_('notify.clientCert')}</label>
+                        <div class="nf-file">
+                            <input id="sk-ccert" type="text" bind:value={editingSink.syslog.clientCertFile} />
+                            <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.syslog.clientCertFile = p))}>{$_('tls.browse')}</button>
+                        </div>
+
+                        <label for="sk-ckey">{$_('notify.clientKey')}</label>
+                        <div class="nf-file">
+                            <input id="sk-ckey" type="text" bind:value={editingSink.syslog.clientKeyFile} />
+                            <button class="nf-btn small" on:click={() => browse('key', p => editingSink && (editingSink.syslog.clientKeyFile = p))}>{$_('tls.browse')}</button>
+                        </div>
+
                         <label for="sk-skip">{$_('notify.skipVerify')}</label>
                         <input id="sk-skip" type="checkbox" bind:checked={editingSink.syslog.insecureSkipVerify} />
+
+                        <span></span>
+                        <span class="nf-hint">{$_('notify.mtlsHint')}</span>
                     {/if}
                 {:else if editingSink.kind === 'webhook'}
                     <label for="sk-url">URL</label>
@@ -385,6 +420,29 @@
                     <input id="sk-to" type="text" value={fromList(editingSink.email.to)}
                            on:input={e => editingSink && (editingSink.email.to = toList((e.target as HTMLInputElement).value))}
                            placeholder="ops@example.com, oncall@example.com" />
+
+                    {#if editingSink.email.encryption !== 'none'}
+                        <label for="sk-eca">{$_('notify.caFile')}</label>
+                        <div class="nf-file">
+                            <input id="sk-eca" type="text" bind:value={editingSink.email.tls.caFile} />
+                            <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.email.tls.caFile = p))}>{$_('tls.browse')}</button>
+                        </div>
+
+                        <label for="sk-ecc">{$_('notify.clientCert')}</label>
+                        <div class="nf-file">
+                            <input id="sk-ecc" type="text" bind:value={editingSink.email.tls.clientCertFile} />
+                            <button class="nf-btn small" on:click={() => browse('cert', p => editingSink && (editingSink.email.tls.clientCertFile = p))}>{$_('tls.browse')}</button>
+                        </div>
+
+                        <label for="sk-eck">{$_('notify.clientKey')}</label>
+                        <div class="nf-file">
+                            <input id="sk-eck" type="text" bind:value={editingSink.email.tls.clientKeyFile} />
+                            <button class="nf-btn small" on:click={() => browse('key', p => editingSink && (editingSink.email.tls.clientKeyFile = p))}>{$_('tls.browse')}</button>
+                        </div>
+
+                        <label for="sk-eskip">{$_('notify.skipVerify')}</label>
+                        <input id="sk-eskip" type="checkbox" bind:checked={editingSink.email.tls.insecureSkipVerify} />
+                    {/if}
 
                     <label for="sk-fmt">{$_('notify.format')}</label>
                     <select id="sk-fmt" bind:value={editingSink.email.format}>
@@ -503,6 +561,9 @@
     .nf-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
     .nf-header h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
     .nf-subtitle { font-size: 11px; color: var(--text-secondary); }
+
+    .nf-file { display: flex; gap: 6px; align-items: center; }
+    .nf-file input { flex: 1; min-width: 0; }
 
     .nf-stats { display: flex; gap: 14px; font-size: 11px; color: var(--text-secondary); flex-shrink: 0; }
     .nf-stats b { color: var(--text-primary); font-family: monospace; }

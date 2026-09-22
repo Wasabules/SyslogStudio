@@ -76,15 +76,23 @@ func (s *SecretStore) IsEncrypted() bool {
 }
 
 // HasAny reports whether any credential is on file.
+//
+// It counts entries rather than testing for the file, because deleting the last
+// destination leaves an empty store behind — and a warning about credentials
+// resting in the clear that no longer protects anything cannot be dismissed.
 func (s *SecretStore) HasAny() bool {
 	if s.dir == "" {
 		return false
 	}
-	if _, err := os.Stat(s.encPath()); err == nil {
-		return true
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.load(); err != nil {
+		// Encrypted and still locked: something is on file, it just cannot be
+		// read yet. Claiming otherwise would understate what is stored.
+		_, statErr := os.Stat(s.encPath())
+		return statErr == nil
 	}
-	_, err := os.Stat(s.plainPath())
-	return err == nil
+	return len(s.cache) > 0
 }
 
 // load reads the store. Must be called with the lock held.

@@ -171,6 +171,15 @@ export const getScenarioDurationSeconds = (): Promise<number> => callGo('GetScen
 
 // --- Notification routing ---
 export interface MessageTemplate { subject?: string; body?: string; }
+// Certificate material for a sink that speaks TLS. Paths, not contents: the
+// files are read at delivery time and a private key must not land in the
+// configuration file.
+export interface NotifyTLSFiles {
+    caFile?: string;
+    clientCertFile?: string;
+    clientKeyFile?: string;
+    insecureSkipVerify?: boolean;
+}
 export interface NotifySink {
     id: string;
     name: string;
@@ -194,6 +203,7 @@ export interface NotifySink {
     email: {
         host: string; port: number; username: string; from: string; to: string[];
         encryption: string; format?: string; timeout: number;
+        tls: NotifyTLSFiles;
     };
 }
 export interface NotifyRouteMatch {

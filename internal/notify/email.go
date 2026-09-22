@@ -27,6 +27,15 @@ type EmailSinkConfig struct {
 	Format  string `json:"format,omitempty"`
 	Timeout int    `json:"timeout"` // seconds; 0 means 15
 
+	// --- TLS, used when Encryption is "starttls" or "tls" ---
+	//
+	// An internal relay is the common case, and its certificate is signed by an
+	// authority the system pool has never heard of — unrelated to whatever this
+	// app serves its own listener with. Without a trust anchor of its own,
+	// STARTTLS to such a relay can only fail, which would leave the operator
+	// choosing between "none" and nothing at all.
+	TLS TLSFiles `json:"tls,omitzero"`
+
 	// The password is NOT here. It travels in SinkConfig.Secret (write-only)
 	// and lives in the secret store, because anything serialisable on this
 	// struct lands in config.json in the clear.
@@ -86,7 +95,11 @@ func (e *emailSink) send(r Rendered) error {
 			// exists to prevent.
 			return errf("server does not offer STARTTLS")
 		}
-		if err := client.StartTLS(&tls.Config{ServerName: e.cfg.Host, MinVersion: tls.VersionTLS12}); err != nil {
+		tlsCfg, terr := buildTLS(e.cfg.Host, e.cfg.TLS)
+		if terr != nil {
+			return terr
+		}
+		if err := client.StartTLS(tlsCfg); err != nil {
 			return err
 		}
 	}
@@ -123,10 +136,11 @@ func (e *emailSink) send(r Rendered) error {
 func (e *emailSink) dial() (net.Conn, error) {
 	d := &net.Dialer{Timeout: e.timeout}
 	if e.cfg.Encryption == "tls" {
-		return tls.DialWithDialer(d, "tcp", e.addr(), &tls.Config{
-			ServerName: e.cfg.Host,
-			MinVersion: tls.VersionTLS12,
-		})
+		tlsCfg, err := buildTLS(e.cfg.Host, e.cfg.TLS)
+		if err != nil {
+			return nil, err
+		}
+		return tls.DialWithDialer(d, "tcp", e.addr(), tlsCfg)
 	}
 	return d.Dial("tcp", e.addr())
 }
