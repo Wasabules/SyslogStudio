@@ -264,10 +264,13 @@
             </button>
         </div>
 
-        {#if sinks.length === 0}
-            <p class="nf-empty">{$_('notify.destinationsFirst')}</p>
-        {:else if routes.length === 0}
-            <p class="nf-empty">{$_('notify.noRoutes')}</p>
+        <!-- Rules stay listed even with no destination left. Hiding them
+             would leave rules in the configuration that cannot be seen or
+             deleted, which is what deleting the last destination used to do. -->
+        {#if routes.length === 0}
+            <p class="nf-empty">
+                {sinks.length === 0 ? $_('notify.destinationsFirst') : $_('notify.noRoutes')}
+            </p>
         {:else}
             <div class="nf-list">
                 {#each sortedRoutes as r (r.id)}
