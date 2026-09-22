@@ -190,6 +190,9 @@ export interface NotifySink {
     secret?: string;
     hasSecret: boolean;
     template: MessageTemplate;
+    // Ceiling in messages per second; 0 takes the default, negative turns the
+    // rate breaker off for this destination.
+    maxRate?: number;
     syslog: {
         address: string; protocol: string; facility: number; hostname: string;
         appName: string; timeout: number; preserveOrigin?: boolean;
@@ -235,6 +238,10 @@ export interface NotifyStats {
     // Non-zero means a relay loop was cut: a message came back, or a
     // destination pointed at this app's own listener.
     looped: number;
+    // Messages not sent because their destination was cut off by the breaker.
+    blocked: number;
+    // Destinations currently cut off.
+    tripped?: string[];
 }
 export const getNotifyRoutes = (): Promise<NotifyRoute[]> => callGo('GetNotifyRoutes');
 export const getNotifySinks = (): Promise<NotifySink[]> => callGo('GetNotifySinks');

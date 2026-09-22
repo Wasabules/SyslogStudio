@@ -345,6 +345,8 @@
     "address": "Adresse",
     "any": "Toutes",
     "appNames": "Applications",
+    "blocked": "Bloqués",
+    "blockedHint": "Messages non envoyés parce que leur destination a été coupée par le limiteur de débit.",
     "caFile": "Certificat d’autorité",
     "cancel": "Annuler",
     "clearLog": "Effacer",
@@ -373,6 +375,8 @@
     "looped": "Boucles coupées",
     "loopedHint": "Messages non réexpédiés parce qu’ils avaient déjà été relayés, ou parce qu’une destination pointe vers cette application. Ils ont bien été reçus et enregistrés : seule la réexpédition a été stoppée. Vérifiez les adresses de vos destinations.",
     "matched": "Correspondances",
+    "maxRate": "Limite de débit (msg/s)",
+    "maxRateHint": "Moyennée sur 30 secondes. Une destination qui dépasse très largement cette valeur, ou qui reçoit un flot de contenu répétitif, est coupée automatiquement et désactivée. Laissez 0 pour la valeur par défaut, ou une valeur négative pour supprimer la limite.",
     "mtlsHint": "L’autorité vérifie le correspondant et peut être différente de celle utilisée par l’écouteur de cette application. Un certificat et une clé clients activent le TLS mutuel.",
     "name": "Nom",
     "noDeliveries": "Aucune livraison pour l’instant.",
@@ -412,6 +416,8 @@
     "title": "Routage et notifications",
     "to": "Destinataires",
     "token": "Jeton Bearer",
+    "tripped": "coupée",
+    "trippedHint": "Cette destination a été coupée automatiquement. Consultez le journal des livraisons pour en connaître la raison, puis réactivez-la une fois la cause corrigée.",
     "useRegex": "Expression régulière",
     "username": "Identifiant"
   }

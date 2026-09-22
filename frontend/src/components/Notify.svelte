@@ -15,7 +15,7 @@
     let routes: NotifyRoute[] = [];
     let sinks: NotifySink[] = [];
     let log: DeliveryEntry[] = [];
-    let stats: NotifyStats = { matched: 0, delivered: 0, failed: 0, dropped: 0, looped: 0, queued: 0 };
+    let stats: NotifyStats = { matched: 0, delivered: 0, failed: 0, dropped: 0, looped: 0, blocked: 0, tripped: [], queued: 0 };
     let credentialsInClear = false;
 
     let editingSink: NotifySink | null = null;
@@ -72,7 +72,7 @@
 
     function newSink(kind: string): NotifySink {
         return {
-            id: '', name: '', kind, enabled: true, redact: false,
+            id: '', name: '', kind, enabled: true, redact: false, maxRate: 0,
             secret: '', hasSecret: false,
             template: { subject: '', body: '' },
             syslog: { address: '', protocol: 'udp', facility: 16, hostname: '', appName: '',
@@ -226,6 +226,9 @@
             {#if stats.dropped > 0}
                 <span class="bad">{$_('notify.dropped')} <b>{stats.dropped.toLocaleString()}</b></span>
             {/if}
+            {#if stats.blocked > 0}
+                <span class="bad" title={$_('notify.blockedHint')}>{$_('notify.blocked')} <b>{stats.blocked.toLocaleString()}</b></span>
+            {/if}
             {#if stats.looped > 0}
                 <span class="bad" title={$_('notify.loopedHint')}>{$_('notify.looped')} <b>{stats.looped.toLocaleString()}</b></span>
             {/if}
@@ -262,6 +265,9 @@
                             {:else if s.kind === 'webhook'}{s.webhook.url}
                             {:else}{s.email.host}:{s.email.port}{/if}
                         </span>
+                        {#if (stats.tripped ?? []).includes(s.id)}
+                            <span class="nf-badge danger" title={$_('notify.trippedHint')}>{$_('notify.tripped')}</span>
+                        {/if}
                         {#if s.hasSecret}<span class="nf-badge">{$_('notify.credentialSet')}</span>{/if}
                         {#if s.redact}<span class="nf-badge">{$_('notify.redacted')}</span>{/if}
                         <button class="nf-link" on:click={() => editSink(s)} disabled={busy}>{$_('notify.edit')}</button>
@@ -462,6 +468,12 @@
                 <textarea id="sk-body" rows="3" bind:value={editingSink.template.body}
                           placeholder="{'{{'}.Timestamp{'}}'} {'{{'}.Hostname{'}}'}: {'{{'}.Message{'}}'}"></textarea>
 
+                <label for="sk-maxrate">{$_('notify.maxRate')}</label>
+                <input id="sk-maxrate" type="number" bind:value={editingSink.maxRate} />
+
+                <span></span>
+                <span class="nf-hint">{$_('notify.maxRateHint')}</span>
+
                 <label for="sk-redact">{$_('notify.redact')}</label>
                 <input id="sk-redact" type="checkbox" bind:checked={editingSink.redact} />
             </div>
@@ -564,6 +576,8 @@
     .nf-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
     .nf-header h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
     .nf-subtitle { font-size: 11px; color: var(--text-secondary); }
+
+    .nf-badge.danger { color: var(--error, #f87171); border-color: var(--error, #f87171); }
 
     .nf-file { display: flex; gap: 6px; align-items: center; }
     .nf-file input { flex: 1; min-width: 0; }

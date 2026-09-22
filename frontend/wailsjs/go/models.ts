@@ -1007,6 +1007,7 @@ export namespace notify {
 	    redact: boolean;
 	    secret?: string;
 	    hasSecret: boolean;
+	    maxRate?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SinkConfig(source);
@@ -1025,6 +1026,7 @@ export namespace notify {
 	        this.redact = source["redact"];
 	        this.secret = source["secret"];
 	        this.hasSecret = source["hasSecret"];
+	        this.maxRate = source["maxRate"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1051,6 +1053,8 @@ export namespace notify {
 	    failed: number;
 	    dropped: number;
 	    looped: number;
+	    blocked: number;
+	    tripped?: string[];
 	    queued: number;
 	
 	    static createFrom(source: any = {}) {
@@ -1064,6 +1068,8 @@ export namespace notify {
 	        this.failed = source["failed"];
 	        this.dropped = source["dropped"];
 	        this.looped = source["looped"];
+	        this.blocked = source["blocked"];
+	        this.tripped = source["tripped"];
 	        this.queued = source["queued"];
 	    }
 	}

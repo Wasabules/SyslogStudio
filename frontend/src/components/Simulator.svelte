@@ -10,6 +10,13 @@
 
     let config: SimulatorConfig | null = null;
     let status: SimulatorStatus = { running: false, mode: 'continuous', sent: 0, failed: 0, ratePerSec: 0, elapsedMs: 0, destinations: [] };
+
+    // Go sends an empty slice as null, and the status carries no per-destination
+    // entries until the simulator has actually run. Normalised on the way in, so
+    // no reader has to remember that a list can be absent.
+    function normalizeStatus(s: SimulatorStatus): SimulatorStatus {
+        return { ...s, destinations: s?.destinations ?? [] };
+    }
     let scenarioSeconds = 0;
     let busy = false;
     let error = '';
@@ -24,15 +31,18 @@
 
     onMount(async () => {
         try {
-            config = await getSimulatorConfig();
-            status = await getSimulatorStatus();
+            const loaded = await getSimulatorConfig();
+            // Same nil-slice story as the status: a configuration that has
+            // never had a destination arrives with the list absent.
+            config = { ...loaded, destinations: loaded?.destinations ?? [] };
+            status = normalizeStatus(await getSimulatorStatus());
             scenarioSeconds = await getScenarioDurationSeconds();
         } catch (e: any) {
             error = e?.message || String(e);
         }
         const runtime = (window as any).runtime;
         if (runtime?.EventsOn) {
-            runtime.EventsOn('syslog:simulatorStatus', (s: SimulatorStatus) => { status = s; });
+            runtime.EventsOn('syslog:simulatorStatus', (s: SimulatorStatus) => { status = normalizeStatus(s); });
             unsubscribe = () => runtime.EventsOff?.('syslog:simulatorStatus');
         }
     });
@@ -49,12 +59,12 @@
 
     function addDestination() {
         if (!config) return;
-        config = { ...config, destinations: [...config.destinations, newDestination()] };
+        config = { ...config, destinations: [...(config.destinations ?? []), newDestination()] };
     }
 
     function removeDestination(id: string) {
         if (!config) return;
-        config = { ...config, destinations: config.destinations.filter(d => d.id !== id) };
+        config = { ...config, destinations: (config.destinations ?? []).filter(d => d.id !== id) };
     }
 
     async function start() {
@@ -63,7 +73,7 @@
         error = '';
         try {
             await startSimulator(config);
-            status = await getSimulatorStatus();
+            status = normalizeStatus(await getSimulatorStatus());
         } catch (e: any) {
             // Validation errors come back from Go, so the message is the one
             // that knows why — shown inline rather than only as a toast that
@@ -79,7 +89,7 @@
         busy = true;
         try {
             await stopSimulator();
-            status = await getSimulatorStatus();
+            status = normalizeStatus(await getSimulatorStatus());
         } catch (e: any) {
             toastError(e?.message || String(e));
         } finally {
@@ -108,7 +118,7 @@
             ? Math.min(100, (status.elapsedMs / (config.durationSeconds * 1000)) * 100)
         : 0;
 
-    $: enabledCount = config ? config.destinations.filter(d => d.enabled).length : 0;
+    $: enabledCount = (config?.destinations ?? []).filter(d => d.enabled).length;
     $: hasProgress = progress > 0 || (status.running && ['burst', 'scenario'].includes(status.mode));
 </script>
 
@@ -168,8 +178,8 @@
         <section class="sim-section">
             <h3>{$_('simulator.destinations')}</h3>
             <div class="dest-list">
-                {#each config.destinations as dest (dest.id)}
-                    {@const st = status.destinations.find(d => d.id === dest.id)}
+                {#each (config.destinations ?? []) as dest (dest.id)}
+                    {@const st = (status.destinations ?? []).find(d => d.id === dest.id)}
                     <div class="dest-row" class:disabled={!dest.enabled}>
                         <input type="checkbox" bind:checked={dest.enabled}
                                aria-label={$_('simulator.destEnabled')} disabled={status.running} />

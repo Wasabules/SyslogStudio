@@ -345,6 +345,8 @@
     "address": "Address",
     "any": "Any",
     "appNames": "App names",
+    "blocked": "Blocked",
+    "blockedHint": "Messages not sent because their destination was cut off by the rate limiter.",
     "caFile": "CA certificate",
     "cancel": "Cancel",
     "clearLog": "Clear",
@@ -373,6 +375,8 @@
     "looped": "Loops cut",
     "loopedHint": "Messages not forwarded because they had already been relayed, or because a destination points back at this application. They were still received and stored — only the forward was stopped. Check your destination addresses.",
     "matched": "Matched",
+    "maxRate": "Rate limit (msg/s)",
+    "maxRateHint": "Averaged over 30 seconds. A destination that goes far past this, or that floods with repeating content, is cut off automatically and disabled. Leave at 0 for the default, or set a negative value to remove the limit.",
     "mtlsHint": "The CA verifies the far end and may be a different authority from the one this app serves its own listener with. A client certificate and key together enable mutual TLS.",
     "name": "Name",
     "noDeliveries": "Nothing delivered yet.",
@@ -412,6 +416,8 @@
     "title": "Routing and notifications",
     "to": "To",
     "token": "Bearer token",
+    "tripped": "cut off",
+    "trippedHint": "This destination was cut off automatically. See the delivery log for why, then re-enable it once the cause is fixed.",
     "useRegex": "Regular expression",
     "username": "Username"
   }

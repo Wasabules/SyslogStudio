@@ -140,6 +140,11 @@ func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
 		sinks = append(sinks, sink)
 	}
 	a.configStore.SaveSinks(sinks)
+	// Re-enabling a destination the breaker cut off has to clear its counters,
+	// otherwise the very traffic that tripped it trips it again immediately.
+	if a.dispatcher != nil && sink.Enabled {
+		a.dispatcher.ResetSink(sink.ID)
+	}
 	a.reconfigureNotify()
 	return nil
 }
@@ -240,6 +245,30 @@ func (a *App) GetNotifyStats() notify.Stats {
 // it does for an unencrypted CA key.
 func (a *App) AreSinkCredentialsUnencrypted() bool {
 	return a.secretStore != nil && a.secretStore.HasAny() && !a.secretStore.IsEncrypted()
+}
+
+// persistTrippedSink disables a destination the breaker cut off.
+//
+// It writes through the same path the UI uses, so the destination simply shows
+// as disabled with the reason in the delivery log. Re-enabling it from the UI
+// is what clears the breaker.
+func (a *App) persistTrippedSink(sinkID string, reason notify.TripReason) {
+	sinks := a.configStore.LoadSinks()
+	changed := false
+	for i := range sinks {
+		if sinks[i].ID == sinkID && sinks[i].Enabled {
+			sinks[i].Enabled = false
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		return
+	}
+	a.configStore.SaveSinks(sinks)
+	slog.Warn("notify destination disabled after the rate breaker tripped",
+		"sink", sinkID, "reason", string(reason))
+	a.reconfigureNotify()
 }
 
 // isSelfDestination reports whether an address aims at one of this app's own

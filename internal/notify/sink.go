@@ -60,6 +60,12 @@ type SinkConfig struct {
 	// HasSecret tells the UI a credential is on file, so the form can show
 	// "configured" without ever receiving the value.
 	HasSecret bool `json:"hasSecret"`
+
+	// MaxRate is the ceiling in messages per second, averaged over the
+	// breaker window, past which this destination is cut off. 0 takes the
+	// default; a negative value turns the breaker off for this destination,
+	// which is the operator's call to make and theirs to live with.
+	MaxRate int `json:"maxRate,omitempty"`
 }
 
 // Destination names WHERE a sink sends, and is the identity a stored
@@ -124,6 +130,11 @@ func Build(cfg SinkConfig, secret string) (Sink, error) {
 
 // ValidateSink checks a sink before it is saved.
 func ValidateSink(cfg SinkConfig) error {
+	// A ceiling below a trickle would cut a destination off constantly; a
+	// negative value is the documented way to turn the breaker off.
+	if cfg.MaxRate > 0 && cfg.MaxRate < 10 {
+		return errf("rate limit %d/s is too low to be useful; use a negative value to turn the limit off", cfg.MaxRate)
+	}
 	if strings.TrimSpace(cfg.Name) == "" {
 		return errf("destination name is required")
 	}

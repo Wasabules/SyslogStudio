@@ -345,6 +345,8 @@
     "address": "Dirección",
     "any": "Todas",
     "appNames": "Aplicaciones",
+    "blocked": "Bloqueados",
+    "blockedHint": "Mensajes no enviados porque su destino fue cortado por el limitador de velocidad.",
     "caFile": "Certificado de CA",
     "cancel": "Cancelar",
     "clearLog": "Vaciar",
@@ -373,6 +375,8 @@
     "looped": "Bucles cortados",
     "loopedHint": "Mensajes no reenviados porque ya se habían retransmitido, o porque un destino apunta a esta aplicación. Sí se recibieron y almacenaron: solo se detuvo el reenvío. Revise las direcciones de destino.",
     "matched": "Coincidencias",
+    "maxRate": "Límite de velocidad (msg/s)",
+    "maxRateHint": "Promediado en 30 segundos. Un destino que lo supera con creces, o que recibe una avalancha de contenido repetido, se corta y desactiva automáticamente. Deje 0 para el valor por defecto, o un valor negativo para quitar el límite.",
     "mtlsHint": "La CA verifica el extremo remoto y puede ser distinta de la que usa el receptor de esta aplicación. Un certificado y una clave de cliente activan TLS mutuo.",
     "name": "Nombre",
     "noDeliveries": "Nada entregado todavía.",
@@ -412,6 +416,8 @@
     "title": "Enrutado y notificaciones",
     "to": "Destinatarios",
     "token": "Token Bearer",
+    "tripped": "cortado",
+    "trippedHint": "Este destino se cortó automáticamente. Consulte el registro de entregas para saber por qué y vuelva a activarlo cuando corrija la causa.",
     "useRegex": "Expresión regular",
     "username": "Usuario"
   }

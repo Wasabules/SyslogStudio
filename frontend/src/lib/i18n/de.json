@@ -345,6 +345,8 @@
     "address": "Adresse",
     "any": "Alle",
     "appNames": "Anwendungen",
+    "blocked": "Blockiert",
+    "blockedHint": "Nachrichten, die nicht gesendet wurden, weil ihr Ziel von der Ratenbegrenzung abgeschaltet wurde.",
     "caFile": "CA-Zertifikat",
     "cancel": "Abbrechen",
     "clearLog": "Leeren",
@@ -373,6 +375,8 @@
     "looped": "Schleifen unterbrochen",
     "loopedHint": "Nachrichten, die nicht weitergeleitet wurden, weil sie bereits relayed wurden oder eine Ziel auf diese Anwendung zurückzeigt. Sie wurden empfangen und gespeichert — nur die Weiterleitung wurde gestoppt. Prüfen Sie die Zieladressen.",
     "matched": "Treffer",
+    "maxRate": "Ratenbegrenzung (Nachr./s)",
+    "maxRateHint": "Über 30 Sekunden gemittelt. Ein Ziel, das weit darüber liegt oder mit sich wiederholenden Inhalten geflutet wird, wird automatisch abgeschaltet und deaktiviert. 0 nutzt den Standardwert, ein negativer Wert hebt die Begrenzung auf.",
     "mtlsHint": "Die CA prüft die Gegenstelle und darf eine andere sein als die, mit der diese Anwendung ihren eigenen Listener betreibt. Zertifikat und Schlüssel zusammen aktivieren gegenseitiges TLS.",
     "name": "Name",
     "noDeliveries": "Noch nichts zugestellt.",
@@ -412,6 +416,8 @@
     "title": "Routing und Benachrichtigungen",
     "to": "Empfänger",
     "token": "Bearer-Token",
+    "tripped": "abgeschaltet",
+    "trippedHint": "Dieses Ziel wurde automatisch abgeschaltet. Der Grund steht im Zustellprotokoll; aktivieren Sie es wieder, sobald die Ursache behoben ist.",
     "useRegex": "Regulärer Ausdruck",
     "username": "Benutzername"
   }

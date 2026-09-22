@@ -52,7 +52,13 @@ type Stats struct {
 	// means a relay loop was cut, which the operator needs to see: the
 	// configuration is still wrong even though the symptom is contained.
 	Looped int64 `json:"looped"`
-	Queued int   `json:"queued"`
+	// Blocked counts messages not sent because their destination had been cut
+	// off by the rate breaker.
+	Blocked int64 `json:"blocked"`
+	// Tripped names the destinations currently cut off, so the UI can say
+	// which one needs attention rather than only that something is wrong.
+	Tripped []string `json:"tripped,omitempty"`
+	Queued  int      `json:"queued"`
 }
 
 // Emitter is the subset of the event bus the dispatcher needs.
@@ -92,8 +98,13 @@ type Dispatcher struct {
 	failed    atomic.Int64
 	dropped   atomic.Int64
 	looped    atomic.Int64
+	blocked   atomic.Int64
 
-	guard *loopGuard
+	guard   *loopGuard
+	breaker *breaker
+	// onTrip lets the app persist a cut-off destination as disabled, so a
+	// restart does not walk straight back into the flood that caused it.
+	onTrip func(sinkID string, reason TripReason)
 	// local is the set of this app's own listening endpoints, so a destination
 	// aimed back at them can be skipped even if it was saved before the
 	// listener moved onto that port.
@@ -115,6 +126,7 @@ func NewDispatcher(emitter Emitter, secrets func(sinkID string) string) *Dispatc
 		queue:    make(chan job, queueCapacity),
 		stop:     make(chan struct{}),
 		guard:    newLoopGuard(loopWindow, maxLoopEntries),
+		breaker:  newBreaker(),
 	}
 	for i := 0; i < workers; i++ {
 		d.wg.Add(1)
@@ -138,6 +150,12 @@ func (d *Dispatcher) Configure(routes []Route, sinks []SinkConfig) {
 	for _, s := range sinks {
 		next[s.ID] = s
 	}
+	// A destination that no longer exists should not keep its breaker state.
+	keep := make(map[string]bool, len(next))
+	for id := range next {
+		keep[id] = true
+	}
+	d.breaker.forget(keep)
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -239,6 +257,17 @@ func (d *Dispatcher) Dispatch(msg models.SyslogMessage) {
 		// the destination was saved, so the check cannot live only in the form.
 		if cfg.Kind == SinkSyslog && d.isSelfDestination(cfg.Syslog.Address) {
 			d.looped.Add(1)
+			continue
+		}
+
+		// The breaker is the backstop for a loop whose messages come back
+		// changed enough to slip past the fingerprint guard.
+		blocked, reason := d.breaker.record(cfg, msg.Hostname, msg.AppName, msg.Message, now)
+		if reason != "" {
+			d.tripSink(cfg, reason)
+		}
+		if blocked {
+			d.blocked.Add(1)
 			continue
 		}
 
@@ -376,6 +405,45 @@ func (d *Dispatcher) record(j job, target string, err error) {
 	}
 }
 
+// tripSink cuts a destination off and makes sure the operator finds out.
+//
+// Reported three ways on purpose: a delivery-log line explaining which
+// destination and why, an application log entry, and a callback that persists
+// the destination as disabled. Without the last one a restart walks straight
+// back into the flood.
+func (d *Dispatcher) tripSink(cfg SinkConfig, reason TripReason) {
+	var explanation string
+	switch reason {
+	case TripLoop:
+		explanation = "cut off: sending faster than its limit and almost every message repeats recent content, which is what a relay loop looks like. Check that nothing sends these logs back here."
+	default:
+		explanation = "cut off: sustained far above its rate limit. Raise the limit for this destination if the volume is genuine."
+	}
+
+	slog.Warn("notify destination cut off by the rate breaker",
+		"sink", cfg.Name, "id", cfg.ID, "reason", string(reason))
+
+	d.record(job{sinkID: cfg.ID, sinkName: cfg.Name}, describeTarget(cfg), errf("%s", explanation))
+
+	if d.onTrip != nil {
+		d.onTrip(cfg.ID, reason)
+	}
+}
+
+// SetOnTrip installs the callback used to persist a cut-off destination.
+func (d *Dispatcher) SetOnTrip(fn func(sinkID string, reason TripReason)) {
+	d.mu.Lock()
+	d.onTrip = fn
+	d.mu.Unlock()
+}
+
+// ResetSink clears a destination's breaker state, so re-enabling it in the UI
+// gives it a genuinely fresh start instead of tripping again immediately on
+// the counts that cut it off.
+func (d *Dispatcher) ResetSink(sinkID string) {
+	d.breaker.reset(sinkID)
+}
+
 // Log returns the delivery log, newest last.
 func (d *Dispatcher) Log() []DeliveryEntry {
 	d.logMu.Lock()
@@ -400,6 +468,8 @@ func (d *Dispatcher) Stats() Stats {
 		Failed:    d.failed.Load(),
 		Dropped:   d.dropped.Load(),
 		Looped:    d.looped.Load(),
+		Blocked:   d.blocked.Load(),
+		Tripped:   d.breaker.trippedIDs(),
 		Queued:    len(d.queue),
 	}
 }

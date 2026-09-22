@@ -95,6 +95,10 @@ func (a *App) startup(ctx context.Context) {
 		return ""
 	})
 	a.server.SetDispatcher(a.dispatcher)
+	// A destination the breaker cuts off is persisted as disabled. Leaving it
+	// enabled would mean the next restart walks straight back into the flood
+	// that caused it, and the operator would be none the wiser.
+	a.dispatcher.SetOnTrip(a.persistTrippedSink)
 	a.reconfigureNotify()
 
 	// Initialize log store

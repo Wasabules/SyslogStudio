@@ -345,6 +345,8 @@
     "address": "Indirizzo",
     "any": "Tutte",
     "appNames": "Applicazioni",
+    "blocked": "Bloccati",
+    "blockedHint": "Messaggi non inviati perché la loro destinazione è stata interrotta dal limitatore di frequenza.",
     "caFile": "Certificato CA",
     "cancel": "Annulla",
     "clearLog": "Svuota",
@@ -373,6 +375,8 @@
     "looped": "Cicli interrotti",
     "loopedHint": "Messaggi non inoltrati perché già ritrasmessi, o perché una destinazione punta a questa applicazione. Sono stati comunque ricevuti e salvati: solo l’inoltro è stato fermato. Controlla gli indirizzi di destinazione.",
     "matched": "Corrispondenze",
+    "maxRate": "Limite di frequenza (msg/s)",
+    "maxRateHint": "Media su 30 secondi. Una destinazione che lo supera ampiamente, o sommersa da contenuto ripetitivo, viene interrotta e disattivata automaticamente. Lascia 0 per il valore predefinito, o un valore negativo per togliere il limite.",
     "mtlsHint": "La CA verifica la controparte e può essere diversa da quella usata dal ricevitore di questa applicazione. Certificato e chiave client insieme attivano il TLS reciproco.",
     "name": "Nome",
     "noDeliveries": "Ancora nessuna consegna.",
@@ -412,6 +416,8 @@
     "title": "Instradamento e notifiche",
     "to": "Destinatari",
     "token": "Token Bearer",
+    "tripped": "interrotta",
+    "trippedHint": "Questa destinazione è stata interrotta automaticamente. Il registro consegne spiega perché; riattivala una volta risolta la causa.",
     "useRegex": "Espressione regolare",
     "username": "Nome utente"
   }
