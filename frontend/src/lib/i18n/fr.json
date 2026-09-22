@@ -329,5 +329,14 @@
     "subtitle": "Génère du trafic et l’envoie vers un ou plusieurs collecteurs.",
     "title": "Simulateur syslog",
     "traffic": "Trafic"
+  },
+  "anonymous": {
+    "active": "Mode anonyme actif",
+    "disable": "Désactiver le mode anonyme",
+    "enable": "Activer le mode anonyme",
+    "hint": "Remplace les noms d’hôte, adresses, identifiants, domaines et adresses e-mail par des substituts stables, pour pouvoir partager une capture d’écran. Affichage uniquement — les données stockées et les exports sont inchangés.",
+    "reshuffle": "Générer de nouveaux substituts",
+    "reshuffled": "Nouveaux substituts générés",
+    "setting": "Mode anonyme"
   }
 }

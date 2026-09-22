@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
     import { selectedMessage } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
@@ -57,7 +58,7 @@
 
             <div class="field">
                 <span class="label">{$_('log.sourceIP')}</span>
-                <span class="value mono">{msg.sourceIP}</span>
+                <span class="value mono">{redactIP(msg.sourceIP, $anonymous)}</span>
             </div>
 
             <div class="field">
@@ -67,7 +68,7 @@
 
             <div class="field">
                 <span class="label">{$_('log.hostname')}</span>
-                <span class="value">{msg.hostname || '-'}</span>
+                <span class="value">{redactHost(msg.hostname, $anonymous) || '-'}</span>
             </div>
 
             <div class="field">
@@ -93,13 +94,13 @@
             {#if msg.structuredData}
                 <div class="field full">
                     <span class="label">{$_('log.structuredData')}</span>
-                    <pre class="sd-block">{msg.structuredData}</pre>
+                    <pre class="sd-block">{redactText(msg.structuredData, $anonymous)}</pre>
                 </div>
             {/if}
 
             <div class="field full">
                 <span class="label">{$_('log.message')}</span>
-                <pre class="message-block">{msg.message}</pre>
+                <pre class="message-block">{redactText(msg.message, $anonymous)}</pre>
             </div>
 
             <div class="field full">
@@ -107,7 +108,7 @@
                     <span class="label">{$_('log.rawMessage')}</span>
                     <button class="copy-btn" on:click={copyRaw}>{$_('log.copy')}</button>
                 </div>
-                <pre class="raw-block">{msg.rawMessage}</pre>
+                <pre class="raw-block">{redactText(msg.rawMessage, $anonymous)}</pre>
             </div>
         </div>
     </div>

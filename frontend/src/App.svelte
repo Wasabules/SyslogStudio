@@ -3,6 +3,7 @@
     import { _ } from 'svelte-i18n';
     import { initEventListeners, destroyEventListeners } from './lib/events';
     import { activeView, serverStatus } from './lib/stores';
+    import { anonymous, toggleAnonymous } from './lib/anonymize';
     import { theme, toggleTheme } from './lib/theme';
     import ServerControls from './components/ServerControls.svelte';
     import FilterBar from './components/FilterBar.svelte';
@@ -129,6 +130,16 @@
             </button>
         </div>
         <div class="sidebar-bottom">
+            <button class="nav-btn ghost-btn" class:on={$anonymous} on:click={toggleAnonymous}
+                    title={$anonymous ? $_('anonymous.disable') : $_('anonymous.enable')}
+                    aria-pressed={$anonymous}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21c0 .5-.4 1-1 1s-1-.5-1-1v-1.5a5 5 0 0 1-2-4V9a7 7 0 0 1 14 0v6.5a5 5 0 0 1-2 4V21c0 .5-.4 1-1 1s-1-.5-1-1-.4-1-1-1-1 .5-1 1-.4 1-1 1-1-.5-1-1-.4-1-1-1-1 .5-1 1z"/>
+                    <circle cx="9" cy="10" r="1.2" fill="currentColor"/>
+                    <circle cx="15" cy="10" r="1.2" fill="currentColor"/>
+                </svg>
+            </button>
             <button class="nav-btn settings-btn" on:click={() => showSettings = true}
                     title={$_('settings.title')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -235,6 +246,10 @@
         flex-direction: column;
         align-items: center;
         gap: 4px;
+    }
+
+    .ghost-btn.on {
+        color: var(--accent);
     }
 
     .sidebar-bottom {

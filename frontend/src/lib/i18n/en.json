@@ -329,5 +329,14 @@
     "subtitle": "Generate traffic and send it to one or more collectors.",
     "title": "Syslog simulator",
     "traffic": "Traffic"
+  },
+  "anonymous": {
+    "active": "Anonymous mode is on",
+    "disable": "Disable anonymous mode",
+    "enable": "Enable anonymous mode",
+    "hint": "Replaces hostnames, addresses, usernames, domains and e-mail addresses with stable stand-ins, so a screenshot can be shared. Display only — stored data and exports are unchanged.",
+    "reshuffle": "Generate new stand-ins",
+    "reshuffled": "New stand-ins generated",
+    "setting": "Anonymous mode"
   }
 }

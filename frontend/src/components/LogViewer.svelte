@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
     import { onMount, onDestroy } from 'svelte';
     import { filteredMessages, selectedMessage, autoScroll, logViewMode, historyResult, filter,
              stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages } from '../lib/stores';
@@ -441,10 +442,10 @@
                         </span>
                         <span class="col-timestamp">{formatInZone(msg.timestamp, $activeZone)}</span>
                         <span class="col-protocol">{msg.protocol}</span>
-                        <span class="col-source">{msg.sourceIP}</span>
-                        <span class="col-hostname">{msg.hostname}</span>
+                        <span class="col-source">{redactIP(msg.sourceIP, $anonymous)}</span>
+                        <span class="col-hostname">{redactHost(msg.hostname, $anonymous)}</span>
                         <span class="col-app">{msg.appName}</span>
-                        <span class="col-message" title={msg.message}>{msg.message}</span>
+                        <span class="col-message" title={redactText(msg.message, $anonymous)}>{redactText(msg.message, $anonymous)}</span>
                     </div>
                 {/if}
             {/each}

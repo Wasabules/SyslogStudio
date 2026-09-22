@@ -329,5 +329,14 @@
     "subtitle": "Gera tráfego e envia-o para um ou mais coletores.",
     "title": "Simulador syslog",
     "traffic": "Tráfego"
+  },
+  "anonymous": {
+    "active": "Modo anónimo ativo",
+    "disable": "Desativar modo anónimo",
+    "enable": "Ativar modo anónimo",
+    "hint": "Substitui nomes de host, endereços, utilizadores, domínios e e-mails por substitutos estáveis, para poder partilhar uma captura de ecrã. Apenas a apresentação — os dados guardados e as exportações não mudam.",
+    "reshuffle": "Gerar novos substitutos",
+    "reshuffled": "Novos substitutos gerados",
+    "setting": "Modo anónimo"
   }
 }

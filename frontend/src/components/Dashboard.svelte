@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { anonymous, redactHost } from '../lib/anonymize';
     import { stats } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { _ } from 'svelte-i18n';
@@ -71,7 +72,7 @@
                 {#each $stats.topSources as source, i}
                     <div class="source-row">
                         <span class="source-rank">#{i + 1}</span>
-                        <span class="source-host">{source.hostname}</span>
+                        <span class="source-host">{redactHost(source.hostname, $anonymous)}</span>
                         <span class="source-count">{source.count.toLocaleString()}</span>
                     </div>
                 {/each}
