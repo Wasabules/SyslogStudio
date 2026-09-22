@@ -6,6 +6,10 @@ export function AddAlertRule(arg1) {
   return window['go']['main']['App']['AddAlertRule'](arg1);
 }
 
+export function AreSinkCredentialsUnencrypted() {
+  return window['go']['main']['App']['AreSinkCredentialsUnencrypted']();
+}
+
 export function ChangeEncryptionPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeEncryptionPassword'](arg1, arg2);
 }
@@ -26,12 +30,24 @@ export function ClearMessages() {
   return window['go']['main']['App']['ClearMessages']();
 }
 
+export function ClearNotifyLog() {
+  return window['go']['main']['App']['ClearNotifyLog']();
+}
+
 export function CompactDatabase() {
   return window['go']['main']['App']['CompactDatabase']();
 }
 
 export function DeleteAlertRule(arg1) {
   return window['go']['main']['App']['DeleteAlertRule'](arg1);
+}
+
+export function DeleteNotifyRoute(arg1) {
+  return window['go']['main']['App']['DeleteNotifyRoute'](arg1);
+}
+
+export function DeleteNotifySink(arg1) {
+  return window['go']['main']['App']['DeleteNotifySink'](arg1);
 }
 
 export function DisableEncryption(arg1) {
@@ -114,6 +130,22 @@ export function GetNetworkInterfaces() {
   return window['go']['main']['App']['GetNetworkInterfaces']();
 }
 
+export function GetNotifyLog() {
+  return window['go']['main']['App']['GetNotifyLog']();
+}
+
+export function GetNotifyRoutes() {
+  return window['go']['main']['App']['GetNotifyRoutes']();
+}
+
+export function GetNotifySinks() {
+  return window['go']['main']['App']['GetNotifySinks']();
+}
+
+export function GetNotifyStats() {
+  return window['go']['main']['App']['GetNotifyStats']();
+}
+
 export function GetScenarioDurationSeconds() {
   return window['go']['main']['App']['GetScenarioDurationSeconds']();
 }
@@ -190,6 +222,14 @@ export function QueryMessages(arg1) {
   return window['go']['main']['App']['QueryMessages'](arg1);
 }
 
+export function SaveNotifyRoute(arg1) {
+  return window['go']['main']['App']['SaveNotifyRoute'](arg1);
+}
+
+export function SaveNotifySink(arg1) {
+  return window['go']['main']['App']['SaveNotifySink'](arg1);
+}
+
 export function SaveSimulatorConfig(arg1) {
   return window['go']['main']['App']['SaveSimulatorConfig'](arg1);
 }
@@ -232,6 +272,10 @@ export function StopServer() {
 
 export function StopSimulator() {
   return window['go']['main']['App']['StopSimulator']();
+}
+
+export function TestNotifySink(arg1) {
+  return window['go']['main']['App']['TestNotifySink'](arg1);
 }
 
 export function UnlockDatabase(arg1) {
