@@ -150,12 +150,54 @@ func (a *App) StartServer(config models.ServerConfig) error {
 	err := a.server.Start(config)
 	if err == nil {
 		a.configStore.Save(config)
+		a.refreshLocalEndpoints(config)
 	}
 	return err
 }
 
+// refreshLocalEndpoints tells the dispatcher which ports this app now listens
+// on, so a destination pointing back at one is recognised as a relay loop even
+// if it was saved while the listener was elsewhere.
+func (a *App) refreshLocalEndpoints(config models.ServerConfig) {
+	if a.dispatcher == nil {
+		return
+	}
+	ports := make(map[int]bool, 3)
+	if config.UDPEnabled {
+		ports[config.UDPPort] = true
+	}
+	if config.TCPEnabled {
+		ports[config.TCPPort] = true
+	}
+	if config.TLSEnabled {
+		ports[config.TLSPort] = true
+	}
+	a.dispatcher.SetLocalEndpoints(notify.LocalEndpoints{Ports: ports, IPs: localIPs()})
+}
+
+// localIPs lists this machine's addresses, used only to recognise a
+// destination that points back at us.
+func localIPs() map[string]bool {
+	out := make(map[string]bool)
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return out
+	}
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok {
+			out[ipNet.IP.String()] = true
+		}
+	}
+	return out
+}
+
 func (a *App) StopServer() error {
-	return a.server.Stop()
+	err := a.server.Stop()
+	if err == nil && a.dispatcher != nil {
+		// Nothing is listening, so nothing here can be looped back into.
+		a.dispatcher.SetLocalEndpoints(notify.LocalEndpoints{})
+	}
+	return err
 }
 
 func (a *App) GetServerStatus() models.ServerStatus {

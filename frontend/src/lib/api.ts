@@ -232,6 +232,9 @@ export interface DeliveryEntry {
 }
 export interface NotifyStats {
     matched: number; delivered: number; failed: number; dropped: number; queued: number;
+    // Non-zero means a relay loop was cut: a message came back, or a
+    // destination pointed at this app's own listener.
+    looped: number;
 }
 export const getNotifyRoutes = (): Promise<NotifyRoute[]> => callGo('GetNotifyRoutes');
 export const getNotifySinks = (): Promise<NotifySink[]> => callGo('GetNotifySinks');

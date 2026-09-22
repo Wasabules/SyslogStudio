@@ -370,6 +370,8 @@
     "kind_email": "E-mail",
     "kind_syslog": "Syslog",
     "kind_webhook": "Webhook",
+    "looped": "Schleifen unterbrochen",
+    "loopedHint": "Nachrichten, die nicht weitergeleitet wurden, weil sie bereits relayed wurden oder eine Ziel auf diese Anwendung zurückzeigt. Sie wurden empfangen und gespeichert — nur die Weiterleitung wurde gestoppt. Prüfen Sie die Zieladressen.",
     "matched": "Treffer",
     "mtlsHint": "Die CA prüft die Gegenstelle und darf eine andere sein als die, mit der diese Anwendung ihren eigenen Listener betreibt. Zertifikat und Schlüssel zusammen aktivieren gegenseitiges TLS.",
     "name": "Name",

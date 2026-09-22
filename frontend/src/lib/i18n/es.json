@@ -370,6 +370,8 @@
     "kind_email": "E-mail",
     "kind_syslog": "Syslog",
     "kind_webhook": "Webhook",
+    "looped": "Bucles cortados",
+    "loopedHint": "Mensajes no reenviados porque ya se habían retransmitido, o porque un destino apunta a esta aplicación. Sí se recibieron y almacenaron: solo se detuvo el reenvío. Revise las direcciones de destino.",
     "matched": "Coincidencias",
     "mtlsHint": "La CA verifica el extremo remoto y puede ser distinta de la que usa el receptor de esta aplicación. Un certificado y una clave de cliente activan TLS mutuo.",
     "name": "Nombre",

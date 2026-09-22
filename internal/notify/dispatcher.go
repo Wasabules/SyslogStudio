@@ -47,7 +47,12 @@ type Stats struct {
 	// means deliveries were lost, which is why it is reported rather than only
 	// logged.
 	Dropped int64 `json:"dropped"`
-	Queued  int   `json:"queued"`
+	// Looped counts messages not forwarded because they had already been
+	// relayed, or because a destination pointed back at this app. Non-zero
+	// means a relay loop was cut, which the operator needs to see: the
+	// configuration is still wrong even though the symptom is contained.
+	Looped int64 `json:"looped"`
+	Queued int   `json:"queued"`
 }
 
 // Emitter is the subset of the event bus the dispatcher needs.
@@ -86,6 +91,14 @@ type Dispatcher struct {
 	delivered atomic.Int64
 	failed    atomic.Int64
 	dropped   atomic.Int64
+	looped    atomic.Int64
+
+	guard *loopGuard
+	// local is the set of this app's own listening endpoints, so a destination
+	// aimed back at them can be skipped even if it was saved before the
+	// listener moved onto that port.
+	localMu sync.RWMutex
+	local   LocalEndpoints
 
 	logMu  sync.Mutex
 	logBuf []DeliveryEntry
@@ -101,6 +114,7 @@ func NewDispatcher(emitter Emitter, secrets func(sinkID string) string) *Dispatc
 		secrets:  secrets,
 		queue:    make(chan job, queueCapacity),
 		stop:     make(chan struct{}),
+		guard:    newLoopGuard(loopWindow, maxLoopEntries),
 	}
 	for i := 0; i < workers; i++ {
 		d.wg.Add(1)
@@ -116,6 +130,9 @@ func NewDispatcher(emitter Emitter, secrets func(sinkID string) string) *Dispatc
 // keep sending to it.
 func (d *Dispatcher) Configure(routes []Route, sinks []SinkConfig) {
 	compiled := compileRoutes(routes)
+	// A message held back under the previous configuration should not be held
+	// against the new one.
+	d.guard.reset()
 
 	next := make(map[string]SinkConfig, len(sinks))
 	for _, s := range sinks {
@@ -188,17 +205,40 @@ func (d *Dispatcher) Dispatch(msg models.SyslogMessage) {
 		return
 	}
 
-	ids := selectSinks(routes, msg, time.Now())
+	now := time.Now()
+	ids := selectSinks(routes, msg, now)
 	if len(ids) == 0 {
 		return
 	}
 	d.matched.Add(1)
+
+	// A message that went out recently and has come back is a loop. Suppress
+	// the forward only: it has already been received, counted and stored, and
+	// the log viewer shows it either way.
+	if d.guard.seen(fingerprint(messageFields{
+		timestamp: msg.Timestamp,
+		hostname:  msg.Hostname,
+		appName:   msg.AppName,
+		procID:    msg.ProcID,
+		msgID:     msg.MsgID,
+		message:   msg.Message,
+	}), now) {
+		d.looped.Add(1)
+		return
+	}
 
 	for _, id := range ids {
 		d.mu.RLock()
 		cfg, ok := d.sinkCfgs[id]
 		d.mu.RUnlock()
 		if !ok || !cfg.Enabled {
+			continue
+		}
+
+		// The listener may have been moved onto this destination's port after
+		// the destination was saved, so the check cannot live only in the form.
+		if cfg.Kind == SinkSyslog && d.isSelfDestination(cfg.Syslog.Address) {
+			d.looped.Add(1)
 			continue
 		}
 
@@ -359,8 +399,28 @@ func (d *Dispatcher) Stats() Stats {
 		Delivered: d.delivered.Load(),
 		Failed:    d.failed.Load(),
 		Dropped:   d.dropped.Load(),
+		Looped:    d.looped.Load(),
 		Queued:    len(d.queue),
 	}
+}
+
+// SetLocalEndpoints tells the dispatcher where this app is listening, so a
+// destination aimed back at it is recognised as a loop. Called whenever the
+// server starts or stops.
+func (d *Dispatcher) SetLocalEndpoints(local LocalEndpoints) {
+	d.localMu.Lock()
+	d.local = local
+	d.localMu.Unlock()
+}
+
+func (d *Dispatcher) isSelfDestination(address string) bool {
+	d.localMu.RLock()
+	local := d.local
+	d.localMu.RUnlock()
+	if len(local.Ports) == 0 {
+		return false
+	}
+	return IsSelfDestination(address, local)
 }
 
 // TestSink delivers one message to a sink immediately, bypassing routing and

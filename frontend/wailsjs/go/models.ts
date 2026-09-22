@@ -1050,6 +1050,7 @@ export namespace notify {
 	    delivered: number;
 	    failed: number;
 	    dropped: number;
+	    looped: number;
 	    queued: number;
 	
 	    static createFrom(source: any = {}) {
@@ -1062,6 +1063,7 @@ export namespace notify {
 	        this.delivered = source["delivered"];
 	        this.failed = source["failed"];
 	        this.dropped = source["dropped"];
+	        this.looped = source["looped"];
 	        this.queued = source["queued"];
 	    }
 	}

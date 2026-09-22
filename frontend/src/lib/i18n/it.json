@@ -370,6 +370,8 @@
     "kind_email": "E-mail",
     "kind_syslog": "Syslog",
     "kind_webhook": "Webhook",
+    "looped": "Cicli interrotti",
+    "loopedHint": "Messaggi non inoltrati perché già ritrasmessi, o perché una destinazione punta a questa applicazione. Sono stati comunque ricevuti e salvati: solo l’inoltro è stato fermato. Controlla gli indirizzi di destinazione.",
     "matched": "Corrispondenze",
     "mtlsHint": "La CA verifica la controparte e può essere diversa da quella usata dal ricevitore di questa applicazione. Certificato e chiave client insieme attivano il TLS reciproco.",
     "name": "Nome",

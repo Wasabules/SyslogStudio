@@ -370,6 +370,8 @@
     "kind_email": "E-mail",
     "kind_syslog": "Syslog",
     "kind_webhook": "Webhook",
+    "looped": "Boucles coupées",
+    "loopedHint": "Messages non réexpédiés parce qu’ils avaient déjà été relayés, ou parce qu’une destination pointe vers cette application. Ils ont bien été reçus et enregistrés : seule la réexpédition a été stoppée. Vérifiez les adresses de vos destinations.",
     "matched": "Correspondances",
     "mtlsHint": "L’autorité vérifie le correspondant et peut être différente de celle utilisée par l’écouteur de cette application. Un certificat et une clé clients activent le TLS mutuel.",
     "name": "Nom",

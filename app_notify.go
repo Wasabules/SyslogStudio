@@ -91,6 +91,13 @@ func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
 	if err := notify.ValidateTemplate(sink.Template); err != nil {
 		return err
 	}
+	// Refuse a destination that points back at our own listener. One message
+	// would return as two, then four: the receiver stores every copy and the
+	// loop only stops when something runs out. Caught here because this is
+	// where it can be explained, rather than as a mystery later.
+	if sink.Kind == notify.SinkSyslog && a.isSelfDestination(sink.Syslog.Address) {
+		return fmt.Errorf("%s points back at this application's own syslog listener, which would loop every message it relays", sink.Syslog.Address)
+	}
 	if sink.ID == "" {
 		sink.ID = newID("sink")
 	}
@@ -233,6 +240,25 @@ func (a *App) GetNotifyStats() notify.Stats {
 // it does for an unencrypted CA key.
 func (a *App) AreSinkCredentialsUnencrypted() bool {
 	return a.secretStore != nil && a.secretStore.HasAny() && !a.secretStore.IsEncrypted()
+}
+
+// isSelfDestination reports whether an address aims at one of this app's own
+// listeners. It consults the saved server configuration rather than the live
+// one, so the check is just as good while the server is stopped — that is when
+// destinations tend to be set up.
+func (a *App) isSelfDestination(address string) bool {
+	cfg := a.configStore.Load()
+	ports := make(map[int]bool, 3)
+	if cfg.UDPEnabled {
+		ports[cfg.UDPPort] = true
+	}
+	if cfg.TCPEnabled {
+		ports[cfg.TCPPort] = true
+	}
+	if cfg.TLSEnabled {
+		ports[cfg.TLSPort] = true
+	}
+	return notify.IsSelfDestination(address, notify.LocalEndpoints{Ports: ports, IPs: localIPs()})
 }
 
 // reconfigureNotify pushes the saved configuration into the dispatcher.

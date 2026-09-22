@@ -370,6 +370,8 @@
     "kind_email": "E-mail",
     "kind_syslog": "Syslog",
     "kind_webhook": "Webhook",
+    "looped": "Ciclos cortados",
+    "loopedHint": "Mensagens não reencaminhadas por já terem sido retransmitidas, ou por um destino apontar para esta aplicação. Foram recebidas e guardadas — apenas o reencaminhamento foi parado. Verifique os endereços de destino.",
     "matched": "Correspondências",
     "mtlsHint": "A CA verifica a outra extremidade e pode ser diferente da usada pelo recetor desta aplicação. Um certificado e uma chave de cliente ativam TLS mútuo.",
     "name": "Nome",

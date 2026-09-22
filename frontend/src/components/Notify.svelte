@@ -15,7 +15,7 @@
     let routes: NotifyRoute[] = [];
     let sinks: NotifySink[] = [];
     let log: DeliveryEntry[] = [];
-    let stats: NotifyStats = { matched: 0, delivered: 0, failed: 0, dropped: 0, queued: 0 };
+    let stats: NotifyStats = { matched: 0, delivered: 0, failed: 0, dropped: 0, looped: 0, queued: 0 };
     let credentialsInClear = false;
 
     let editingSink: NotifySink | null = null;
@@ -225,6 +225,9 @@
             <span class:bad={stats.failed > 0}>{$_('notify.failed')} <b>{stats.failed.toLocaleString()}</b></span>
             {#if stats.dropped > 0}
                 <span class="bad">{$_('notify.dropped')} <b>{stats.dropped.toLocaleString()}</b></span>
+            {/if}
+            {#if stats.looped > 0}
+                <span class="bad" title={$_('notify.loopedHint')}>{$_('notify.looped')} <b>{stats.looped.toLocaleString()}</b></span>
             {/if}
         </div>
     </div>
