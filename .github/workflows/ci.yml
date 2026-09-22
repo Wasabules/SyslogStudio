@@ -69,7 +69,10 @@ jobs:
         # float means a future release can change the output — or drift from the
         # library it generates against — with nothing in this repository
         # changing. The release workflow pins the same version.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        # Kept in step with the wails/v2 requirement in go.mod. This pin is a
+        # `go install` argument, so Dependabot does not manage it: bumping the
+        # library without this leaves releases built by an older CLI.
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
 
       - name: Build
         shell: bash
