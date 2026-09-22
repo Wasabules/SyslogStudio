@@ -26,7 +26,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      # The Svelte 3 / Vite 3 toolchain moves as a unit — svelte, svelte-check,
+      # The Svelte toolchain moves as a unit — svelte, svelte-check,
       # svelte-preprocess and the Vite plugin are version-locked against each
       # other, so separate PRs for them just fail each other's CI.
       svelte-toolchain:
@@ -43,3 +43,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # github/codeql-action/init and .../analyze are ONE action released as
+      # one version, and CodeQL refuses to analyse when the two do not match.
+      # Ungrouped, Dependabot opened a PR for each half — and neither could
+      # ever go green, because each one on its own is the mismatch. They have
+      # to move together or not at all.
+      codeql:
+        patterns:
+          - github/codeql-action*
