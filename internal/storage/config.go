@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/notify"
 )
 
 const configFileName = "config.json"
@@ -224,6 +225,80 @@ func (cs *ConfigStore) SaveLockout(state models.LockoutState) {
 	defer cs.mu.Unlock()
 	all := cs.loadAll()
 	all.Lockout = state
+	cs.saveAll(all)
+}
+
+// The notify configuration is held in AppConfig as raw JSON, because
+// internal/notify imports internal/models: typing those fields would make the
+// dependency circular. The decoding therefore happens here, where importing
+// notify is free.
+
+// LoadRoutes reads the saved notification routing rules.
+func (cs *ConfigStore) LoadRoutes() []notify.Route {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	raw := cs.loadAll().NotifyRoutes
+	if len(raw) == 0 {
+		return nil
+	}
+	var routes []notify.Route
+	if err := json.Unmarshal(raw, &routes); err != nil {
+		slog.Warn("failed to parse notification routes, ignoring them", "error", err)
+		return nil
+	}
+	return routes
+}
+
+// SaveRoutes writes the notification routing rules.
+func (cs *ConfigStore) SaveRoutes(routes []notify.Route) {
+	raw, err := json.Marshal(routes)
+	if err != nil {
+		slog.Warn("failed to encode notification routes", "error", err)
+		return
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.NotifyRoutes = raw
+	cs.saveAll(all)
+}
+
+// LoadSinks reads the saved destinations. Credentials are not here: they live
+// in the secret store, keyed by sink id.
+func (cs *ConfigStore) LoadSinks() []notify.SinkConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	raw := cs.loadAll().NotifySinks
+	if len(raw) == 0 {
+		return nil
+	}
+	var sinks []notify.SinkConfig
+	if err := json.Unmarshal(raw, &sinks); err != nil {
+		slog.Warn("failed to parse notification destinations, ignoring them", "error", err)
+		return nil
+	}
+	return sinks
+}
+
+// SaveSinks writes the destinations.
+func (cs *ConfigStore) SaveSinks(sinks []notify.SinkConfig) {
+	// Belt and braces: a Secret that reached here would land in config.json in
+	// the clear. SaveNotifySink already clears it.
+	clean := make([]notify.SinkConfig, len(sinks))
+	copy(clean, sinks)
+	for i := range clean {
+		clean[i].Secret = ""
+		clean[i].HasSecret = false
+	}
+	raw, err := json.Marshal(clean)
+	if err != nil {
+		slog.Warn("failed to encode notification destinations", "error", err)
+		return
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.NotifySinks = raw
 	cs.saveAll(all)
 }
 

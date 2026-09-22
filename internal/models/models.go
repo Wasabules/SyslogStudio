@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -264,6 +265,11 @@ type AppConfig struct {
 	// Simulator is the last simulator run configuration, so a destination list
 	// survives a restart.
 	Simulator SimulatorConfig `json:"simulator"`
+	// NotifyRoutes and NotifySinks are held as raw JSON here rather than as
+	// typed fields, because internal/notify imports models: typing them would
+	// make the dependency circular. ConfigStore does the decoding.
+	NotifyRoutes json.RawMessage `json:"notifyRoutes,omitempty"`
+	NotifySinks  json.RawMessage `json:"notifySinks,omitempty"`
 }
 
 // LockoutState persists failed unlock attempts across restarts so that a

@@ -168,3 +168,89 @@ export const getSimulatorStatus = (): Promise<SimulatorStatus> => callGo('GetSim
 export const getSimulatorConfig = (): Promise<SimulatorConfig> => callGo('GetSimulatorConfig');
 export const saveSimulatorConfig = (cfg: SimulatorConfig): Promise<void> => callGo('SaveSimulatorConfig', cfg);
 export const getScenarioDurationSeconds = (): Promise<number> => callGo('GetScenarioDurationSeconds');
+
+// --- Notification routing ---
+export interface MessageTemplate { subject?: string; body?: string; }
+// Certificate material for a sink that speaks TLS. Paths, not contents: the
+// files are read at delivery time and a private key must not land in the
+// configuration file.
+export interface NotifyTLSFiles {
+    caFile?: string;
+    clientCertFile?: string;
+    clientKeyFile?: string;
+    insecureSkipVerify?: boolean;
+}
+export interface NotifySink {
+    id: string;
+    name: string;
+    kind: string;
+    enabled: boolean;
+    redact: boolean;
+    // Write-only: set to send a new credential, always blank when read back.
+    secret?: string;
+    hasSecret: boolean;
+    template: MessageTemplate;
+    // Ceiling in messages per second; 0 takes the default, negative turns the
+    // rate breaker off for this destination.
+    maxRate?: number;
+    syslog: {
+        address: string; protocol: string; facility: number; hostname: string;
+        appName: string; timeout: number; preserveOrigin?: boolean;
+        preserveFacility?: boolean; caFile?: string; clientCertFile?: string;
+        clientKeyFile?: string; insecureSkipVerify?: boolean;
+    };
+    webhook: {
+        url: string; method: string; headers: Record<string, string>;
+        timeout: number; payloadMode?: string;
+    };
+    email: {
+        host: string; port: number; username: string; from: string; to: string[];
+        encryption: string; format?: string; timeout: number;
+        tls: NotifyTLSFiles;
+    };
+}
+export interface NotifyRouteMatch {
+    minSeverity?: number;
+    maxSeverity?: number;
+    facilities?: number[];
+    hostnames?: string[];
+    appNames?: string[];
+    sources?: string[];
+    pattern?: string;
+    useRegex?: boolean;
+    window?: { start: string; end: string; days?: number[] };
+}
+export interface NotifyRoute {
+    id: string;
+    name: string;
+    enabled: boolean;
+    priority: number;
+    match: NotifyRouteMatch;
+    sinkIds: string[];
+    stop: boolean;
+}
+export interface DeliveryEntry {
+    time: string; sinkId: string; sinkName: string; target: string;
+    ok: boolean; attempts: number; error?: string; subject?: string;
+}
+export interface NotifyStats {
+    matched: number; delivered: number; failed: number; dropped: number; queued: number;
+    // Non-zero means a relay loop was cut: a message came back, or a
+    // destination pointed at this app's own listener.
+    looped: number;
+    // Messages not sent because their destination was cut off by the breaker.
+    blocked: number;
+    // Destinations currently cut off.
+    tripped?: string[];
+}
+export const getNotifyRoutes = (): Promise<NotifyRoute[]> => callGo('GetNotifyRoutes');
+export const getNotifySinks = (): Promise<NotifySink[]> => callGo('GetNotifySinks');
+export const saveNotifyRoute = (r: NotifyRoute): Promise<void> => callGo('SaveNotifyRoute', r);
+export const deleteNotifyRoute = (id: string): Promise<void> => callGo('DeleteNotifyRoute', id);
+export const saveNotifySink = (s: NotifySink): Promise<void> => callGo('SaveNotifySink', s);
+export const deleteNotifySink = (id: string): Promise<void> => callGo('DeleteNotifySink', id);
+export const testNotifySink = (s: NotifySink): Promise<void> => callGo('TestNotifySink', s);
+export const getNotifyLog = (): Promise<DeliveryEntry[]> => callGo('GetNotifyLog');
+export const clearNotifyLog = (): Promise<void> => callGo('ClearNotifyLog');
+export const getNotifyStats = (): Promise<NotifyStats> => callGo('GetNotifyStats');
+export const areSinkCredentialsUnencrypted = (): Promise<boolean> => callGo('AreSinkCredentialsUnencrypted');

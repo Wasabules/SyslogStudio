@@ -14,6 +14,7 @@ import (
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
 	"SyslogStudio/internal/simulator"
 	"SyslogStudio/internal/storage"
@@ -33,6 +34,8 @@ type App struct {
 	logStore    *storage.LogStore
 	updater     *updater.Service
 	simulator   *simulator.Simulator
+	dispatcher  *notify.Dispatcher
+	secretStore *storage.SecretStore
 
 	encryptionPassword string // in-memory only for session
 }
@@ -60,6 +63,7 @@ func NewApp() *App {
 		tlsManager:  pki.NewTLSManager(),
 		configStore: cs,
 		caStore:     storage.NewCAStore(cs.Dir()),
+		secretStore: storage.NewSecretStore(cs.Dir()),
 		updater:     updater.NewService("Wasabules", "SyslogStudio"),
 	}
 }
@@ -71,6 +75,31 @@ func (a *App) startup(ctx context.Context) {
 	emitter := event.NewWailsEventEmitter(ctx)
 	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)
 	a.simulator = simulator.New(emitter)
+
+	// The dispatcher resolves a credential by sink id AND destination, so a
+	// stored secret can only be used with the place it was stored against.
+	a.dispatcher = notify.NewDispatcher(emitter, func(sinkID string) string {
+		if a.secretStore == nil {
+			return ""
+		}
+		for _, sink := range a.configStore.LoadSinks() {
+			if sink.ID != sinkID {
+				continue
+			}
+			dest, ok := notify.Destination(sink)
+			if !ok {
+				return ""
+			}
+			return a.secretStore.Get(sinkID, dest)
+		}
+		return ""
+	})
+	a.server.SetDispatcher(a.dispatcher)
+	// A destination the breaker cuts off is persisted as disabled. Leaving it
+	// enabled would mean the next restart walks straight back into the flood
+	// that caused it, and the operator would be none the wiser.
+	a.dispatcher.SetOnTrip(a.persistTrippedSink)
+	a.reconfigureNotify()
 
 	// Initialize log store
 	storageCfg := a.configStore.LoadStorage()
@@ -107,6 +136,9 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.simulator != nil {
 		a.simulator.Stop()
 	}
+	if a.dispatcher != nil {
+		a.dispatcher.Close()
+	}
 	if a.server != nil {
 		a.server.Stop()
 		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
@@ -122,12 +154,54 @@ func (a *App) StartServer(config models.ServerConfig) error {
 	err := a.server.Start(config)
 	if err == nil {
 		a.configStore.Save(config)
+		a.refreshLocalEndpoints(config)
 	}
 	return err
 }
 
+// refreshLocalEndpoints tells the dispatcher which ports this app now listens
+// on, so a destination pointing back at one is recognised as a relay loop even
+// if it was saved while the listener was elsewhere.
+func (a *App) refreshLocalEndpoints(config models.ServerConfig) {
+	if a.dispatcher == nil {
+		return
+	}
+	ports := make(map[int]bool, 3)
+	if config.UDPEnabled {
+		ports[config.UDPPort] = true
+	}
+	if config.TCPEnabled {
+		ports[config.TCPPort] = true
+	}
+	if config.TLSEnabled {
+		ports[config.TLSPort] = true
+	}
+	a.dispatcher.SetLocalEndpoints(notify.LocalEndpoints{Ports: ports, IPs: localIPs()})
+}
+
+// localIPs lists this machine's addresses, used only to recognise a
+// destination that points back at us.
+func localIPs() map[string]bool {
+	out := make(map[string]bool)
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return out
+	}
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok {
+			out[ipNet.IP.String()] = true
+		}
+	}
+	return out
+}
+
 func (a *App) StopServer() error {
-	return a.server.Stop()
+	err := a.server.Stop()
+	if err == nil && a.dispatcher != nil {
+		// Nothing is listening, so nothing here can be looped back into.
+		a.dispatcher.SetLocalEndpoints(notify.LocalEndpoints{})
+	}
+	return err
 }
 
 func (a *App) GetServerStatus() models.ServerStatus {
@@ -530,6 +604,9 @@ func (a *App) UnlockDatabase(password string) error {
 	// Success: clear persisted lockout state.
 	a.configStore.SaveLockout(models.LockoutState{})
 	a.encryptionPassword = password
+	if a.secretStore != nil {
+		a.secretStore.SetPassword(password)
+	}
 	a.server.SetLogStore(a.logStore)
 
 	// Restore alert rules now that the store is available
@@ -562,6 +639,14 @@ func (a *App) EnableEncryption(password string) error {
 	cfg.EncryptionEnabled = true
 	a.configStore.SaveStorage(cfg)
 	a.encryptionPassword = password
+	if a.secretStore != nil {
+		a.secretStore.SetPassword(password)
+		// Re-persist under the new password, so credentials do not stay behind
+		// in the previous form.
+		if err := a.secretStore.Rewrite(); err != nil {
+			slog.Warn("could not re-encrypt sink credentials", "error", err)
+		}
+	}
 	if a.logStore != nil {
 		a.logStore.SetEncryptionPassword(password)
 		a.logStore.UpdateConfig(cfg)
@@ -591,6 +676,12 @@ func (a *App) DisableEncryption(password string) error {
 	cfg.EncryptionEnabled = false
 	a.configStore.SaveStorage(cfg)
 	a.encryptionPassword = ""
+	if a.secretStore != nil {
+		a.secretStore.SetPassword("")
+		if err := a.secretStore.Rewrite(); err != nil {
+			slog.Warn("could not rewrite sink credentials in plaintext", "error", err)
+		}
+	}
 	if a.logStore != nil {
 		a.logStore.SetEncryptionPassword("")
 		a.logStore.UpdateConfig(cfg)
@@ -613,6 +704,12 @@ func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 		return fmt.Errorf("new password must be at least %d characters", minPasswordLen)
 	}
 	a.encryptionPassword = newPassword
+	if a.secretStore != nil {
+		a.secretStore.SetPassword(newPassword)
+		if err := a.secretStore.Rewrite(); err != nil {
+			slog.Warn("could not re-encrypt sink credentials", "error", err)
+		}
+	}
 	if a.logStore != nil {
 		a.logStore.SetEncryptionPassword(newPassword)
 	}

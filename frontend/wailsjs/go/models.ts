@@ -711,3 +711,371 @@ export namespace models {
 
 }
 
+export namespace notify {
+	
+	export class DeliveryEntry {
+	    // Go type: time
+	    time: any;
+	    sinkId: string;
+	    sinkName: string;
+	    target: string;
+	    ok: boolean;
+	    attempts: number;
+	    error?: string;
+	    subject?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeliveryEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.time = this.convertValues(source["time"], null);
+	        this.sinkId = source["sinkId"];
+	        this.sinkName = source["sinkName"];
+	        this.target = source["target"];
+	        this.ok = source["ok"];
+	        this.attempts = source["attempts"];
+	        this.error = source["error"];
+	        this.subject = source["subject"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TLSFiles {
+	    caFile?: string;
+	    clientCertFile?: string;
+	    clientKeyFile?: string;
+	    insecureSkipVerify?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TLSFiles(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.caFile = source["caFile"];
+	        this.clientCertFile = source["clientCertFile"];
+	        this.clientKeyFile = source["clientKeyFile"];
+	        this.insecureSkipVerify = source["insecureSkipVerify"];
+	    }
+	}
+	export class EmailSinkConfig {
+	    host: string;
+	    port: number;
+	    username: string;
+	    from: string;
+	    to: string[];
+	    encryption: string;
+	    format?: string;
+	    timeout: number;
+	    tls: TLSFiles;
+	
+	    static createFrom(source: any = {}) {
+	        return new EmailSinkConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.username = source["username"];
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.encryption = source["encryption"];
+	        this.format = source["format"];
+	        this.timeout = source["timeout"];
+	        this.tls = this.convertValues(source["tls"], TLSFiles);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MessageTemplate {
+	    subject?: string;
+	    body?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.subject = source["subject"];
+	        this.body = source["body"];
+	    }
+	}
+	export class Window {
+	    start: string;
+	    end: string;
+	    days?: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Window(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.days = source["days"];
+	    }
+	}
+	export class RouteMatch {
+	    minSeverity?: number;
+	    maxSeverity?: number;
+	    facilities?: number[];
+	    hostnames?: string[];
+	    appNames?: string[];
+	    sources?: string[];
+	    pattern?: string;
+	    useRegex?: boolean;
+	    window?: Window;
+	
+	    static createFrom(source: any = {}) {
+	        return new RouteMatch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.minSeverity = source["minSeverity"];
+	        this.maxSeverity = source["maxSeverity"];
+	        this.facilities = source["facilities"];
+	        this.hostnames = source["hostnames"];
+	        this.appNames = source["appNames"];
+	        this.sources = source["sources"];
+	        this.pattern = source["pattern"];
+	        this.useRegex = source["useRegex"];
+	        this.window = this.convertValues(source["window"], Window);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Route {
+	    id: string;
+	    name: string;
+	    enabled: boolean;
+	    priority: number;
+	    match: RouteMatch;
+	    sinkIds: string[];
+	    stop: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Route(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.priority = source["priority"];
+	        this.match = this.convertValues(source["match"], RouteMatch);
+	        this.sinkIds = source["sinkIds"];
+	        this.stop = source["stop"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class WebhookSinkConfig {
+	    url: string;
+	    method: string;
+	    headers: Record<string, string>;
+	    timeout: number;
+	    payloadMode?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WebhookSinkConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.method = source["method"];
+	        this.headers = source["headers"];
+	        this.timeout = source["timeout"];
+	        this.payloadMode = source["payloadMode"];
+	    }
+	}
+	export class SyslogSinkConfig {
+	    address: string;
+	    protocol: string;
+	    facility: number;
+	    hostname: string;
+	    appName: string;
+	    timeout: number;
+	    preserveOrigin?: boolean;
+	    preserveFacility?: boolean;
+	    caFile?: string;
+	    clientCertFile?: string;
+	    clientKeyFile?: string;
+	    insecureSkipVerify?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyslogSinkConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.protocol = source["protocol"];
+	        this.facility = source["facility"];
+	        this.hostname = source["hostname"];
+	        this.appName = source["appName"];
+	        this.timeout = source["timeout"];
+	        this.preserveOrigin = source["preserveOrigin"];
+	        this.preserveFacility = source["preserveFacility"];
+	        this.caFile = source["caFile"];
+	        this.clientCertFile = source["clientCertFile"];
+	        this.clientKeyFile = source["clientKeyFile"];
+	        this.insecureSkipVerify = source["insecureSkipVerify"];
+	    }
+	}
+	export class SinkConfig {
+	    id: string;
+	    name: string;
+	    kind: string;
+	    enabled: boolean;
+	    syslog: SyslogSinkConfig;
+	    webhook: WebhookSinkConfig;
+	    email: EmailSinkConfig;
+	    template: MessageTemplate;
+	    redact: boolean;
+	    secret?: string;
+	    hasSecret: boolean;
+	    maxRate?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SinkConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.enabled = source["enabled"];
+	        this.syslog = this.convertValues(source["syslog"], SyslogSinkConfig);
+	        this.webhook = this.convertValues(source["webhook"], WebhookSinkConfig);
+	        this.email = this.convertValues(source["email"], EmailSinkConfig);
+	        this.template = this.convertValues(source["template"], MessageTemplate);
+	        this.redact = source["redact"];
+	        this.secret = source["secret"];
+	        this.hasSecret = source["hasSecret"];
+	        this.maxRate = source["maxRate"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Stats {
+	    matched: number;
+	    delivered: number;
+	    failed: number;
+	    dropped: number;
+	    looped: number;
+	    blocked: number;
+	    tripped?: string[];
+	    queued: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Stats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.matched = source["matched"];
+	        this.delivered = source["delivered"];
+	        this.failed = source["failed"];
+	        this.dropped = source["dropped"];
+	        this.looped = source["looped"];
+	        this.blocked = source["blocked"];
+	        this.tripped = source["tripped"];
+	        this.queued = source["queued"];
+	    }
+	}
+	
+	
+	
+
+}
+

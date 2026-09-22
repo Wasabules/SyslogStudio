@@ -16,6 +16,7 @@ import (
 	"SyslogStudio/internal/alert"
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
 	"SyslogStudio/internal/storage"
 )
@@ -56,6 +57,9 @@ type SyslogServer struct {
 	// logStore is swapped atomically: startup and UnlockDatabase set it from
 	// their own goroutines while worker goroutines read it on every message.
 	logStore atomic.Pointer[storage.LogStore]
+	// dispatcher routes messages to outbound destinations. Swapped atomically
+	// for the same reason, and nil until one is installed.
+	dispatcher atomic.Pointer[notify.Dispatcher]
 
 	mu       sync.RWMutex
 	messages []models.SyslogMessage // Ring buffer
@@ -116,6 +120,12 @@ func NewSyslogServer(emitter event.EventEmitter, tlsMgr *pki.TLSManager) *Syslog
 		AlertManager: alert.NewAlertManager(emitter),
 		tlsManager:   tlsMgr,
 	}
+}
+
+// SetDispatcher atomically installs (or clears) the outbound router. Safe to
+// call while the server is running.
+func (s *SyslogServer) SetDispatcher(d *notify.Dispatcher) {
+	s.dispatcher.Store(d)
 }
 
 // SetLogStore atomically installs (or clears) the persistence store used by
@@ -746,6 +756,14 @@ func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
 	// Check alert rules
 	if events := s.AlertManager.CheckMessage(msg); len(events) > 0 {
 		s.emitter.Emit("syslog:alerts", events)
+	}
+
+	// Route outbound. Every message is offered, not only the ones that tripped
+	// an alert — relaying a whole stream to a second collector is a routing
+	// job, and an alert-shaped hook cannot express it. Dispatch never blocks:
+	// it renders and queues, and the slow work happens on its own workers.
+	if d := s.dispatcher.Load(); d != nil {
+		d.Dispatch(msg)
 	}
 }
 
