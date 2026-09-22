@@ -36,6 +36,16 @@ updates:
           - "@sveltejs/*"
           - vite
 
+  # frontend/package.json also carries one npm `override`, which Dependabot
+  # does not manage and which is easiest to understand from here: esbuild is
+  # forced to ^0.25.0 inside svelte-i18n's subtree. svelte-i18n 4.0.1 is the
+  # latest release and pins esbuild ^0.19.2, which carries
+  # GHSA-67mh-4wv8-2f99 — esbuild's development server answering cross-origin
+  # requests. Nothing here runs that server: esbuild belongs to svelte-i18n's
+  # message-extraction CLI, no script invokes it, and the project imports only
+  # the runtime API. The override is hygiene, not a fix for live exposure, and
+  # it can go the day svelte-i18n moves off 0.19.
+
   # The workflows pin actions by commit SHA, so this is the only thing that
   # ever moves them.
   - package-ecosystem: github-actions

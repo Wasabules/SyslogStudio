@@ -23,5 +23,10 @@
   },
   "dependencies": {
     "svelte-i18n": "^4.0.1"
+  },
+  "overrides": {
+    "svelte-i18n": {
+      "esbuild": "^0.25.0"
+    }
   }
 }
