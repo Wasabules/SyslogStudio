@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1e1e1e" media="(prefers-color-scheme: dark)" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyslogStudio — free syslog server and viewer for Windows, macOS and Linux</title>
+<meta name="description" content="SyslogStudio is a free, open-source syslog server and log viewer for Windows, macOS and Linux. Receive over UDP, TCP and TLS, search a local database, raise alerts, and relay what matters to another collector, a webhook or e-mail." />
+<meta name="robots" content="max-image-preview:large" />
+<link rel="icon" type="image/png" sizes="48x48" href="assets/img/favicon-48.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="SyslogStudio" />
+<meta property="og:locale" content="en_GB" />
+<meta property="og:title" content="SyslogStudio — free syslog server and viewer" />
+<meta property="og:description" content="A free, open-source syslog server and log viewer in one native binary. Receive over UDP, TCP and TLS, search a local database, raise alerts, and relay what matters." />
+<meta property="og:image" content="assets/img/live-dark.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="SyslogStudio — free syslog server and viewer" />
+<meta name="twitter:description" content="A free, open-source syslog server and log viewer in one native binary." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+<script>
+/* Stamp the chosen theme on <html> BEFORE the stylesheet is parsed.
+   Synchronous and inline on purpose: anything deferred paints one theme and
+   then corrects it, which is the flash this exists to prevent. Absent or
+   unreadable storage means "follow the system", which is the default the
+   stylesheet already implements. */
+try {
+  var t = localStorage.getItem('site-theme');
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+} catch (e) {}
+</script>
+<link rel="preload" as="image" fetchpriority="high" media="(prefers-color-scheme: dark)"
+      href="assets/img/live-dark-1200.webp"
+      imagesrcset="assets/img/live-dark-1200.webp 1200w, assets/img/live-dark-2000.webp 2000w"
+      imagesizes="(max-width: 1180px) 100vw, 1140px" />
+<link rel="preload" as="image" fetchpriority="high" media="(prefers-color-scheme: light)"
+      href="assets/img/live-light-1200.webp"
+      imagesrcset="assets/img/live-light-1200.webp 1200w, assets/img/live-light-2000.webp 2000w"
+      imagesizes="(max-width: 1180px) 100vw, 1140px" />
+<link rel="stylesheet" href="assets/site.css" />
+
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "SoftwareApplication",
+ "name": "SyslogStudio",
+ "description": "A free, open-source syslog server, log viewer and alert router for Windows, macOS and Linux. Receive syslog over UDP, TCP and TLS, search a local SQLite database with full-text search, raise alerts on patterns, and relay messages on to another collector, a webhook or e-mail.",
+ "applicationCategory": "UtilitiesApplication",
+ "applicationSubCategory": "Syslog server",
+ "operatingSystem": "Windows 10, Windows 11, macOS, Linux",
+ "downloadUrl": "https://github.com/Wasabules/SyslogStudio/releases/latest",
+ "softwareRequirements": "No runtime to install. On Linux, GTK 3 and WebKit2GTK.",
+ "license": "https://spdx.org/licenses/MIT.html",
+ "isAccessibleForFree": true,
+ "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+ "author": { "@type": "Person", "name": "Geoffrey Lecoq" },
+ "codeRepository": "https://github.com/Wasabules/SyslogStudio",
+ "programmingLanguage": ["Go", "Svelte"],
+ "featureList": [
+  "Syslog reception over UDP, TCP and TLS, including mutual TLS",
+  "RFC 5424 and RFC 3164 parsing on every transport",
+  "Live viewer with filtering, sorting and grouping",
+  "Local SQLite history with FTS5 full-text search",
+  "Alert rules on pattern, severity, host and application",
+  "Rule-based routing to another syslog collector, a webhook or e-mail",
+  "Relay loop detection and a per-destination rate breaker",
+  "Built-in traffic generator for testing",
+  "Anonymous mode that masks identifying values for sharing a screen",
+  "At-rest encryption of the message database",
+  "Eight interface languages"
+ ]
+}
+</script>
+</head>
+
+<body class="home">
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="assets/img/favicon-48.png" alt="" width="26" height="26" />
+      SyslogStudio
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="documentation.html">Documentation</a>
+      <a href="download.html">Download</a>
+      <a href="demo.html">Demo</a>
+      <a href="changelog.html" class="hide-sm">Changelog</a>
+      <a class="gh" href="https://github.com/Wasabules/SyslogStudio">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+      <div data-theme-toggle hidden></div>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ================= HERO ================= -->
+  <section class="wrap hero">
+    <p class="eyebrow">Open source syslog tooling</p>
+    <h1>A syslog server and log viewer that is one file.</h1>
+    <p class="lede">
+      Point your switches, firewalls and servers at it and read what they say. Receive
+      over UDP, TCP or TLS, search months of history in a local database, raise alerts
+      on the lines that matter, and relay those lines on to another collector, a webhook
+      or your inbox. No agent, no account, no service to stand up.
+    </p>
+
+    <div class="btn-row">
+      <a class="btn btn-primary" href="download.html">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7.47 10.78a.75.75 0 0 0 1.06 0l3.75-3.75a.75.75 0 0 0-1.06-1.06L8.75 8.44V1.75a.75.75 0 0 0-1.5 0v6.69L4.78 5.97a.75.75 0 0 0-1.06 1.06l3.75 3.75ZM3.75 13a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z"/></svg>
+        Download
+      </a>
+      <a class="btn" href="demo.html">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.7 3.2a.75.75 0 0 1 .77.04l6.5 4.25a.75.75 0 0 1 0 1.26l-6.5 4.25A.75.75 0 0 1 4.3 12.3V3.7a.75.75 0 0 1 .4-.5Z"/></svg>
+        Try it in your browser
+      </a>
+      <a class="btn" href="documentation.html">Read the documentation</a>
+    </div>
+
+    <div class="hero-meta">
+      <span>Free — MIT licensed</span>
+      <span>Windows · macOS · Linux</span>
+      <span>UDP · TCP · TLS</span>
+      <span>RFC 5424 and RFC 3164</span>
+    </div>
+  </section>
+
+  <!-- ================= SCREENSHOT ================= -->
+  <section class="wrap" style="padding-bottom:4.5rem">
+    <figure class="shot">
+      <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><b>SyslogStudio — Logs</b></div>
+      <img class="shot-light" src="assets/img/live-light-1200.webp"
+           srcset="assets/img/live-light-1200.webp 1200w, assets/img/live-light-2000.webp 2000w"
+           sizes="(max-width: 1180px) 100vw, 1140px"
+           alt="The SyslogStudio log viewer: severity badges down the left, then timestamp, protocol, source, host, application and message, with a filter bar above."
+           width="1440" height="900" loading="lazy" decoding="async" />
+      <img class="shot-dark" src="assets/img/live-dark-1200.webp"
+           srcset="assets/img/live-dark-1200.webp 1200w, assets/img/live-dark-2000.webp 2000w"
+           sizes="(max-width: 1180px) 100vw, 1140px"
+           alt="The SyslogStudio log viewer: severity badges down the left, then timestamp, protocol, source, host, application and message, with a filter bar above."
+           width="1440" height="900" loading="lazy" decoding="async" />
+      <figcaption>An evening on a small network: a VPN gateway degrading, a port flapping, someone knocking on SSH.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ================= WHAT IT IS ================= -->
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">What it is</p>
+      <h2 style="margin-top:0">Receive, keep, notice, forward.</h2>
+      <p class="lede" style="margin-bottom:2.5rem">
+        Four jobs that usually mean four pieces of infrastructure. Here they are one
+        window, and the parts know about each other: the rule that raises an alert is
+        the same shape as the rule that forwards a line to your SIEM.
+      </p>
+
+      <div class="grid-3">
+        <article class="card">
+          <h3>Receive</h3>
+          <p>
+            UDP, TCP and TLS listeners, any port, bound to one interface or all of them.
+            RFC 5424 with a fallback to RFC 3164, so the switch that has not been updated
+            since 2009 still parses. Mutual TLS where senders must prove who they are.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Keep</h3>
+          <p>
+            A local SQLite database with full-text search, a retention window you set, and
+            optional encryption at rest. The live view holds the last ten thousand lines in
+            memory; history holds as long as you asked for.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Notice</h3>
+          <p>
+            Alert rules on a substring or a regular expression, a severity threshold, a
+            host or an application, with a cooldown so one flapping port does not become
+            four hundred notifications.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Forward</h3>
+          <p>
+            Rules decide which messages are interesting, destinations decide where they go:
+            another syslog collector, a webhook, or e-mail. Relaying a whole stream and
+            e-mailing one alert are the same mechanism.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Test</h3>
+          <p>
+            A built-in traffic generator, so you can see the thing work before a single
+            device is pointed at it — and reproduce a problem on demand afterwards.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Share</h3>
+          <p>
+            Anonymous mode replaces hostnames, addresses and user names with stable
+            stand-ins, so a screenshot can go in a ticket without going through a redaction
+            tool first.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ROUTING ================= -->
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">Routing</p>
+      <h2 style="margin-top:0">A rule, a destination, and the loop you did not mean to build.</h2>
+      <p class="lede">
+        Every message is offered to the router, not only the ones that trip an alert —
+        which is what makes a bounce relay possible at all. An alert-shaped hook cannot
+        express "send this whole stream to the SIEM".
+      </p>
+
+      <figure class="shot" style="margin-top:2rem">
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><b>SyslogStudio — Routing</b></div>
+        <img class="shot-light" src="assets/img/routing-light-1200.webp"
+             srcset="assets/img/routing-light-1200.webp 1200w, assets/img/routing-light-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The routing tab: three destinations — a SIEM over TLS, a chat webhook and an on-call mailbox — and the rules that feed them, with a delivery log underneath."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <img class="shot-dark" src="assets/img/routing-dark-1200.webp"
+             srcset="assets/img/routing-dark-1200.webp 1200w, assets/img/routing-dark-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The routing tab: three destinations — a SIEM over TLS, a chat webhook and an on-call mailbox — and the rules that feed them, with a delivery log underneath."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <figcaption>Everything to the SIEM, anything critical to the on-call, authentication failures to the chat channel.</figcaption>
+      </figure>
+
+      <div class="grid-3" style="margin-top:2.5rem">
+        <article class="card">
+          <h3>Credentials that stay put</h3>
+          <p>
+            A token or password is write-only and bound to the destination it was given
+            for. Move a webhook to another host and the credential is dropped rather than
+            followed there — otherwise naming a destination's id while pointing the URL
+            elsewhere reads the token straight back.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Loops that cut themselves</h3>
+          <p>
+            A destination aimed at this application's own listener is refused when you save
+            it. A message that has already been relayed is not relayed again. And a
+            destination flooded with repeating content is cut off and told to you, rather
+            than quietly filling a disk.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Hostile input treated as hostile</h3>
+          <p>
+            Newlines are stripped from relayed messages, so a log line cannot forge a second
+            syslog frame. Mail bodies are dot-stuffed and headers CRLF-stripped. A webhook
+            refuses a cross-origin redirect that would hand its token to somebody else.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DEMO BAND ================= -->
+  <section class="section demo-band">
+    <div class="wrap">
+      <p class="eyebrow">See it first</p>
+      <h2 style="margin-top:0">The whole application, in your browser.</h2>
+      <p class="lede">
+        Not a video and not a mock-up: the real interface, running on sample data, with the
+        backend replaced by fixtures. The screenshots on this page come from the same
+        bundle, so they cannot show something the product does not actually produce.
+      </p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="demo.html">Open the demo</a>
+        <a class="btn" href="download.html">Download instead</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MORE SHOTS ================= -->
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">Around the application</p>
+      <h2 style="margin-top:0">Four more places you will spend time.</h2>
+
+      <figure class="shot" style="margin-top:2rem">
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><b>SyslogStudio — Stats</b></div>
+        <img class="shot-light" src="assets/img/dashboard-light-1200.webp"
+             srcset="assets/img/dashboard-light-1200.webp 1200w, assets/img/dashboard-light-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The statistics tab: total messages, messages per second, buffer use, a bar chart of messages by severity and a ranked list of the top sources."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <img class="shot-dark" src="assets/img/dashboard-dark-1200.webp"
+             srcset="assets/img/dashboard-dark-1200.webp 1200w, assets/img/dashboard-dark-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The statistics tab: total messages, messages per second, buffer use, a bar chart of messages by severity and a ranked list of the top sources."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <figcaption>Which severities, which hosts, and how fast — the three questions asked first.</figcaption>
+      </figure>
+
+      <figure class="shot" style="margin-top:2rem">
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><b>SyslogStudio — Alerts</b></div>
+        <img class="shot-light" src="assets/img/alerts-light-1200.webp"
+             srcset="assets/img/alerts-light-1200.webp 1200w, assets/img/alerts-light-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The alerts tab: four rules with their patterns and severity thresholds, and underneath them the events those rules caught."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <img class="shot-dark" src="assets/img/alerts-dark-1200.webp"
+             srcset="assets/img/alerts-dark-1200.webp 1200w, assets/img/alerts-dark-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The alerts tab: four rules with their patterns and severity thresholds, and underneath them the events those rules caught."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <figcaption>A rule is a pattern, a severity floor, and a cooldown. The history shows what it actually caught.</figcaption>
+      </figure>
+
+      <figure class="shot" style="margin-top:2rem">
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><b>SyslogStudio — Simulator</b></div>
+        <img class="shot-light" src="assets/img/simulator-light-1200.webp"
+             srcset="assets/img/simulator-light-1200.webp 1200w, assets/img/simulator-light-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The simulator tab: destinations with host and port, a mode and a profile, and a rate in messages per second."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <img class="shot-dark" src="assets/img/simulator-dark-1200.webp"
+             srcset="assets/img/simulator-dark-1200.webp 1200w, assets/img/simulator-dark-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The simulator tab: destinations with host and port, a mode and a profile, and a rate in messages per second."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <figcaption>Traffic on demand, so a receiver can be proven before a device is pointed at it.</figcaption>
+      </figure>
+
+      <figure class="shot" style="margin-top:2rem">
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><b>SyslogStudio — Anonymous mode</b></div>
+        <img class="shot-light" src="assets/img/anonymous-light-1200.webp"
+             srcset="assets/img/anonymous-light-1200.webp 1200w, assets/img/anonymous-light-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The same log viewer with anonymous mode on: hostnames, addresses and user names replaced by stable stand-ins."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <img class="shot-dark" src="assets/img/anonymous-dark-1200.webp"
+             srcset="assets/img/anonymous-dark-1200.webp 1200w, assets/img/anonymous-dark-2000.webp 2000w"
+             sizes="(max-width: 1180px) 100vw, 1140px"
+             alt="The same log viewer with anonymous mode on: hostnames, addresses and user names replaced by stable stand-ins."
+             width="1440" height="900" loading="lazy" decoding="async" />
+        <figcaption>The same messages, safe to put in a ticket. Substitutions are stable, so two lines from one host still match.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================= HONEST LIMITS ================= -->
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">What it is not</p>
+      <h2 style="margin-top:0">Worth knowing before you download it.</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h3>Not a cluster</h3>
+          <p>
+            One machine, one database. It is a tool for an engineer's desk and a small
+            site's collector, not a horizontally scaled log platform. If you need shards
+            and replicas, you need something else — and it will relay to it.
+          </p>
+        </article>
+        <article class="card">
+          <h3>UDP is still UDP</h3>
+          <p>
+            Source addresses on UDP are trivially spoofable. The allowed-sources list is
+            hygiene, not authentication. Where senders must be authenticated, use TLS with
+            client certificates.
+          </p>
+        </article>
+        <article class="card">
+          <h3>No analytics, no telemetry</h3>
+          <p>
+            It does not phone home, and there is no account. The only network traffic it
+            makes on its own is the update check, which you can turn off.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>
+      SyslogStudio is free software under the MIT licence.
+      <a href="https://github.com/Wasabules/SyslogStudio">Source on GitHub</a> ·
+      <a href="https://github.com/Wasabules/SyslogStudio/issues">Report an issue</a> ·
+      <a href="https://github.com/Wasabules/SyslogStudio/blob/main/SECURITY.md">Security</a>
+    </p>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>

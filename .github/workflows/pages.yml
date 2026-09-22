@@ -1,0 +1,62 @@
+# Publish docs/ to GitHub Pages.
+#
+# The site is committed, not generated here: docs/demo/ is built by
+# `node tools/demo.mjs` and the screenshots by `node tools/screenshots.mjs`,
+# both run deliberately by a person who then looks at the result. Building them
+# in CI would mean a page could change because a dependency moved, with nobody
+# having seen it.
+#
+# What this job does check is that the committed site is coherent — that the
+# demo is present and that no page links to a file that is not there. A broken
+# link is the one kind of rot a static site accumulates silently.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one half-way: a cancelled deploy
+# can leave the site serving a partial upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The demo must be built
+        run: |
+          test -f docs/demo/index.html || {
+            echo "docs/demo/index.html is missing — run: node tools/demo.mjs"
+            exit 1
+          }
+
+      - name: No page may link to a file that is not there
+        run: node tools/check-links.mjs
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
