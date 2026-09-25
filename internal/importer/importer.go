@@ -207,10 +207,14 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 		r := p.parse(line, res.File)
 
 		if !r.start {
-			res.Unmatched++
 			// A continuation belongs to the record above it, and only to one
 			// that actually started a record: without that condition a file of
 			// plain sentences would collapse into a single message.
+			//
+			// Counted as joined and NOT as unmatched: a stack-trace line found
+			// its place. Counting it both ways would report six unrecognised
+			// lines on a file that was read perfectly, which reads as a warning
+			// about nothing.
 			if p.format.JoinContinuations && holding && held.start &&
 				joined < maxJoinLines && joinBytes < maxJoinBytes {
 				held.msg.Message += "\n" + line
@@ -220,6 +224,7 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 				joinBytes += len(line)
 				continue
 			}
+			res.Unmatched++
 			if p.format.SkipUnmatched {
 				continue
 			}

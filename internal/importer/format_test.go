@@ -260,6 +260,12 @@ java.lang.IllegalStateException: no datasource
 	if res.Joined != 3 {
 		t.Errorf("Joined = %d, want 3", res.Joined)
 	}
+	// A joined line found its place, so it is not an unrecognised one. Counted
+	// both ways, a file that was read perfectly would report a handful of
+	// unrecognised lines and read as a warning about nothing.
+	if res.Unmatched != 0 {
+		t.Errorf("Unmatched = %d, want 0: the trace lines were joined, not lost", res.Unmatched)
+	}
 	if !strings.Contains(msgs[0].Message, "IllegalStateException") ||
 		!strings.Contains(msgs[0].Message, "Thread.java:840") {
 		t.Errorf("the trace did not land in the message: %q", msgs[0].Message)

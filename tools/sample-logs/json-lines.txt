@@ -1,0 +1,8 @@
+{"time":"2026-03-17T21:42:10Z","level":"info","msg":"listening on :8080","service":"api","host":"web-1"}
+{"time":"2026-03-17T21:42:11Z","level":"error","msg":"connection refused to postgres://db-2:5432","service":"api","host":"web-1"}
+{"level":50,"time":1774388532123,"msg":"pool exhausted, 0 of 32 free","service":"api"}
+{"level":40,"time":1774388533,"msg":"retrying in 5s","service":"api"}
+{"level":30,"time":1774388534000000,"msg":"recovered after 2 attempts","service":"api"}
+{"level":60,"time":1774388535123,"msg":"replication slot lost, stopping","service":"replicator"}
+{"timestamp":"2026-03-17T21:46:00Z","severity":"WARNING","message":"certificate for relay.example.net expires in 12 days","logger":"tls"}
+{"timestamp":"2026-03-17T21:46:30Z","severity":"DEBUG","message":"flush 500 rows in 11ms","logger":"writer"}

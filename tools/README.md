@@ -1,5 +1,14 @@
 # SyslogStudio Test Tools
 
+## sample-logs/
+
+Small log files for exercising **Import** by hand, one per shape the importer
+reads: a plain application log with a stack trace in it, JSON lines, an access
+log, logfmt, Android logcat, a real syslog capture, a deliberately messy file
+and a BSD-timestamped archive from another year. `sample-logs/README.md` says
+which mode to pick for each and what the preview should report, so a wrong
+answer is visible rather than plausible.
+
 ## syslog_generator.py
 
 A comprehensive syslog message generator for testing SyslogStudio. No dependencies required (Python 3.7+ standard library only).

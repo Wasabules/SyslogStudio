@@ -1,0 +1,8 @@
+<131>1 2026-03-17T21:42:10.113Z vpn-gw-01 ipsec 4242 - - IKE_SA rekey failed with 198.51.100.7
+<134>1 2026-03-17T21:42:11.882Z web-1 sshd 22 - - Accepted publickey for deploy from 203.0.113.9 port 51422
+<129>1 2026-03-17T21:43:02.004Z store-1 raid - - - array degraded: disk 3 offline
+<132>1 2026-03-17T21:43:40.551Z fw-edge-01 kernel - - - DROP IN=eth0 SRC=192.0.2.55 DST=198.51.100.2 PROTO=TCP DPT=23
+<30>Mar 17 21:44:00 db-2 postgres[7781]: checkpoint complete: wrote 1204 buffers
+<27>Mar 17 21:44:31 db-2 postgres[7781]: could not receive data from WAL stream
+<86>Mar 17 21:45:02 web-1 sudo: deploy : TTY=pts/0 ; PWD=/srv ; USER=root ; COMMAND=/bin/systemctl restart api
+<133>1 2026-03-17T21:46:00.000Z relay-1 collector - - - certificate for relay.example.net expires in 12 days

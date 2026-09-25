@@ -1,0 +1,15 @@
+2026-03-17 21:42:01 INFO   worker pool started with 16 threads
+2026-03-17 21:42:02 DEBUG cache warm: 4821 entries in 38ms
+2026-03-17 21:42:09 WARN   queue depth 812 above soft limit 500
+2026-03-17 21:43:00 ERROR  failed to start the reconciler
+java.lang.IllegalStateException: no datasource configured
+	at com.example.collector.App.main(App.java:42)
+	at com.example.collector.Boot.run(Boot.java:118)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+Caused by: java.net.ConnectException: Connection refused
+	at java.base/sun.nio.ch.Net.pollConnect(Native Method)
+2026-03-17 21:43:31 INFO   reconnected to db-2, backlog draining
+2026-03-17 21:44:12 CRITICAL replication slot lost, stopping to avoid divergence
+2026-03-17 21:45:03 NOTICE configuration reloaded from /etc/collector.yml
+2026-03-17 21:46:00 WARN   certificate for relay.example.net expires in 12 days
+2026-03-17 21:46:44 TRACE  flush 500 rows in 11ms
