@@ -254,6 +254,10 @@ export function SaveNotifySink(arg1) {
   return window['go']['main']['App']['SaveNotifySink'](arg1);
 }
 
+export function SaveServerConfig(arg1) {
+  return window['go']['main']['App']['SaveServerConfig'](arg1);
+}
+
 export function SaveSimulatorConfig(arg1) {
   return window['go']['main']['App']['SaveSimulatorConfig'](arg1);
 }

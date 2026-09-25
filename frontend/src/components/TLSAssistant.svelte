@@ -9,6 +9,7 @@
         getLocalIPs as GetLocalIPs,
         getCACertInfo as GetCACertInfo,
         getServerCertInfo as GetServerCertInfo,
+        saveServerConfig,
     } from '../lib/api';
     import CertInfoCard from './CertInfoCard.svelte';
     import { _ } from 'svelte-i18n';
@@ -90,6 +91,11 @@
             };
             serverCertInfo = await GenerateServerCert(opts);
             $serverStatus.config.useSelfSigned = true;
+            $serverStatus = $serverStatus;
+            // Kept across restarts like any other choice. The certificate
+            // itself stays in memory by design — only the decision to use a
+            // generated one is persisted.
+            try { await saveServerConfig($serverStatus.config); } catch { /* Start will report it */ }
             success = $_('tls.serverCertGenerated');
         } catch (e: any) {
             error = e?.message || String(e);

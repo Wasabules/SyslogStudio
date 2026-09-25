@@ -129,6 +129,8 @@ export function SaveNotifyRoute(arg1:notify.Route):Promise<void>;
 
 export function SaveNotifySink(arg1:notify.SinkConfig):Promise<void>;
 
+export function SaveServerConfig(arg1:models.ServerConfig):Promise<void>;
+
 export function SaveSimulatorConfig(arg1:models.SimulatorConfig):Promise<void>;
 
 export function SelectCAFile():Promise<string>;
