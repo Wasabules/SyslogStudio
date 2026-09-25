@@ -204,8 +204,36 @@ func (a *App) StopServer() error {
 	return err
 }
 
+// GetServerStatus reports what the server is doing, and what it is configured
+// with.
+//
+// The server only learns its configuration in Start, so before the first start
+// it has none — and returning that emptiness as "the configuration" is how the
+// saved TLS certificate paths came to be wiped on every launch (#45): the
+// renderer syncs the TLS fields from this status, and copied blanks over the
+// paths it had just loaded. When nothing is running, the honest answer to
+// "what is this server set up with" is what was saved.
 func (a *App) GetServerStatus() models.ServerStatus {
-	return a.server.GetStatus()
+	status := a.server.GetStatus()
+	if !status.Running {
+		status.Config = a.configStore.Load()
+	}
+	return status
+}
+
+// SaveServerConfig persists the server configuration without starting anything.
+//
+// Until this existed, settings were only written on a successful start, so
+// choosing a certificate and closing the window without pressing Start threw
+// the choice away — the same complaint as #45 arriving by a second route.
+//
+// Deliberately NOT validated. Choosing a certificate and then its key is two
+// steps, and a configuration halfway through one is exactly what needs to
+// survive; refusing to save it would reintroduce the bug this exists to fix.
+// StartServer validates, which is where an incomplete configuration actually
+// matters and where the message can say what is missing.
+func (a *App) SaveServerConfig(config models.ServerConfig) {
+	a.configStore.Save(config)
 }
 
 func (a *App) GetDefaultConfig() models.ServerConfig {

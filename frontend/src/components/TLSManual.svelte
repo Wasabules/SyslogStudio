@@ -3,19 +3,32 @@
     import {
         selectCertFile as SelectCertFile,
         selectKeyFile as SelectKeyFile,
+        saveServerConfig,
     } from '../lib/api';
     import { _ } from 'svelte-i18n';
 
-    let certFile = '';
-    let keyFile = '';
+    // Shown from the configuration rather than from a blank, so reopening the
+    // panel says what is already set instead of looking unconfigured (#45).
+    $: certFile = $serverStatus.config?.certFile ?? '';
+    $: keyFile = $serverStatus.config?.keyFile ?? '';
+
+    // Written through immediately. Settings used to reach disk only on a
+    // successful Start, so choosing a certificate and closing the window threw
+    // the choice away.
+    async function persist() {
+        try {
+            await saveServerConfig($serverStatus.config);
+        } catch { /* the choice is still in the session; Start will report any problem */ }
+    }
 
     async function browseCert() {
         try {
             const path = await SelectCertFile();
             if (path) {
-                certFile = path;
                 $serverStatus.config.certFile = path;
                 $serverStatus.config.useSelfSigned = false;
+                $serverStatus = $serverStatus;
+                await persist();
             }
         } catch {}
     }
@@ -24,9 +37,10 @@
         try {
             const path = await SelectKeyFile();
             if (path) {
-                keyFile = path;
                 $serverStatus.config.keyFile = path;
                 $serverStatus.config.useSelfSigned = false;
+                $serverStatus = $serverStatus;
+                await persist();
             }
         } catch {}
     }

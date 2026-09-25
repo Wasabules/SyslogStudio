@@ -35,6 +35,10 @@ export const startServer = (config: ServerConfig): Promise<void> => _StartServer
 export const stopServer = (): Promise<void> => _StopServer();
 export const getServerStatus = (): Promise<ServerStatus> => _GetServerStatus();
 export const getDefaultConfig = (): Promise<ServerConfig> => _GetDefaultConfig();
+// Persist the server configuration without starting anything. Saving is not
+// starting: a configuration halfway through being made is exactly what needs to
+// survive, so this is not validated — StartServer is the gate.
+export const saveServerConfig = (c: ServerConfig): Promise<void> => callGo('SaveServerConfig', c);
 
 // --- Logs ---
 export const getMessages = (filter: FilterCriteria): Promise<SyslogMessage[]> => _GetMessages(filter as any);
