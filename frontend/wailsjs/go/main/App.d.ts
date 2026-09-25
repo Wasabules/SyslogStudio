@@ -66,6 +66,8 @@ export function GetDefaultCertOptions():Promise<models.CertOptions>;
 
 export function GetDefaultConfig():Promise<models.ServerConfig>;
 
+export function GetImportFormat():Promise<models.ImportFormat>;
+
 export function GetLocalIPs():Promise<Array<string>>;
 
 export function GetMessages(arg1:models.FilterCriteria):Promise<Array<models.SyslogMessage>>;
@@ -104,7 +106,7 @@ export function GetUpdateConfig():Promise<models.UpdateConfig>;
 
 export function HideToBackground():Promise<void>;
 
-export function ImportLogFile(arg1:string,arg2:boolean):Promise<importer.Result>;
+export function ImportLogFile(arg1:string,arg2:boolean,arg3:models.ImportFormat):Promise<importer.Result>;
 
 export function IsCAKeyUnencrypted():Promise<boolean>;
 
@@ -120,7 +122,7 @@ export function LoadPersistedCA():Promise<void>;
 
 export function OpenURL(arg1:string):Promise<void>;
 
-export function PreviewLogFile(arg1:string):Promise<importer.Preview>;
+export function PreviewLogFile(arg1:string,arg2:models.ImportFormat):Promise<importer.Preview>;
 
 export function QueryMessageGroups(arg1:models.FilterCriteria,arg2:string):Promise<Array<models.GroupSummary>>;
 

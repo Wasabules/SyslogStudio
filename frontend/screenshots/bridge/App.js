@@ -121,8 +121,14 @@ const HANDLERS = {
   // answered, because that is the part worth showing — how much of the result
   // was read from the file and how much was inferred from it.
   SelectLogFile: () => refuse('SelectLogFile'),
+  // The format is ignored here because there is no file to apply it to: the
+  // preview is a fixture. In the application this is where a declared format
+  // is tried against the file's own lines.
   PreviewLogFile: () => Promise.resolve(clone(IMPORT_PREVIEW)),
   ImportLogFile: () => refuse('ImportLogFile'),
+  GetImportFormat: () => Promise.resolve({
+    mode: 'auto', joinContinuations: true, skipUnmatched: false,
+  }),
 
   // history (the database view)
   QueryMessages: (opts) => {
@@ -303,7 +309,7 @@ if (typeof window !== 'undefined') {
 export const {
   StartServer, StopServer, GetServerStatus, GetDefaultConfig, GetLocalIPs, GetNetworkInterfaces,
   GetMessages, ClearMessages, GetStats, ExportLogs, QueryMessages, QueryMessageGroups,
-  SelectLogFile, PreviewLogFile, ImportLogFile,
+  SelectLogFile, PreviewLogFile, ImportLogFile, GetImportFormat,
   GetAlertRules, AddAlertRule, UpdateAlertRule, DeleteAlertRule, GetAlertHistory, ClearAlertHistory,
   GetNotifyRoutes, GetNotifySinks, SaveNotifyRoute, DeleteNotifyRoute, SaveNotifySink,
   DeleteNotifySink, TestNotifySink, GetNotifyLog, ClearNotifyLog, GetNotifyStats,

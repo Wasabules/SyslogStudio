@@ -112,6 +112,29 @@ const BASE = [
     expect: { selector: '.modal .sev', atLeast: 5 },
   },
   {
+    name: 'import-format',
+    title: 'Describing the format of a file',
+    nav: NAV.logs,
+    // Import, then the file chooser, then the format panel.
+    click: [
+      { selector: '.action-btn', nth: 0 },
+      { selector: '.modal .btn.primary' },
+      { selector: '.modal .disclosure' },
+      // A mode with fields of its own, since a picture of the automatic one
+      // shows only the two checkboxes that are on screen anyway.
+      { selector: '.modal .format select', value: 'custom' },
+      // String.raw, because a pattern written with single backslashes in an
+      // ordinary JS string quietly loses them: '\S' is just 'S'.
+      {
+        selector: '.modal .format input.mono',
+        text: String.raw`^(?P<time>\S+ \S+)\s+(?P<level>\w+)\s+(?P<msg>.*)$`,
+      },
+    ],
+    bindings: { SelectLogFile: '/var/log/collector/nightly-archive.log' },
+    settle: 900,
+    expect: { selector: '.modal .format input.mono', atLeast: 1 },
+  },
+  {
     name: 'anonymous',
     title: 'Anonymous mode, for sharing a screen',
     nav: NAV.logs,

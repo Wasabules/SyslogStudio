@@ -9,6 +9,8 @@ export namespace importer {
 	    syslog: number;
 	    timeDetected: number;
 	    levelDetected: number;
+	    unmatched: number;
+	    joined: number;
 	    stopped: boolean;
 	    bySeverity: Record<string, number>;
 	
@@ -26,6 +28,8 @@ export namespace importer {
 	        this.syslog = source["syslog"];
 	        this.timeDetected = source["timeDetected"];
 	        this.levelDetected = source["levelDetected"];
+	        this.unmatched = source["unmatched"];
+	        this.joined = source["joined"];
 	        this.stopped = source["stopped"];
 	        this.bySeverity = source["bySeverity"];
 	    }
@@ -236,6 +240,40 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.key = source["key"];
 	        this.count = source["count"];
+	    }
+	}
+	export class ImportFormat {
+	    mode: string;
+	    jsonTime?: string;
+	    jsonLevel?: string;
+	    jsonMessage?: string;
+	    jsonHost?: string;
+	    jsonApp?: string;
+	    pattern?: string;
+	    timeLayout?: string;
+	    year?: number;
+	    timezone?: string;
+	    joinContinuations: boolean;
+	    skipUnmatched: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportFormat(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.jsonTime = source["jsonTime"];
+	        this.jsonLevel = source["jsonLevel"];
+	        this.jsonMessage = source["jsonMessage"];
+	        this.jsonHost = source["jsonHost"];
+	        this.jsonApp = source["jsonApp"];
+	        this.pattern = source["pattern"];
+	        this.timeLayout = source["timeLayout"];
+	        this.year = source["year"];
+	        this.timezone = source["timezone"];
+	        this.joinContinuations = source["joinContinuations"];
+	        this.skipUnmatched = source["skipUnmatched"];
 	    }
 	}
 	export class NetworkInterface {

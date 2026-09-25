@@ -180,10 +180,18 @@ for (const scene of scenes) {
     ? []
     : (Array.isArray(scene.click) ? scene.click : [{ selector: scene.click, nth: scene.clickNth }]);
   for (const step of steps) {
-    const { selector, nth = 0, then = 250 } = typeof step === 'string' ? { selector: step } : step;
+    const { selector, nth = 0, then = 250, value, text } =
+      typeof step === 'string' ? { selector: step } : step;
     const target = page.locator(selector).nth(nth);
     if (await target.count()) {
-      await target.click();
+      // Three things a recipe needs: press it, pick from it, type into it.
+      if (value !== undefined) {
+        await target.selectOption(value);
+      } else if (text !== undefined) {
+        await target.fill(text);
+      } else {
+        await target.click();
+      }
       await page.waitForTimeout(then);
     } else {
       problems.push(`nothing matched ${selector}`);

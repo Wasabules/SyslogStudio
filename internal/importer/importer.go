@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"SyslogStudio/internal/models"
-	"SyslogStudio/internal/syslog"
 )
 
 const (
@@ -20,6 +19,12 @@ const (
 	// bufio.Scanner's default 64 KiB would abort the whole import on it.
 	// Longer lines are truncated and counted rather than ending the read.
 	maxLineBytes = 1 << 20 // 1 MiB
+	// maxJoinLines and maxJoinBytes bound one record's continuation lines. A
+	// format that matches nothing would otherwise fold an entire file into a
+	// single message, which is a worse failure than a wrong severity because
+	// nothing about it looks wrong until the message is opened.
+	maxJoinLines = 500
+	maxJoinBytes = 64 * 1024
 	// previewLines is how much is read to show the operator what will happen.
 	// Enough to be representative, small enough to be instant on a file of any
 	// size.
@@ -39,6 +44,11 @@ type Options struct {
 	// Limit caps how many messages are produced. 0 means the caller's buffer
 	// size is the only limit, which the caller passes explicitly.
 	Limit int
+	// Format describes the file. Its zero value means automatic detection, so
+	// a caller that says nothing gets the behaviour it had before formats
+	// existed. Year and Location above are what a format leaves unsaid; the
+	// format wins when it says them itself.
+	Format models.ImportFormat
 }
 
 // Result reports what an import did, in the terms someone would check it by.
@@ -63,6 +73,13 @@ type Result struct {
 	// rather than being told a number and left to trust it.
 	TimeDetected  int `json:"timeDetected"`
 	LevelDetected int `json:"levelDetected"`
+	// Unmatched counts lines that did not fit the declared format. Reported
+	// rather than hidden: a format that matches nothing is a format chosen
+	// wrongly, and the number says so before the import is confirmed.
+	Unmatched int `json:"unmatched"`
+	// Joined counts continuation lines folded into the record above them —
+	// the stack-trace lines that would otherwise each become a message.
+	Joined int `json:"joined"`
 	// Stopped is set when Limit cut the read short, so a partial import is
 	// never mistaken for a complete one.
 	Stopped bool `json:"stopped"`
@@ -118,13 +135,19 @@ func (m multiCloser) Close() error {
 func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 	res := Result{File: filepath.Base(opts.Path), BySeverity: map[string]int{}}
 
-	loc := opts.Location
-	if loc == nil {
-		loc = time.Local
+	// A format answers the two questions a file cannot, when it was told them;
+	// the caller's Year and Location are the fallback, which is what keeps a
+	// caller that predates formats working unchanged.
+	format := opts.Format
+	if format.Year == 0 {
+		format.Year = opts.Year
 	}
-	year := opts.Year
-	if year == 0 {
-		year = time.Now().In(loc).Year()
+	if format.Timezone == "" && opts.Location != nil {
+		format.Timezone = opts.Location.String()
+	}
+	p, err := newParser(format)
+	if err != nil {
+		return res, err
 	}
 
 	rc, err := open(opts.Path)
@@ -135,6 +158,39 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 
 	sc := bufio.NewScanner(rc)
 	sc.Buffer(make([]byte, 0, 64*1024), maxLineBytes)
+
+	// The record being built. A line that does not start a record is attached
+	// to this one, so a stack trace is one message at the right severity rather
+	// than twenty stray Notices — which is only exact because the format says
+	// what starting a record looks like.
+	var (
+		held      record
+		holding   bool
+		joined    int
+		joinBytes int
+	)
+
+	// release lets the held record go. The counting happens here rather than
+	// at parse time, because a line that is still being added to has not become
+	// a message yet.
+	release := func() bool {
+		if !holding {
+			return true
+		}
+		holding = false
+		res.Imported++
+		res.BySeverity[held.msg.SeverityLabel]++
+		if held.syslog {
+			res.Syslog++
+		}
+		if held.hasTime {
+			res.TimeDetected++
+		}
+		if held.hasLevel {
+			res.LevelDetected++
+		}
+		return emit(held.msg)
+	}
 
 	for sc.Scan() {
 		res.LinesRead++
@@ -148,20 +204,47 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 			res.Truncated++
 		}
 
-		msg := convert(line, res.File, year, loc, &res)
-		res.Imported++
-		res.BySeverity[msg.SeverityLabel]++
+		r := p.parse(line, res.File)
 
-		if !emit(msg) {
+		if !r.start {
+			res.Unmatched++
+			// A continuation belongs to the record above it, and only to one
+			// that actually started a record: without that condition a file of
+			// plain sentences would collapse into a single message.
+			if p.format.JoinContinuations && holding && held.start &&
+				joined < maxJoinLines && joinBytes < maxJoinBytes {
+				held.msg.Message += "\n" + line
+				held.msg.RawMessage += "\n" + line
+				res.Joined++
+				joined++
+				joinBytes += len(line)
+				continue
+			}
+			if p.format.SkipUnmatched {
+				continue
+			}
+		}
+
+		if !release() {
 			res.Stopped = true
-			break
+			return finish(res, sc)
 		}
 		if opts.Limit > 0 && res.Imported >= opts.Limit {
 			res.Stopped = true
-			break
+			return finish(res, sc)
 		}
+
+		held, holding, joined, joinBytes = r, true, 0, 0
 	}
 
+	if !release() {
+		res.Stopped = true
+	}
+	return finish(res, sc)
+}
+
+// finish reports a read error in the terms its remedy differs by.
+func finish(res Result, sc *bufio.Scanner) (Result, error) {
 	if err := sc.Err(); err != nil {
 		// A line past the ceiling is the one error worth naming, because the
 		// remedy is different from "the file is unreadable".
@@ -171,38 +254,6 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 		return res, err
 	}
 	return res, nil
-}
-
-// convert turns one line into a message.
-//
-// A line with a <PRI> is the thing this application already parses off the
-// wire, so it goes through the same parser and nothing is guessed. Anything
-// else is a plain line, where the timestamp and the level are inference.
-func convert(line, file string, year int, loc *time.Location, res *Result) models.SyslogMessage {
-	if strings.HasPrefix(strings.TrimLeft(line, " \t"), "<") {
-		msg := syslog.Parse([]byte(line), file, "file")
-		res.Syslog++
-		return msg
-	}
-
-	d := Detect(line, year, loc)
-
-	// Parse gives the shape — an id, the labels, a sane fallback — and what was
-	// detected is laid over it. Building the message here instead would mean a
-	// second place that has to know how a SyslogMessage is filled in.
-	msg := syslog.Parse([]byte(d.Rest), file, "file")
-	msg.RawMessage = line
-
-	if d.HasTime {
-		msg.Timestamp = d.Timestamp
-		res.TimeDetected++
-	}
-	if d.HasLevel {
-		msg.Severity = d.Severity
-		msg.SeverityLabel = models.SeverityToLabel(d.Severity)
-		res.LevelDetected++
-	}
-	return msg
 }
 
 // PreviewFile reads the first few lines so the operator can see what the file

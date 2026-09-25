@@ -480,6 +480,10 @@ export const IMPORT_PREVIEW = {
     syslog: IMPORT_SCRIPT.filter((e) => e.pri).length,
     timeDetected: IMPORT_SCRIPT.filter((e) => !e.pri && !e.silent).length,
     levelDetected: IMPORT_SCRIPT.filter((e) => !e.pri && !e.silent).length,
+    // The line that is recognised as nothing, and no continuation lines: the
+    // fixture has no stack trace in it.
+    unmatched: IMPORT_SCRIPT.filter((e) => e.silent).length,
+    joined: 0,
     stopped: false,
     bySeverity: IMPORT_SCRIPT.reduce((acc, e) => {
       const label = SEVERITY_LABELS[e.sev];

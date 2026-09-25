@@ -8,6 +8,7 @@ import (
 	"SyslogStudio/internal/alert"
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/storage"
 	"SyslogStudio/internal/syslog"
 )
 
@@ -44,7 +45,7 @@ func TestImportLogFile_MessagesReachTheBufferAndFilterBySeverity(t *testing.T) {
 	app, _ := importApp(t)
 	path := mixedFile(t)
 
-	res, err := app.ImportLogFile(path, false)
+	res, err := app.ImportLogFile(path, false, models.ImportFormat{})
 	if err != nil {
 		t.Fatalf("ImportLogFile: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestImportLogFile_DoesNotFireAlertRules(t *testing.T) {
 		Pattern: "refused", MinSeverity: int(models.SevDebug),
 	}})
 
-	if _, err := app.ImportLogFile(mixedFile(t), false); err != nil {
+	if _, err := app.ImportLogFile(mixedFile(t), false, models.DefaultImportFormat()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -104,7 +105,7 @@ func TestImportLogFile_DoesNotFireAlertRules(t *testing.T) {
 func TestPreviewLogFile_ReportsWithoutImporting(t *testing.T) {
 	app, _ := importApp(t)
 
-	pv, err := app.PreviewLogFile(mixedFile(t))
+	pv, err := app.PreviewLogFile(mixedFile(t), models.DefaultImportFormat())
 	if err != nil {
 		t.Fatalf("PreviewLogFile: %v", err)
 	}
@@ -122,10 +123,10 @@ func TestPreviewLogFile_ReportsWithoutImporting(t *testing.T) {
 
 func TestImportLogFile_RefusesAnEmptyPath(t *testing.T) {
 	app, _ := importApp(t)
-	if _, err := app.ImportLogFile("", false); err == nil {
+	if _, err := app.ImportLogFile("", false, models.ImportFormat{}); err == nil {
 		t.Error("an empty path was accepted")
 	}
-	if _, err := app.PreviewLogFile(""); err == nil {
+	if _, err := app.PreviewLogFile("", models.ImportFormat{}); err == nil {
 		t.Error("an empty path was previewed")
 	}
 }
@@ -148,7 +149,7 @@ func TestImportLogFile_StopsAtTheBufferSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := app.ImportLogFile(p, false)
+	res, err := app.ImportLogFile(p, false, models.ImportFormat{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,5 +158,70 @@ func TestImportLogFile_StopsAtTheBufferSize(t *testing.T) {
 	}
 	if res.Imported != size {
 		t.Errorf("Imported = %d, want the ring size %d", res.Imported, size)
+	}
+}
+
+// The format is the answer to "what is this file", and the next file is
+// usually the same kind. Remembering it is what stops it being described twice.
+func TestImportLogFile_RemembersTheFormatThatWorked(t *testing.T) {
+	app, _ := importApp(t)
+	app.configStore = storage.NewConfigStoreAt(t.TempDir())
+
+	if got := app.GetImportFormat().Mode; got != models.ImportAuto {
+		t.Fatalf("first open offers %q, want automatic detection", got)
+	}
+
+	format := models.ImportFormat{Mode: models.ImportJSON, JSONLevel: "prio", JoinContinuations: true}
+	if _, err := app.ImportLogFile(mixedFile(t), false, format); err != nil {
+		t.Fatal(err)
+	}
+
+	back := app.GetImportFormat()
+	if back.Mode != models.ImportJSON || back.JSONLevel != "prio" || !back.JoinContinuations {
+		t.Errorf("remembered %+v, want the one that was used", back)
+	}
+}
+
+// Storing a format that just failed would mean the next import opens
+// pre-loaded with the thing that went wrong.
+func TestImportLogFile_DoesNotRememberAFormatThatFailed(t *testing.T) {
+	app, _ := importApp(t)
+	app.configStore = storage.NewConfigStoreAt(t.TempDir())
+
+	bad := models.ImportFormat{Mode: models.ImportCustom, Pattern: "^(?P<msg>.*"}
+	if _, err := app.ImportLogFile(mixedFile(t), false, bad); err == nil {
+		t.Fatal("a pattern that does not compile was accepted")
+	}
+	if got := app.GetImportFormat().Mode; got != models.ImportAuto {
+		t.Errorf("a failed import left %q behind", got)
+	}
+}
+
+// A declared format has to reach the importer, or the dialog is decoration.
+func TestPreviewLogFile_AppliesTheDeclaredFormat(t *testing.T) {
+	app, _ := importApp(t)
+	p := filepath.Join(t.TempDir(), "app.json.log")
+	line := `{"time":"2026-03-17T21:42:10Z","level":"error","msg":"connection refused"}` + "\n"
+	if err := os.WriteFile(p, []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Detection reads nothing out of a JSON line, which is the gap the modes
+	// exist to close.
+	auto, err := app.PreviewLogFile(p, models.ImportFormat{Mode: models.ImportAuto})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if auto.Result.LevelDetected != 0 {
+		t.Errorf("detection claims to read a level out of JSON: %d", auto.Result.LevelDetected)
+	}
+
+	declared, err := app.PreviewLogFile(p, models.ImportFormat{Mode: models.ImportJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if declared.Result.LevelDetected != 1 || declared.Messages[0].SeverityLabel != "Error" {
+		t.Errorf("declaring JSON changed nothing: level=%d severity=%q",
+			declared.Result.LevelDetected, declared.Messages[0].SeverityLabel)
 	}
 }
