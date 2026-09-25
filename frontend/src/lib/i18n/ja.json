@@ -63,7 +63,23 @@
     "modeFts": "FTS 詳細検索：OR、AND、NOT、\"フレーズ\"、接頭辞*（クリックで正規表現に切替）",
     "modeRegex": "正規表現検索（クリックでテキストに切替）",
     "ftsPlaceholder": "error OR fail OR timeout",
-    "regexPlaceholder": "(error|fail|timeout)"
+    "regexPlaceholder": "(error|fail|timeout)",
+    "import": "インポート"
+  },
+  "import": {
+    "title": "ログファイルをインポート",
+    "intro": "ディスク上にあるログファイルを読み込みます。キャプチャ済みの syslog ファイルはネットワーク受信時とまったく同じように解析されます。プレーンなアプリケーションログではタイムスタンプとレベルを本文から読み取るため、インポート前に何が認識されたかを確認できます。",
+    "choose": "ファイルを選択…",
+    "linesSampled": "サンプルした行数",
+    "syslogLines": "syslog 優先度あり",
+    "plainLines": "プレーンテキスト",
+    "inferred": "プレーンテキスト {total} 行のうち、タイムスタンプを {time} 行、レベルを {level} 行で認識しました。残りは既定値のままです。",
+    "persist": "データベースにも保存する",
+    "persistHint": "既定ではオフです。オンにすると、インポートした行が受信トラフィックと並んで履歴に表示されます。",
+    "noAlertsHint": "インポートはトラフィックではなく履歴です。アラートルールを発動させることはなく、通知先に転送されることもありません。",
+    "confirm": "インポート",
+    "cancel": "キャンセル",
+    "done": "{file} から {count} 件のメッセージをインポートしました"
   },
   "log": {
     "severity": "重大度",

@@ -63,7 +63,23 @@
     "modeFts": "FTS erweitert: OR, AND, NOT, \"Phrase\", Präfix* (klicken für Regex)",
     "modeRegex": "Regex-Suche (klicken für Text)",
     "ftsPlaceholder": "error OR fail OR timeout",
-    "regexPlaceholder": "(error|fail|timeout)"
+    "regexPlaceholder": "(error|fail|timeout)",
+    "import": "Importieren"
+  },
+  "import": {
+    "title": "Logdatei importieren",
+    "intro": "Eine Logdatei lesen, die schon auf der Festplatte liegt. Eine aufgezeichnete Syslog-Datei wird genau so geparst wie im Netzbetrieb; bei einem einfachen Anwendungslog werden Zeitstempel und Level aus dem Text gelesen, und Sie sehen das Erkannte, bevor etwas importiert wird.",
+    "choose": "Datei auswählen…",
+    "linesSampled": "Zeilen als Stichprobe",
+    "syslogLines": "mit Syslog-Priorität",
+    "plainLines": "reiner Text",
+    "inferred": "Von {total} Klartextzeilen wurde bei {time} ein Zeitstempel und bei {level} ein Level erkannt. Der Rest behält die Vorgabe.",
+    "persist": "Auch in die Datenbank speichern",
+    "persistHint": "Standardmäßig aus: Importierte Zeilen erscheinen dann im Verlauf neben empfangenem Verkehr.",
+    "noAlertsHint": "Ein Import ist Historie, kein Verkehr: Er löst keine Alarmregeln aus und wird nie an ein Benachrichtigungsziel weitergeleitet.",
+    "confirm": "Importieren",
+    "cancel": "Abbrechen",
+    "done": "{count} Nachrichten aus {file} importiert"
   },
   "log": {
     "severity": "Schweregrad",

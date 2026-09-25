@@ -96,6 +96,22 @@ const BASE = [
     settle: 700,
   },
   {
+    name: 'import',
+    title: 'Importing a log file',
+    nav: NAV.logs,
+    // Two presses: Import in the toolbar, then the file chooser in the dialog.
+    click: [
+      { selector: '.action-btn', nth: 0 },
+      { selector: '.modal .btn.primary' },
+    ],
+    // Choosing a file needs a dialog the browser does not have, so the scene
+    // supplies the answer. Everything after it — the counts, what was inferred,
+    // the sample — is the real component reading the real preview fixture.
+    bindings: { SelectLogFile: '/var/log/collector/nightly-archive.log' },
+    settle: 900,
+    expect: { selector: '.modal .sev', atLeast: 5 },
+  },
+  {
     name: 'anonymous',
     title: 'Anonymous mode, for sharing a screen',
     nav: NAV.logs,

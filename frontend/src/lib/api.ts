@@ -255,6 +255,31 @@ export const clearNotifyLog = (): Promise<void> => callGo('ClearNotifyLog');
 export const getNotifyStats = (): Promise<NotifyStats> => callGo('GetNotifyStats');
 export const areSinkCredentialsUnencrypted = (): Promise<boolean> => callGo('AreSinkCredentialsUnencrypted');
 
+// --- Importing a log file ---
+// What an import did, in the terms it can be checked by. The detected counts
+// say how much of the result was INFERRED from plain text rather than read from
+// a syslog priority, so the interface can show the difference.
+export interface ImportResult {
+    file: string;
+    linesRead: number;
+    imported: number;
+    blank: number;
+    truncated: number;
+    syslog: number;
+    timeDetected: number;
+    levelDetected: number;
+    stopped: boolean;
+    bySeverity: Record<string, number>;
+}
+export interface ImportPreview {
+    result: ImportResult;
+    messages: SyslogMessage[];
+}
+export const selectLogFile = (): Promise<string> => callGo('SelectLogFile');
+export const previewLogFile = (p: string): Promise<ImportPreview> => callGo('PreviewLogFile', p);
+export const importLogFile = (p: string, persist: boolean): Promise<ImportResult> =>
+    callGo('ImportLogFile', p, persist);
+
 // --- Window and tray ---
 // What the close button does: 'ask' (the default), 'quit' or 'background'.
 export type CloseAction = 'ask' | 'quit' | 'background';

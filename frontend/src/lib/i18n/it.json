@@ -63,7 +63,23 @@
     "modeFts": "FTS avanzata: OR, AND, NOT, \"frase\", prefisso* (clic per passare a Regex)",
     "modeRegex": "Ricerca regex (clic per passare a Testo)",
     "ftsPlaceholder": "error OR fail OR timeout",
-    "regexPlaceholder": "(error|fail|timeout)"
+    "regexPlaceholder": "(error|fail|timeout)",
+    "import": "Importa"
+  },
+  "import": {
+    "title": "Importa un file di log",
+    "intro": "Legge un file di log già presente sul disco. Un file syslog catturato viene analizzato esattamente come se arrivasse dalla rete; in un log applicativo semplice, data/ora e livello vengono dedotti dal testo, e vedi cosa è stato riconosciuto prima di importare qualsiasi cosa.",
+    "choose": "Scegli un file…",
+    "linesSampled": "righe campionate",
+    "syslogLines": "con priorità syslog",
+    "plainLines": "testo semplice",
+    "inferred": "Su {total} righe di testo semplice, è stata riconosciuta una data/ora in {time} e un livello in {level}. Le altre mantengono il valore predefinito.",
+    "persist": "Salva anche nel database",
+    "persistHint": "Disattivato per impostazione predefinita: le righe importate comparirebbero nella cronologia accanto al traffico ricevuto.",
+    "noAlertsHint": "Un’importazione è cronologia, non traffico: non attiva mai le regole di avviso e non viene mai inoltrata a una destinazione di notifica.",
+    "confirm": "Importa",
+    "cancel": "Annulla",
+    "done": "{count} messaggi importati da {file}"
   },
   "log": {
     "severity": "Gravità",

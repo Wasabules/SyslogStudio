@@ -414,3 +414,78 @@ export const CERT_INFO = {
   ipAddresses: ['10.10.9.22'],
   isCA: false,
 };
+
+/**
+ * A log file being imported (#46).
+ *
+ * Shaped like the pair someone actually has on disk: an appliance's captured
+ * syslog, where the priority is read and nothing is guessed, and a service's own
+ * plain log, where the timestamp and the level are inferred from the text. The
+ * preview in the interface exists to show that difference, so a fixture without
+ * both shapes in it would demonstrate nothing.
+ */
+export const IMPORT_FILE = 'nightly-archive.log';
+
+const IMPORT_SCRIPT = [
+  { pri: true, sev: SEVERITY.ERROR, host: 'vpn-gw-01', app: 'ipsec', msg: 'IKE_SA rekey failed with 198.51.100.7' },
+  { pri: true, sev: SEVERITY.INFO, host: 'web-1', app: 'sshd', msg: 'Accepted publickey for deploy from 203.0.113.9' },
+  { pri: true, sev: SEVERITY.ALERT, host: 'store-1', app: 'raid', msg: 'array degraded: disk 3 offline' },
+  { sev: SEVERITY.INFO, msg: 'INFO   worker pool started with 16 threads' },
+  { sev: SEVERITY.DEBUG, msg: 'DEBUG  cache warm: 4821 entries in 38ms' },
+  { sev: SEVERITY.WARNING, msg: 'WARN   queue depth 812 above soft limit 500' },
+  { sev: SEVERITY.ERROR, msg: 'ERROR  connection refused to postgres://db-2:5432' },
+  { sev: SEVERITY.ERROR, msg: 'ERROR  retry 1/5 failed: connection refused' },
+  { sev: SEVERITY.INFO, msg: 'INFO   reconnected to db-2, backlog draining' },
+  { sev: SEVERITY.CRITICAL, msg: 'FATAL  replication slot lost, stopping to avoid divergence' },
+  { sev: SEVERITY.NOTICE, msg: 'NOTICE configuration reloaded from /etc/collector.yml' },
+  { sev: SEVERITY.WARNING, msg: 'WARN   certificate for relay.example.net expires in 12 days' },
+  { sev: SEVERITY.DEBUG, msg: 'TRACE  flush 500 rows in 11ms' },
+  // A line that says nothing keeps the parser's fallback rather than being
+  // invented into something, and the preview should show that too.
+  { sev: SEVERITY.NOTICE, msg: 'this line says nothing at all', silent: true },
+];
+
+export const IMPORT_MESSAGES = IMPORT_SCRIPT.map((e, i) => {
+  const when = new Date(FIXED_EVENING.getTime() + i * 47 * 1000);
+  const stamp = when.toISOString().replace('.000Z', 'Z');
+  return {
+    id: `import-${pad(i + 1, 4)}`,
+    timestamp: stamp,
+    receivedAt: stamp,
+    severity: e.sev,
+    severityLabel: SEVERITY_LABELS[e.sev],
+    facility: e.pri ? 16 : 1,
+    facilityLabel: e.pri ? 'local0' : 'user',
+    hostname: e.host || IMPORT_FILE,
+    appName: e.app || '',
+    procID: '',
+    msgID: '',
+    message: e.msg,
+    // An imported line is visibly not received traffic: the source is the file
+    // it came out of, so it can be told apart and filtered out.
+    sourceIP: IMPORT_FILE,
+    protocol: 'file',
+    structuredData: '',
+    rawMessage: e.msg,
+  };
+});
+
+export const IMPORT_PREVIEW = {
+  result: {
+    file: IMPORT_FILE,
+    linesRead: IMPORT_SCRIPT.length,
+    imported: IMPORT_SCRIPT.length,
+    blank: 0,
+    truncated: 0,
+    syslog: IMPORT_SCRIPT.filter((e) => e.pri).length,
+    timeDetected: IMPORT_SCRIPT.filter((e) => !e.pri && !e.silent).length,
+    levelDetected: IMPORT_SCRIPT.filter((e) => !e.pri && !e.silent).length,
+    stopped: false,
+    bySeverity: IMPORT_SCRIPT.reduce((acc, e) => {
+      const label = SEVERITY_LABELS[e.sev];
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {}),
+  },
+  messages: IMPORT_MESSAGES,
+};

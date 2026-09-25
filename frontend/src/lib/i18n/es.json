@@ -63,7 +63,23 @@
     "modeFts": "FTS avanzada: OR, AND, NOT, \"frase\", prefijo* (clic para cambiar a Regex)",
     "modeRegex": "Búsqueda por regex (clic para cambiar a Texto)",
     "ftsPlaceholder": "error OR fail OR timeout",
-    "regexPlaceholder": "(error|fail|timeout)"
+    "regexPlaceholder": "(error|fail|timeout)",
+    "import": "Importar"
+  },
+  "import": {
+    "title": "Importar un archivo de registro",
+    "intro": "Lee un archivo de registro que ya está en el disco. Un archivo syslog capturado se analiza igual que si llegara por la red; en un registro de aplicación sin formato, la marca de tiempo y el nivel se deducen del texto, y verás qué se ha reconocido antes de importar nada.",
+    "choose": "Elegir un archivo…",
+    "linesSampled": "líneas muestreadas",
+    "syslogLines": "con prioridad syslog",
+    "plainLines": "texto sin formato",
+    "inferred": "De {total} líneas de texto sin formato, se reconoció una marca de tiempo en {time} y un nivel en {level}. El resto conserva el valor predeterminado.",
+    "persist": "Guardar también en la base de datos",
+    "persistHint": "Desactivado por defecto: las líneas importadas aparecerían en el historial junto al tráfico recibido.",
+    "noAlertsHint": "Una importación es historial, no tráfico: nunca activa reglas de alerta ni se reenvía a un destino de notificación.",
+    "confirm": "Importar",
+    "cancel": "Cancelar",
+    "done": "{count} mensajes importados desde {file}"
   },
   "log": {
     "severity": "Severidad",

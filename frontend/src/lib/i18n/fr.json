@@ -63,7 +63,23 @@
     "modeFts": "FTS avancé : OR, AND, NOT, \"phrase\", préfixe* (cliquer pour passer en Regex)",
     "modeRegex": "Recherche regex (cliquer pour passer en Texte)",
     "ftsPlaceholder": "error OR fail OR timeout",
-    "regexPlaceholder": "(error|fail|timeout)"
+    "regexPlaceholder": "(error|fail|timeout)",
+    "import": "Importer"
+  },
+  "import": {
+    "title": "Importer un fichier de journaux",
+    "intro": "Lire un fichier de journaux déjà présent sur le disque. Un fichier syslog capturé est analysé exactement comme il le serait sur le réseau ; pour un journal applicatif brut, l’horodatage et le niveau sont déduits du texte, et vous voyez ce qui a été reconnu avant que quoi que ce soit ne soit importé.",
+    "choose": "Choisir un fichier…",
+    "linesSampled": "lignes échantillonnées",
+    "syslogLines": "avec une priorité syslog",
+    "plainLines": "texte brut",
+    "inferred": "Sur {total} lignes de texte brut, un horodatage a été reconnu sur {time} et un niveau sur {level}. Les autres conservent la valeur par défaut.",
+    "persist": "Enregistrer aussi dans la base de données",
+    "persistHint": "Désactivé par défaut : les lignes importées apparaîtraient alors dans l’historique à côté du trafic reçu.",
+    "noAlertsHint": "Un import, c’est de l’historique, pas du trafic : il ne déclenche jamais de règle d’alerte et n’est jamais relayé vers une destination de notification.",
+    "confirm": "Importer",
+    "cancel": "Annuler",
+    "done": "{count} messages importés depuis {file}"
   },
   "log": {
     "severity": "Sévérité",

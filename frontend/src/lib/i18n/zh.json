@@ -63,7 +63,23 @@
     "modeFts": "FTS 高级：OR、AND、NOT、\"短语\"、前缀*（点击切换到正则）",
     "modeRegex": "正则搜索（点击切换到文本）",
     "ftsPlaceholder": "error OR fail OR timeout",
-    "regexPlaceholder": "(error|fail|timeout)"
+    "regexPlaceholder": "(error|fail|timeout)",
+    "import": "导入"
+  },
+  "import": {
+    "title": "导入日志文件",
+    "intro": "读取磁盘上已有的日志文件。已捕获的 syslog 文件会按网络接收时完全相同的方式解析；对于普通应用日志，时间戳和级别从正文中推断，导入前可先查看识别结果。",
+    "choose": "选择文件…",
+    "linesSampled": "采样行数",
+    "syslogLines": "含 syslog 优先级",
+    "plainLines": "纯文本",
+    "inferred": "在 {total} 行纯文本中，识别出 {time} 行的时间戳和 {level} 行的级别。其余保持默认值。",
+    "persist": "同时保存到数据库",
+    "persistHint": "默认关闭：开启后导入的行会与接收到的流量一起出现在历史记录中。",
+    "noAlertsHint": "导入属于历史记录而非流量：它不会触发告警规则，也不会转发到通知目标。",
+    "confirm": "导入",
+    "cancel": "取消",
+    "done": "已从 {file} 导入 {count} 条消息"
   },
   "log": {
     "severity": "严重程度",
