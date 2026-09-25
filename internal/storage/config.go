@@ -354,6 +354,34 @@ func (cs *ConfigStore) SaveCloseAction(a models.CloseAction) {
 	cs.saveAll(all)
 }
 
+// LoadImportFormat reads the format the last import used. An absent or
+// unrecognised one means automatic detection, which is the answer that works
+// without being configured.
+func (cs *ConfigStore) LoadImportFormat() models.ImportFormat {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	f := cs.loadAll().Import
+	if !f.Mode.Valid() {
+		return models.DefaultImportFormat()
+	}
+	return f
+}
+
+// SaveImportFormat records what worked, so the next import of the same kind of
+// file opens ready. A format that does not validate is not written: a stored
+// configuration that cannot be used would fail every later import with an
+// error about something the user did minutes ago.
+func (cs *ConfigStore) SaveImportFormat(f models.ImportFormat) {
+	if err := models.ValidateImportFormat(f); err != nil {
+		return
+	}
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.Import = f
+	cs.saveAll(all)
+}
+
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
 	cs.mu.Lock()

@@ -126,6 +126,10 @@ export function GetDefaultConfig() {
   return window['go']['main']['App']['GetDefaultConfig']();
 }
 
+export function GetImportFormat() {
+  return window['go']['main']['App']['GetImportFormat']();
+}
+
 export function GetLocalIPs() {
   return window['go']['main']['App']['GetLocalIPs']();
 }
@@ -202,6 +206,10 @@ export function HideToBackground() {
   return window['go']['main']['App']['HideToBackground']();
 }
 
+export function ImportLogFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ImportLogFile'](arg1, arg2, arg3);
+}
+
 export function IsCAKeyUnencrypted() {
   return window['go']['main']['App']['IsCAKeyUnencrypted']();
 }
@@ -228,6 +236,10 @@ export function LoadPersistedCA() {
 
 export function OpenURL(arg1) {
   return window['go']['main']['App']['OpenURL'](arg1);
+}
+
+export function PreviewLogFile(arg1, arg2) {
+  return window['go']['main']['App']['PreviewLogFile'](arg1, arg2);
 }
 
 export function QueryMessageGroups(arg1, arg2) {
@@ -272,6 +284,10 @@ export function SelectCertFile() {
 
 export function SelectKeyFile() {
   return window['go']['main']['App']['SelectKeyFile']();
+}
+
+export function SelectLogFile() {
+  return window['go']['main']['App']['SelectLogFile']();
 }
 
 export function SetCloseAction(arg1) {

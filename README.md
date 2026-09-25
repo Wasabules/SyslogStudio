@@ -74,6 +74,25 @@ syslog collector, a webhook, or e-mail.
   <img src="docs/assets/img/alerts-light.png" alt="Alert rules with their patterns and severity thresholds, and the events they caught." width="900" />
 </picture>
 
+### Importing a log file
+
+A log file already on disk, sorted by severity. What was read and what was guessed are counted
+separately, before anything is imported.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/import-dark.png" />
+  <img src="docs/assets/img/import-light.png" alt="The import dialog: how many lines carried a syslog priority, how many were plain text, what was inferred from them, the count per severity, and a sample of the result." width="900" />
+</picture>
+
+Detection reads a timestamp at the front of the line and a severity word standing on its own,
+which covers most files. When it does not — JSON lines, an access log, a stack trace — the
+format can be declared, and the sample is re-read on every change.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/import-format-dark.png" />
+  <img src="docs/assets/img/import-format-light.png" alt="The format panel: a mode to read the file as, a pattern with named groups, a time layout, the year and timezone, and switches for joining continuation lines and skipping lines that do not match." width="900" />
+</picture>
+
 ### Anonymous mode
 
 Hostnames, addresses and user names replaced by stable stand-ins, so a screenshot can go
@@ -113,6 +132,16 @@ in a ticket without going through a redaction tool first.
 - **Explicit timezones** — follow the machine, pin to UTC, or name a zone; the column header
   says which one it is showing
 - **Export** as CSV or plain text
+- **Import a log file** already on disk — `.log`, `.txt` or a rotated `.gz`. A captured
+  syslog file is parsed exactly as it would be off the wire; a plain application log has its
+  timestamp and level read out of the text, and a preview says how much was read and how much
+  was inferred before anything is imported. An import never fires alert rules and is never
+  relayed onward
+- **Describe the file when guessing is not enough** — JSON lines, an access log, logfmt, or a
+  regular expression with named groups, plus the year and timezone a file leaves unsaid.
+  Continuation lines fold into the record above them, so a stack trace is one message at the
+  right severity instead of twenty. Every change re-reads the same sampled lines, and the
+  format that worked is remembered for the next import
 
 ### Keeping
 

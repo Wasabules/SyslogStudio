@@ -734,13 +734,48 @@ func (s *SyslogServer) processMessage(raw []byte, sourceIP string, protocol stri
 	s.addMessage(msg)
 }
 
-func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
+// AddImported puts a message from a file into the ring buffer, and nothing
+// else.
+//
+// Deliberately NOT addMessage. A file is history, not traffic: running it
+// through the alert rules would fire notifications for things that happened
+// last week, and through the router would relay last week's logs to a live
+// SIEM — which, for someone importing an archive to look at it, is the worst
+// possible surprise.
+//
+// Persistence is the caller's decision for the same reason, so it is not done
+// here either. What an import does do is fill the buffer the viewer reads, so
+// filtering, sorting, grouping and exporting all work on it.
+func (s *SyslogServer) AddImported(msg models.SyslogMessage) {
 	s.mu.Lock()
+	s.pushRingLocked(msg)
+	s.mu.Unlock()
+}
+
+// BufferSize is how many messages the ring holds, so a caller can size an
+// import to it rather than guessing.
+func (s *SyslogServer) BufferSize() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.messages)
+}
+
+// pushRingLocked writes one message into the ring. The caller holds s.mu.
+//
+// Shared by received traffic and by an import so there is one place that knows
+// how the ring advances; the two differ in everything that happens AFTER the
+// write, not in the write itself.
+func (s *SyslogServer) pushRingLocked(msg models.SyslogMessage) {
 	s.messages[s.head] = msg
 	s.head = (s.head + 1) % len(s.messages)
 	if s.count < len(s.messages) {
 		s.count++
 	}
+}
+
+func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
+	s.mu.Lock()
+	s.pushRingLocked(msg)
 	if len(s.pendingBatch) < maxPendingBatch {
 		s.pendingBatch = append(s.pendingBatch, msg)
 	}

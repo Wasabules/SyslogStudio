@@ -272,6 +272,10 @@ type AppConfig struct {
 	NotifySinks  json.RawMessage `json:"notifySinks,omitempty"`
 	// CloseAction is what pressing the window's close button does.
 	CloseAction CloseAction `json:"closeAction,omitempty"`
+	// Import is the format the last import used, re-proposed at the next one:
+	// the same kind of file tends to be imported again, and describing it twice
+	// is a chore the application can remember instead.
+	Import ImportFormat `json:"import"`
 }
 
 // CloseAction is what closing the window means.
@@ -823,4 +827,150 @@ func ParseFilterDate(s string) (time.Time, bool) {
 		return t, true
 	}
 	return time.Time{}, false
+}
+
+// --- Describing a log file so it can be imported -----------------------------
+//
+// Auto-detection reads the shapes people write most often, and it is the
+// default because it asks nothing. It is also measurably not enough: a JSON
+// line, an nginx access line and a stack trace all come back as "nothing
+// recognised", and a file of unrecognised lines does not sort by severity,
+// which is the whole reason for importing it.
+//
+// So a format can be DECLARED. Declaring one also makes continuation lines
+// exact rather than heuristic: whatever does not start a record belongs to the
+// record before it.
+
+// ImportMode names how a file's lines should be read.
+type ImportMode string
+
+const (
+	// ImportAuto guesses, and reports what it guessed.
+	ImportAuto ImportMode = "auto"
+	// ImportSyslog sends every line through the wire parser.
+	ImportSyslog ImportMode = "syslog"
+	// ImportJSON reads one JSON object per line, the shape most logging
+	// libraries emit today.
+	ImportJSON ImportMode = "json"
+	// ImportAccess reads the Common and Combined log formats, where the
+	// timestamp is not at the front of the line and the severity is the status
+	// code.
+	ImportAccess ImportMode = "access"
+	// ImportLogfmt reads key=value lines.
+	ImportLogfmt ImportMode = "logfmt"
+	// ImportCustom reads a regular expression with named groups.
+	ImportCustom ImportMode = "custom"
+)
+
+// Valid reports whether the mode is one this application knows.
+func (m ImportMode) Valid() bool {
+	switch m {
+	case ImportAuto, ImportSyslog, ImportJSON, ImportAccess, ImportLogfmt, ImportCustom:
+		return true
+	}
+	return false
+}
+
+// ImportFormat describes a file well enough to read it.
+//
+// The zero value is not usable on purpose — an empty mode means "nothing was
+// said", and Normalise turns that into automatic detection rather than an
+// error, so an older caller that passes nothing still works.
+type ImportFormat struct {
+	Mode ImportMode `json:"mode"`
+
+	// The JSON field names. Empty means the usual candidates are tried in
+	// order, which is what makes the mode work without configuration on pino,
+	// zap, bunyan, serilog and friends.
+	JSONTime    string `json:"jsonTime,omitempty"`
+	JSONLevel   string `json:"jsonLevel,omitempty"`
+	JSONMessage string `json:"jsonMessage,omitempty"`
+	JSONHost    string `json:"jsonHost,omitempty"`
+	JSONApp     string `json:"jsonApp,omitempty"`
+
+	// Pattern is a Go regular expression with named groups. The names are
+	// time, level, host, app and msg, with the obvious aliases accepted.
+	Pattern string `json:"pattern,omitempty"`
+
+	// TimeLayout is a Go reference layout ("2006-01-02T15:04:05Z07:00") for
+	// the captured or configured timestamp field. Empty means the known shapes
+	// are tried, which covers most files without anyone having to know what a
+	// reference layout is.
+	TimeLayout string `json:"timeLayout,omitempty"`
+
+	// Year supplies the one a BSD-shaped timestamp omits. 0 means the current
+	// year — right for last night's file, wrong for an archive from 2023,
+	// which is why it can be said.
+	Year int `json:"year,omitempty"`
+
+	// Timezone is the zone a timestamp without one is read in. Empty means the
+	// machine's own zone, which is what the wire parser does with an RFC 3164
+	// message (#24) — so a line read from a file and the same line received
+	// over the network land on the same instant.
+	Timezone string `json:"timezone,omitempty"`
+
+	// JoinContinuations attaches a line that does not start a record to the
+	// record before it, so a Java stack trace or a Python traceback is one
+	// message at the right severity instead of twenty stray Notices.
+	JoinContinuations bool `json:"joinContinuations"`
+
+	// SkipUnmatched drops lines that do not fit the declared format instead of
+	// keeping them with the parser's fallback. Useful for a file that opens
+	// with a banner; dangerous as a default, because silently dropping log
+	// lines is the one thing an importer must not do without being told.
+	SkipUnmatched bool `json:"skipUnmatched"`
+}
+
+// DefaultImportFormat is what the dialog opens with: guess, and fold stack
+// traces into the line they belong to.
+func DefaultImportFormat() ImportFormat {
+	return ImportFormat{Mode: ImportAuto, JoinContinuations: true}
+}
+
+// Normalise fills in what was left unsaid. An unknown mode becomes automatic
+// rather than an error: a configuration file written by a newer version should
+// degrade to the safe behaviour, not refuse to import.
+func (f *ImportFormat) Normalise() {
+	if !f.Mode.Valid() {
+		f.Mode = ImportAuto
+	}
+	if f.Year == 0 {
+		f.Year = time.Now().Year()
+	}
+	f.Timezone = strings.TrimSpace(f.Timezone)
+	f.Pattern = strings.TrimSpace(f.Pattern)
+	f.TimeLayout = strings.TrimSpace(f.TimeLayout)
+}
+
+// Location resolves the configured zone.
+func (f ImportFormat) Location() (*time.Location, error) {
+	switch strings.TrimSpace(f.Timezone) {
+	case "", "local", "Local":
+		return time.Local, nil
+	case "UTC":
+		return time.UTC, nil
+	}
+	loc, err := time.LoadLocation(f.Timezone)
+	if err != nil {
+		return time.Local, fmt.Errorf("unknown timezone %q", f.Timezone)
+	}
+	return loc, nil
+}
+
+// ValidateImportFormat reports what is wrong before a file is opened, so the
+// answer is "this pattern has no groups" rather than "0 lines imported".
+func ValidateImportFormat(f ImportFormat) error {
+	if f.Mode != "" && !f.Mode.Valid() {
+		return fmt.Errorf("unknown import mode %q", f.Mode)
+	}
+	if f.Mode == ImportCustom && strings.TrimSpace(f.Pattern) == "" {
+		return fmt.Errorf("a custom format needs a pattern")
+	}
+	if f.Year < 0 || (f.Year > 0 && (f.Year < 1970 || f.Year > 9999)) {
+		return fmt.Errorf("year %d is out of range (1970-9999)", f.Year)
+	}
+	if _, err := f.Location(); err != nil {
+		return err
+	}
+	return nil
 }

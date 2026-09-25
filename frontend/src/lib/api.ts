@@ -259,6 +259,63 @@ export const clearNotifyLog = (): Promise<void> => callGo('ClearNotifyLog');
 export const getNotifyStats = (): Promise<NotifyStats> => callGo('GetNotifyStats');
 export const areSinkCredentialsUnencrypted = (): Promise<boolean> => callGo('AreSinkCredentialsUnencrypted');
 
+// --- Importing a log file ---
+// What an import did, in the terms it can be checked by. The detected counts
+// say how much of the result was INFERRED from plain text rather than read from
+// a syslog priority, so the interface can show the difference.
+export interface ImportResult {
+    file: string;
+    linesRead: number;
+    imported: number;
+    blank: number;
+    truncated: number;
+    syslog: number;
+    timeDetected: number;
+    levelDetected: number;
+    // Lines that did not fit the declared format, and continuation lines folded
+    // into the record above them.
+    unmatched: number;
+    joined: number;
+    stopped: boolean;
+    bySeverity: Record<string, number>;
+}
+export interface ImportPreview {
+    result: ImportResult;
+    messages: SyslogMessage[];
+}
+
+// How a file should be read. 'auto' guesses and reports what it guessed; the
+// others are declared, which is what makes JSON lines, access logs and stack
+// traces readable — detection sees none of them.
+export type ImportMode = 'auto' | 'syslog' | 'json' | 'access' | 'logfmt' | 'custom';
+export interface ImportFormat {
+    mode: ImportMode;
+    // Field names for the json and logfmt modes. Empty means the usual
+    // candidates are tried, which is why neither mode needs configuring.
+    jsonTime?: string;
+    jsonLevel?: string;
+    jsonMessage?: string;
+    jsonHost?: string;
+    jsonApp?: string;
+    // A Go regular expression with named groups: time, level, host, app, msg.
+    pattern?: string;
+    // A Go reference layout. Empty means the known shapes are tried.
+    timeLayout?: string;
+    // The year a BSD-shaped timestamp omits, and the zone one without a zone is
+    // read in. Empty means this year and the machine's zone.
+    year?: number;
+    timezone?: string;
+    joinContinuations: boolean;
+    skipUnmatched: boolean;
+}
+
+export const selectLogFile = (): Promise<string> => callGo('SelectLogFile');
+export const previewLogFile = (p: string, format: ImportFormat): Promise<ImportPreview> =>
+    callGo('PreviewLogFile', p, format);
+export const importLogFile = (p: string, persist: boolean, format: ImportFormat): Promise<ImportResult> =>
+    callGo('ImportLogFile', p, persist, format);
+export const getImportFormat = (): Promise<ImportFormat> => callGo('GetImportFormat');
+
 // --- Window and tray ---
 // What the close button does: 'ask' (the default), 'quit' or 'background'.
 export type CloseAction = 'ask' | 'quit' | 'background';

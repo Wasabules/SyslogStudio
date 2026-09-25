@@ -29,6 +29,7 @@ import {
   ALERT_RULES, ALERT_HISTORY,
   NOTIFY_ROUTES, NOTIFY_SINKS, NOTIFY_LOG, NOTIFY_STATS,
   STORAGE_CONFIG, STORAGE_STATS,
+  IMPORT_PREVIEW,
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
 } from '../fixtures.js';
@@ -44,6 +45,8 @@ const DEMO_ONLY = {
   SelectCertFile: 'Choosing a file needs a native dialog, which a web page does not have.',
   SelectKeyFile: 'Choosing a file needs a native dialog, which a web page does not have.',
   SelectCAFile: 'Choosing a file needs a native dialog, which a web page does not have.',
+  SelectLogFile: 'Choosing a file needs a native dialog, which a web page does not have. The desktop application imports .log, .txt and .gz files from disk.',
+  ImportLogFile: 'Importing reads a file off your disk, which the desktop application can do and a web page cannot.',
   DownloadAndApplyUpdate: 'Updating replaces the application on disk. Download it from the site instead.',
   CompactDatabase: 'There is no database behind the demo — this one runs entirely in your browser.',
   ClearDatabase: 'There is no database behind the demo — this one runs entirely in your browser.',
@@ -112,6 +115,20 @@ const HANDLERS = {
   ClearMessages: () => { messages = []; return Promise.resolve(null); },
   GetStats: () => Promise.resolve(clone(STATS)),
   ExportLogs: () => refuse('ExportLogs'),
+
+  // importing a log file (#46). Choosing and reading a file both need the
+  // machine, so both are refused here and said plainly; the PREVIEW is
+  // answered, because that is the part worth showing — how much of the result
+  // was read from the file and how much was inferred from it.
+  SelectLogFile: () => refuse('SelectLogFile'),
+  // The format is ignored here because there is no file to apply it to: the
+  // preview is a fixture. In the application this is where a declared format
+  // is tried against the file's own lines.
+  PreviewLogFile: () => Promise.resolve(clone(IMPORT_PREVIEW)),
+  ImportLogFile: () => refuse('ImportLogFile'),
+  GetImportFormat: () => Promise.resolve({
+    mode: 'auto', joinContinuations: true, skipUnmatched: false,
+  }),
 
   // history (the database view)
   QueryMessages: (opts) => {
@@ -292,6 +309,7 @@ if (typeof window !== 'undefined') {
 export const {
   StartServer, StopServer, GetServerStatus, GetDefaultConfig, GetLocalIPs, GetNetworkInterfaces,
   GetMessages, ClearMessages, GetStats, ExportLogs, QueryMessages, QueryMessageGroups,
+  SelectLogFile, PreviewLogFile, ImportLogFile, GetImportFormat,
   GetAlertRules, AddAlertRule, UpdateAlertRule, DeleteAlertRule, GetAlertHistory, ClearAlertHistory,
   GetNotifyRoutes, GetNotifySinks, SaveNotifyRoute, DeleteNotifyRoute, SaveNotifySink,
   DeleteNotifySink, TestNotifySink, GetNotifyLog, ClearNotifyLog, GetNotifyStats,

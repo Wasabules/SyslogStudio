@@ -1,0 +1,9 @@
+I/ActivityManager(  1234): Start proc com.example.app for activity MainActivity
+D/WifiService (  1301): setWifiEnabled: true
+W/ConnectivityService(  1301): Network validation failed on wlan0
+E/ActivityManager(  1234): ANR in com.example.app (com.example.app/.MainActivity)
+E/ActivityManager(  1234): PID: 8421
+E/ActivityManager(  1234): Reason: Input dispatching timed out
+F/libc     (  8421): Fatal signal 11 (SIGSEGV), code 1 in tid 8421 (example.app)
+I/ActivityManager(  1234): Process com.example.app (pid 8421) has died
+V/AudioFlinger(   980): mixer buffer underrun

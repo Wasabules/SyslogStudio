@@ -1,0 +1,13 @@
+################################################
+# collector archive - rotated nightly at 00:05
+# host: web-1   retention: 7 days
+################################################
+
+2026-03-17 21:42:01 INFO   worker pool started
+
+this line says nothing at all
+2026-03-17 21:43:00 ERROR  connection refused to postgres://db-2:5432
+{"time":"2026-03-17T21:43:05Z","level":"warn","msg":"a JSON line in the middle of a text file"}
+Mar 17 21:44:00 web-1 nginx: upstream timed out while reading response header
+
+-- end of file --

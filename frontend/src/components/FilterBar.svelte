@@ -5,7 +5,12 @@
     import { filter, messages } from '../lib/stores';
     import { SEVERITY_LABELS, SEVERITY_COLORS } from '../lib/constants';
     import { exportLogs, clearMessages } from '../lib/api';
+    import ImportDialog from './ImportDialog.svelte';
     import { toastSuccess, toastError } from '../lib/toast';
+
+    // Importing sits beside exporting: it is the same operation the other way
+    // round, and that is where someone looks for it.
+    let showImport = false;
 
     let searchText = '';
     let hostnameText = '';
@@ -101,6 +106,8 @@
     let showSeverityDropdown = false;
 </script>
 
+<ImportDialog bind:open={showImport} />
+
 <div class="filter-bar">
     <div class="filter-group">
         <div class="severity-selector">
@@ -154,6 +161,7 @@
         {#if $filter.severities.length > 0 || $filter.hostname || $filter.appName || $filter.sourceIP || $filter.search || $filter.dateFrom || $filter.dateTo}
             <button class="clear-btn" on:click={clearFilters}>{$_('filter.clearFilters')}</button>
         {/if}
+        <button class="action-btn" on:click={() => showImport = true} title={$_('import.title')}>{$_('filter.import')}</button>
         <button class="action-btn" on:click={clearAll} title={$_('filter.clearAllLogs')}>{$_('filter.clear')}</button>
         <button class="action-btn" on:click={exportCSV} title={$_('filter.exportAsCSV')}>{$_('filter.csv')}</button>
         <button class="action-btn" on:click={exportText} title={$_('filter.exportAsText')}>{$_('filter.txt')}</button>

@@ -1,0 +1,7 @@
+ts=2026-03-17T21:42:10Z level=info msg="server started" addr=:8080 version=1.4.0
+ts=2026-03-17T21:42:12Z level=debug msg="cache warm" entries=4821 took=38ms
+ts=2026-03-17T21:42:40Z level=warn msg="queue depth above soft limit" depth=812 limit=500
+ts=2026-03-17T21:43:00Z level=error msg="connection refused" err="dial tcp 192.0.2.30:5432: connect: connection refused" attempt=1
+ts=2026-03-17T21:43:05Z level=error msg="connection refused" err="dial tcp 192.0.2.30:5432: connect: connection refused" attempt=2
+ts=2026-03-17T21:43:31Z level=info msg="reconnected" host=db-2 backlog=4812
+ts=2026-03-17T21:46:00Z level=warn msg="certificate expiring" domain=relay.example.net days=12
