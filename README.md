@@ -136,8 +136,11 @@ in a ticket without going through a redaction tool first.
   it into an alert rule. In anonymous mode copying yields what is on screen, and the real value
   is a separate entry — you cannot paste a real address believing it was masked
 - **Columns you arrange** — drag an edge to resize, double-click it to fit the widest value,
-  drag a heading to move the column, or use the header's right-click menu to fit everything or
-  start over. Widths and order are remembered
+  drag a heading to move the column, and right-click any heading to add or remove one: facility,
+  process id, message id, RFC version and received time are all there, hidden until wanted.
+  Widths, order and choice are remembered
+- **A detail panel you can widen** — drag the edge between the list and the message, double-click
+  it to go back to the default
 - **Export** as CSV or plain text
 - **Import a log file** already on disk — `.log`, `.txt` or a rotated `.gz`. A captured
   syslog file is parsed exactly as it would be off the wire; a plain application log has its

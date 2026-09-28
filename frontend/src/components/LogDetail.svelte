@@ -5,6 +5,7 @@
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { toastSuccess, toastError } from '../lib/toast';
     import { _ } from 'svelte-i18n';
+    import { detailWidth, setDetailWidth, DEFAULT_DETAIL_WIDTH } from '../lib/layout';
 
     function close() {
         $selectedMessage = null;
@@ -20,11 +21,47 @@
             }
         }
     }
+    // Dragging the edge. Leftwards widens the panel, which is why the delta is
+    // subtracted: the panel grows into the space the list gives up.
+    let dragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    function startResize(e: PointerEvent) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        dragging = true;
+        startX = e.clientX;
+        startWidth = $detailWidth;
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
+    function onResize(e: PointerEvent) {
+        if (!dragging) return;
+        setDetailWidth(startWidth - (e.clientX - startX));
+    }
+
+    function endResize(e: PointerEvent) {
+        if (!dragging) return;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        dragging = false;
+    }
 </script>
 
 {#if $selectedMessage}
     {@const msg = $selectedMessage}
-    <div class="detail-panel">
+    <div class="detail-panel" style="width:{$detailWidth}px">
+        <!-- The edge between the list and the detail, draggable. Nine pixels
+             wide and straddling the border, because a one-pixel border is not
+             something anyone can hit on purpose. -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="splitter" class:dragging={dragging}
+             title={$_('log.resizePanel')}
+             on:pointerdown={startResize}
+             on:pointermove={onResize}
+             on:pointerup={endResize}
+             on:pointercancel={endResize}
+             on:dblclick={() => setDetailWidth(DEFAULT_DETAIL_WIDTH)}></div>
         <div class="detail-header">
             <span class="detail-title">{$_('log.messageDetail')}</span>
             <button class="close-btn" on:click={close} aria-label={$_('common.close')}>&times;</button>
@@ -117,8 +154,18 @@
 <style>
     .tz-tag { font-size: 10px; opacity: 0.6; }
 
+    .splitter {
+        position: absolute; top: 0; bottom: 0; left: -5px; width: 9px;
+        cursor: col-resize; z-index: 5; touch-action: none;
+    }
+    .splitter::after {
+        content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px;
+        background: transparent; transition: background 0.1s;
+    }
+    .splitter:hover::after, .splitter.dragging::after { background: var(--accent); }
+
     .detail-panel {
-        width: 350px;
+        position: relative;
         background: var(--bg-secondary);
         border-left: 1px solid var(--border-color);
         display: flex;

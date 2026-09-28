@@ -167,7 +167,9 @@
     "filterApp": "按此应用筛选",
     "filterSeverity": "按此严重程度筛选",
     "around": "显示此行前后 {minutes} 分钟",
-    "createAlert": "从此行创建告警规则"
+    "createAlert": "从此行创建告警规则",
+    "resizePanel": "拖动调整宽度，双击重置",
+    "columns": "列"
   },
   "dashboard": {
     "totalMessages": "消息总数",

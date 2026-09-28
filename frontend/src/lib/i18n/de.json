@@ -167,7 +167,9 @@
     "filterApp": "Nach dieser Anwendung filtern",
     "filterSeverity": "Nach diesem Schweregrad filtern",
     "around": "{minutes} Minuten um diese Zeile anzeigen",
-    "createAlert": "Alarmregel aus dieser Zeile erstellen"
+    "createAlert": "Alarmregel aus dieser Zeile erstellen",
+    "resizePanel": "Ziehen zum Ändern der Breite, Doppelklick zum Zurücksetzen",
+    "columns": "Spalten"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",

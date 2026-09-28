@@ -9,8 +9,9 @@
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
     import { _ } from 'svelte-i18n';
     import {
-        columnWidths, columnOrder, widthVars, setColumnWidth, resetColumns,
-        moveColumn, measureLongest, clampWidth, RESIZABLE,
+        columnWidths, columnOrder, visibleColumns, hiddenColumns, widthVars,
+        setColumnWidth, resetColumns, moveColumnBefore, toggleColumn,
+        measureLongest, clampWidth, RESIZABLE,
     } from '../lib/columns';
     import type { ColumnKey, AnyColumn } from '../lib/columns';
     import { shownValue } from '../lib/cells';
@@ -382,10 +383,15 @@
     const COLUMN: Record<AnyColumn, { sort: SortCol; label: string }> = {
         severity: { sort: 'severity', label: 'log.severity' },
         timestamp: { sort: 'timestamp', label: 'log.timestamp' },
+        received: { sort: 'receivedAt', label: 'log.received' },
         protocol: { sort: 'protocol', label: 'log.proto' },
         source: { sort: 'sourceIP', label: 'log.source' },
         hostname: { sort: 'hostname', label: 'log.hostname' },
         app: { sort: 'appName', label: 'log.app' },
+        procID: { sort: 'procID', label: 'log.procID' },
+        facility: { sort: 'facility', label: 'log.facility' },
+        msgID: { sort: 'msgID', label: 'log.msgID' },
+        version: { sort: 'version', label: 'log.version' },
         message: { sort: 'message', label: 'log.message' },
     };
 
@@ -426,7 +432,7 @@
     // Nothing happens until the pointer has travelled a few pixels, because
     // every one of these presses is also a click on the sort button, and a
     // heading that reordered itself on an imprecise click would be unusable.
-    let reorder: { key: AnyColumn; startX: number; active: boolean; over: number } | null = null;
+    let reorder: { key: AnyColumn; startX: number; active: boolean; over: AnyColumn | null } | null = null;
     let suppressClick = false;
     const DRAG_THRESHOLD = 5;
 
@@ -437,7 +443,7 @@
         // standing would then swallow the NEXT heading someone clicks — which
         // reads as sorting having stopped working.
         suppressClick = false;
-        reorder = { key, startX: e.clientX, active: false, over: $columnOrder.indexOf(key) };
+        reorder = { key, startX: e.clientX, active: false, over: key };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
 
@@ -447,17 +453,17 @@
             if (Math.abs(e.clientX - reorder.startX) < DRAG_THRESHOLD) return;
             reorder.active = true;
         }
-        reorder = { ...reorder, over: dropIndexAt(e.clientX) };
+        reorder = { ...reorder, over: dropTargetAt(e.clientX) };
     }
 
-    /** Where the column would land if it were let go here. */
-    function dropIndexAt(x: number): number {
+    /** Which column it would land in front of, or null for last. */
+    function dropTargetAt(x: number): AnyColumn | null {
         const wraps = Array.from(header?.querySelectorAll<HTMLElement>('.col-wrap') ?? []);
         for (let i = 0; i < wraps.length; i++) {
             const box = wraps[i].getBoundingClientRect();
-            if (x < box.left + box.width / 2) return i;
+            if (x < box.left + box.width / 2) return $visibleColumns[i] ?? null;
         }
-        return wraps.length;
+        return null;
     }
 
     function headerUp(e: PointerEvent) {
@@ -469,7 +475,7 @@
         // The press was a drag, so the click that follows it is not a request
         // to sort.
         suppressClick = true;
-        moveColumn(done.key, done.over);
+        moveColumnBefore(done.key, done.over);
     }
 
     function headerClick(sort: SortCol) {
@@ -557,13 +563,13 @@
 <div class="log-viewer-wrapper" style={widthVars($columnWidths)}>
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="log-header" bind:this={header}>
-        {#each $columnOrder as key, i (key)}
+        {#each $visibleColumns as key, i (key)}
             {@const col = COLUMN[key]}
             <div class="col-wrap col-{key}"
                  class:dragged={reorder?.active && reorder.key === key}
-                 class:drop-before={reorder?.active && reorder.over === i && reorder.key !== key}
-                 class:drop-after={reorder?.active && reorder.over === $columnOrder.length
-                                   && i === $columnOrder.length - 1 && reorder.key !== key}>
+                 class:drop-before={reorder?.active && reorder.over === key && reorder.key !== key}
+                 class:drop-after={reorder?.active && reorder.over === null
+                                   && i === $visibleColumns.length - 1 && reorder.key !== key}>
                 <button class="col-header" class:sorted={$sortColumn === col.sort}
                         on:click={() => headerClick(col.sort)}
                         on:pointerdown={e => headerDown(e, key)}
@@ -600,6 +606,16 @@
             {/if}
             <button on:click={() => { fitAllColumns(); closeMenu(); }}>{$_('log.fitAll')}</button>
             <button on:click={() => { resetColumns(); closeMenu(); }}>{$_('log.resetWidths')}</button>
+
+            <div class="menu-sep"></div>
+            <div class="menu-title">{$_('log.columns')}</div>
+            {#each $columnOrder as key (key)}
+                <label class="menu-check">
+                    <input type="checkbox" checked={!$hiddenColumns.includes(key)}
+                           on:change={() => toggleColumn(key)} />
+                    {$_(COLUMN[key].label)}
+                </label>
+            {/each}
         </div>
     {/if}
 
@@ -635,7 +651,7 @@
                          on:click={() => selectMessage(msg)}
                          on:keydown={e => e.key === 'Enter' && selectMessage(msg)}
                          on:contextmenu={e => openRowMenu(e, msg)}>
-                        {#each $columnOrder as key (key)}
+                        {#each $visibleColumns as key (key)}
                             {#if key === 'severity'}
                                 <span class="col-severity">
                                     <span class="severity-badge" style="background: {SEVERITY_COLORS[msg.severity]}">
@@ -652,6 +668,16 @@
                                 <span class="col-hostname">{redactHost(msg.hostname, $anonymous)}</span>
                             {:else if key === 'app'}
                                 <span class="col-app">{msg.appName}</span>
+                            {:else if key === 'received'}
+                                <span class="col-received">{formatInZone(msg.receivedAt, $activeZone)}</span>
+                            {:else if key === 'procID'}
+                                <span class="col-procID">{msg.procID}</span>
+                            {:else if key === 'facility'}
+                                <span class="col-facility">{msg.facilityLabel}</span>
+                            {:else if key === 'msgID'}
+                                <span class="col-msgID">{msg.msgID}</span>
+                            {:else if key === 'version'}
+                                <span class="col-version">{msg.version || ''}</span>
                             {:else}
                                 <span class="col-message" title={redactText(msg.message, $anonymous)}>{redactText(msg.message, $anonymous)}</span>
                             {/if}
@@ -809,6 +835,10 @@
         background: var(--bg-secondary); border: 1px solid var(--border-color);
         border-radius: 4px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
         padding: 4px;
+        /* Twelve columns and three actions is a tall menu, and the heading it
+           hangs from is always at the top of a window that may be short. */
+        max-height: calc(100vh - 72px);
+        overflow-y: auto;
     }
     .col-menu button {
         background: none; border: none; text-align: left; cursor: pointer;
@@ -857,6 +887,25 @@
     .col-source { width: var(--w-source, 110px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-hostname { width: var(--w-hostname, 110px); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-app { width: var(--w-app, 100px); flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-received { width: var(--w-received, 140px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-muted); }
+    .col-procID { width: var(--w-procID, 70px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-facility { width: var(--w-facility, 90px); flex-shrink: 0; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-msgID { width: var(--w-msgID, 90px); flex-shrink: 0; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-version { width: var(--w-version, 50px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-muted); }
+
+    .menu-sep { height: 1px; background: var(--border-color); margin: 4px 6px; }
+    .menu-title {
+        padding: 4px 10px; font-size: 10px; text-transform: uppercase;
+        letter-spacing: 0.04em; color: var(--text-muted);
+    }
+    .menu-check {
+        display: flex; align-items: center; gap: 8px;
+        padding: 5px 10px; font-size: 12px; color: var(--text-primary);
+        cursor: pointer; border-radius: 3px;
+    }
+    .menu-check:hover { background: var(--bg-hover); }
+    .menu-check input { flex: 0 0 auto; }
+
     /* A row cell keeps its own font and colour; the heading above it only needs
        the width, which the wrapper carries. */
     .col-wrap.col-message { flex: 1; min-width: 0; }

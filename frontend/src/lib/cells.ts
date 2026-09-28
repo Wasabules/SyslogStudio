@@ -29,6 +29,11 @@ export function shownValue(
         case 'source': return redactIP(msg.sourceIP, anonymous);
         case 'hostname': return redactHost(msg.hostname, anonymous);
         case 'app': return msg.appName;
+        case 'facility': return msg.facilityLabel;
+        case 'procID': return msg.procID;
+        case 'msgID': return msg.msgID;
+        case 'version': return msg.version ? String(msg.version) : '';
+        case 'received': return formatInZone(msg.receivedAt, zone);
         case 'message': return redactText(msg.message, anonymous);
     }
 }
@@ -41,6 +46,11 @@ export function realValue(key: AnyColumn, msg: SyslogMessage, zone: string): str
         case 'source': return msg.sourceIP;
         case 'hostname': return msg.hostname;
         case 'app': return msg.appName;
+        case 'facility': return msg.facilityLabel;
+        case 'procID': return msg.procID;
+        case 'msgID': return msg.msgID;
+        case 'version': return msg.version ? String(msg.version) : '';
+        case 'received': return formatInZone(msg.receivedAt, zone);
         case 'message': return msg.message;
     }
 }

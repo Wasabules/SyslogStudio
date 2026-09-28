@@ -198,7 +198,8 @@ export const alertHistory = writable<AlertEvent[]>([]);
 export const dbStatsVersion = writable(0);
 
 // Sort and group
-export type SortColumn = '' | 'timestamp' | 'severity' | 'protocol' | 'sourceIP' | 'hostname' | 'appName' | 'message';
+export type SortColumn = '' | 'timestamp' | 'severity' | 'protocol' | 'sourceIP' | 'hostname'
+    | 'appName' | 'message' | 'facility' | 'procID' | 'msgID' | 'version' | 'receivedAt';
 export type SortDir = 'asc' | 'desc';
 export type GroupBy = '' | 'severity' | 'sourceIP' | 'hostname' | 'appName';
 
@@ -272,6 +273,13 @@ function buildFilterFn($filter: FilterCriteria): (msg: SyslogMessage) => boolean
 // Throttled derived store: recalculates at most every 150ms
 const FILTER_THROTTLE_MS = 150;
 
+function compareIDs(a: string, b: string): number {
+    const na = Number(a);
+    const nb = Number(b);
+    if (a !== '' && b !== '' && Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return a.localeCompare(b);
+}
+
 function buildSortComparator(col: SortColumn, dir: SortDir): ((a: SyslogMessage, b: SyslogMessage) => number) | null {
     if (!col) return null;
     const mult = dir === 'asc' ? 1 : -1;
@@ -283,6 +291,14 @@ function buildSortComparator(col: SortColumn, dir: SortDir): ((a: SyslogMessage,
         case 'hostname': return (a, b) => mult * a.hostname.localeCompare(b.hostname);
         case 'appName': return (a, b) => mult * a.appName.localeCompare(b.appName);
         case 'message': return (a, b) => mult * a.message.localeCompare(b.message);
+        case 'facility': return (a, b) => mult * (a.facility - b.facility);
+        case 'version': return (a, b) => mult * ((a.version ?? 0) - (b.version ?? 0));
+        case 'receivedAt': return (a, b) =>
+            mult * (new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime());
+        // A process id is a number written as text, so 9 must not sort after
+        // 10; anything that is not a number falls back to comparing the text.
+        case 'procID': return (a, b) => mult * compareIDs(a.procID, b.procID);
+        case 'msgID': return (a, b) => mult * compareIDs(a.msgID, b.msgID);
         default: return null;
     }
 }

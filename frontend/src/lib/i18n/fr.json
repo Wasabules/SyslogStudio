@@ -167,7 +167,9 @@
     "filterApp": "Filtrer sur cette application",
     "filterSeverity": "Filtrer sur cette sévérité",
     "around": "Afficher {minutes} minutes autour de cette ligne",
-    "createAlert": "Créer une règle d’alerte depuis cette ligne"
+    "createAlert": "Créer une règle d’alerte depuis cette ligne",
+    "resizePanel": "Glisser pour redimensionner, double-cliquer pour réinitialiser",
+    "columns": "Colonnes"
   },
   "dashboard": {
     "totalMessages": "Total des messages",

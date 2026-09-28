@@ -167,7 +167,9 @@
     "filterApp": "このアプリケーションで絞り込む",
     "filterSeverity": "この重大度で絞り込む",
     "around": "この行の前後 {minutes} 分を表示",
-    "createAlert": "この行からアラートルールを作成"
+    "createAlert": "この行からアラートルールを作成",
+    "resizePanel": "ドラッグで幅変更、ダブルクリックでリセット",
+    "columns": "列"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",

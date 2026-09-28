@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { derived, writable } from 'svelte/store';
 
 /**
  * The width of each column in the log table, kept across restarts.
@@ -15,10 +15,20 @@ import { writable } from 'svelte/store';
  * and the stylesheet reads them.
  */
 
-export type ColumnKey = 'severity' | 'timestamp' | 'protocol' | 'source' | 'hostname' | 'app';
+export type ColumnKey =
+    | 'severity' | 'timestamp' | 'protocol' | 'source' | 'hostname' | 'app'
+    // Carried by every message and shown by nobody most of the time. A syslog
+    // stream from one appliance needs none of them; a reader chasing an RFC
+    // 5424 structured field or a process id needs exactly one, and having to
+    // open each line to see it is the difference between reading a file and
+    // interrogating it.
+    | 'facility' | 'procID' | 'msgID' | 'version' | 'received';
 
 /** The message column is last and takes whatever is left, so it has no width. */
-export const RESIZABLE: ColumnKey[] = ['severity', 'timestamp', 'protocol', 'source', 'hostname', 'app'];
+export const RESIZABLE: ColumnKey[] = [
+    'severity', 'timestamp', 'protocol', 'source', 'hostname', 'app',
+    'facility', 'procID', 'msgID', 'version', 'received',
+];
 
 export const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
     severity: 80,
@@ -27,6 +37,11 @@ export const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
     source: 110,
     hostname: 110,
     app: 100,
+    facility: 90,
+    procID: 70,
+    msgID: 90,
+    version: 50,
+    received: 140,
 };
 
 // A column narrower than this cannot show even an ellipsis usefully; one wider
@@ -74,8 +89,55 @@ columnWidths.subscribe(value => {
 export type AnyColumn = ColumnKey | 'message';
 
 export const DEFAULT_ORDER: AnyColumn[] = [
-    'severity', 'timestamp', 'protocol', 'source', 'hostname', 'app', 'message',
+    'severity', 'timestamp', 'received', 'protocol', 'source', 'hostname',
+    'app', 'procID', 'facility', 'msgID', 'version', 'message',
 ];
+
+/**
+ * Shown unless someone says otherwise.
+ *
+ * The optional ones are hidden by default rather than offered and then
+ * dismissed: a table that opens with eleven columns is a table nobody reads,
+ * and the five that are hidden answer questions most files never raise.
+ */
+export const DEFAULT_HIDDEN: AnyColumn[] = ['received', 'procID', 'facility', 'msgID', 'version'];
+
+const HIDDEN_KEY = 'syslogstudio-columns-hidden';
+
+function initialHidden(): AnyColumn[] {
+    try {
+        const raw = localStorage.getItem(HIDDEN_KEY);
+        if (raw === null) return [...DEFAULT_HIDDEN];
+        const stored = JSON.parse(raw);
+        if (!Array.isArray(stored)) return [...DEFAULT_HIDDEN];
+        return stored.filter((k): k is AnyColumn => DEFAULT_ORDER.includes(k));
+    } catch {
+        return [...DEFAULT_HIDDEN];
+    }
+}
+
+export const hiddenColumns = writable<AnyColumn[]>(initialHidden());
+
+hiddenColumns.subscribe(value => {
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(value)); } catch {}
+});
+
+/**
+ * Show or hide a column, except the last one standing.
+ *
+ * A table with no columns shows nothing and offers no way back, since the
+ * menu that would restore them hangs off a heading that is no longer there.
+ */
+export function toggleColumn(key: AnyColumn) {
+    hiddenColumns.update(hidden => {
+        if (!hidden.includes(key)) {
+            if (hidden.length >= DEFAULT_ORDER.length - 1) return hidden;
+            return [...hidden, key];
+        }
+        return hidden.filter(k => k !== key);
+    });
+}
+
 
 const ORDER_KEY = 'syslogstudio-column-order';
 
@@ -101,23 +163,34 @@ export const columnOrder = writable<AnyColumn[]>(initialOrder());
 columnOrder.subscribe(value => {
     try { localStorage.setItem(ORDER_KEY, JSON.stringify(value)); } catch {}
 });
+/** The columns actually on screen, in order. */
+export const visibleColumns = derived(
+    [columnOrder, hiddenColumns],
+    ([order, hidden]) => order.filter(k => !hidden.includes(k)),
+);
 
-/** Moves a column so that it lands at `index` in the order. */
-export function moveColumn(key: AnyColumn, index: number) {
+
+/**
+ * Moves a column so that it lands in front of `before`, or last when that is
+ * null.
+ *
+ * Named rather than numbered: a position read off the header is an index into
+ * the VISIBLE columns, and with some hidden that is not an index into the
+ * order at all.
+ */
+export function moveColumnBefore(key: AnyColumn, before: AnyColumn | null) {
     columnOrder.update(order => {
-        const from = order.indexOf(key);
-        if (from < 0) return order;
+        if (!order.includes(key) || key === before) return order;
         const next = order.filter(k => k !== key);
-        // The index was read against the order WITH the column still in it, so
-        // a move to the right has to account for the hole it leaves behind.
-        const adjusted = index > from ? index - 1 : index;
-        next.splice(Math.max(0, Math.min(next.length, adjusted)), 0, key);
+        const at = before === null ? next.length : next.indexOf(before);
+        next.splice(at < 0 ? next.length : at, 0, key);
         return next;
     });
 }
 
 export function resetColumns() {
     columnOrder.set([...DEFAULT_ORDER]);
+    hiddenColumns.set([...DEFAULT_HIDDEN]);
     resetColumnWidths();
 }
 
