@@ -93,12 +93,51 @@ var timeLayouts = []string{
 	"Jan 2 15:04:05",
 }
 
+// syslogBody matches what follows the timestamp in an RFC 3164 line: a
+// hostname, then a tag that ends in a colon.
+//
+// This is the shape rsyslog writes to disk by default, and the one an operator
+// is most likely to have in a file — the priority only exists on the wire, so a
+// captured file has a timestamp, a host and a tag, and nothing that announces
+// itself as syslog. Read as free text (#50), the host and the tag stay inside
+// the message and the Hostname and App columns are empty, which is exactly what
+// makes such a file useless to filter.
+//
+// The tag requirement is what keeps this from firing on an ordinary
+// application log: "worker pool started with 16 threads" has no
+// "something:" token in second position.
+var syslogBody = regexp.MustCompile(
+	`^([A-Za-z0-9][A-Za-z0-9._:-]{0,253})[ \t]+([^\s:\[]{1,48}(?:\[[0-9]{1,10}\])?:)(?:[ \t]|$)`)
+
+// splitBSDBody reads "HOST TAG[PID]: MSG" out of what follows a timestamp.
+//
+// The only judgement call is the first token. A level word is never a hostname,
+// and a line like "21:42:10 WARN queue: depth 812" would otherwise be filed
+// under a host called WARN — so the severity vocabulary is excluded outright.
+// Everything else the regular expression settles.
+func splitBSDBody(rest string) (host, body string, ok bool) {
+	m := syslogBody.FindStringSubmatch(rest)
+	if m == nil {
+		return "", rest, false
+	}
+	if _, isLevel := severityWords[strings.ToUpper(m[1])]; isLevel {
+		return "", rest, false
+	}
+	// The body starts at the tag, which ExtractTag then takes off — one
+	// definition of what a tag is, shared with the wire parser.
+	return m[1], strings.TrimLeft(rest[len(m[1]):], " \t"), true
+}
+
 // Detection is what a plain line was willing to say about itself.
 type Detection struct {
 	Timestamp time.Time
 	HasTime   bool
 	Severity  models.Severity
 	HasLevel  bool
+	// Host is the hostname an RFC 3164 body carries in front of its tag, when
+	// the line turned out to have that shape.
+	Host    string
+	HasHost bool
 	// Rest is the line with a recognised leading timestamp removed, which is
 	// what belongs in the message column. The severity word is left in place:
 	// it is part of what the line says, and deleting it would make the import
@@ -175,6 +214,14 @@ func Detect(line string, year int, loc *time.Location) Detection {
 
 	if t, rest, ok := detectTime(line, year, loc); ok {
 		d.Timestamp, d.Rest, d.HasTime = t, rest, true
+
+		// Only after a timestamp. "host tag: message" with nothing in front of
+		// it is far more often a sentence with a colon in it than a syslog
+		// line, and the cost of being wrong is a message filed under an
+		// invented host.
+		if host, body, ok := splitBSDBody(d.Rest); ok {
+			d.Host, d.Rest, d.HasHost = host, body, true
+		}
 	}
 	if sev, ok := detectSeverity(d.Rest); ok {
 		d.Severity, d.HasLevel = sev, true

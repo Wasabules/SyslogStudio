@@ -21,7 +21,10 @@ func TestDetect_Timestamps(t *testing.T) {
 		{"space separated", "2026-03-17 21:42:10 tunnel down", "2026-03-17T21:42:10Z", "tunnel down"},
 		{"bracketed", "[2026-03-17 21:42:10] tunnel down", "2026-03-17T21:42:10Z", "tunnel down"},
 		{"apache", `10.0.0.1 - - [17/Mar/2026:21:42:10 +0000] "GET / HTTP/1.1"`, "", ""},
-		{"BSD, no year", "Mar 17 21:42:10 vpn-gw-01 ipsec: down", "2026-03-17T21:42:10Z", "vpn-gw-01 ipsec: down"},
+		// The host is taken off with the timestamp now: this is an RFC 3164
+		// body, and leaving "vpn-gw-01 ipsec:" inside the message is what #50
+		// reported as a prefix the importer had added.
+		{"BSD, no year", "Mar 17 21:42:10 vpn-gw-01 ipsec: down", "2026-03-17T21:42:10Z", "ipsec: down"},
 		{"no timestamp at all", "something happened", "", "something happened"},
 	}
 
@@ -54,6 +57,18 @@ func TestDetect_Timestamps(t *testing.T) {
 // A date in the middle of a sentence is data, not the moment the line was
 // written. Reading it as the line's own time would reorder the file around a
 // coincidence.
+// The host of an RFC 3164 body is read out of the line, not left in the text.
+func TestDetect_SplitsTheHostOffAnRFC3164Body(t *testing.T) {
+	got := Detect("Mar 17 21:42:10 vpn-gw-01 ipsec[42]: down", 2026, utc)
+
+	if !got.HasHost || got.Host != "vpn-gw-01" {
+		t.Fatalf("Host = %q (HasHost=%v), want vpn-gw-01", got.Host, got.HasHost)
+	}
+	if got.Rest != "ipsec[42]: down" {
+		t.Errorf("Rest = %q, want the tag and the message", got.Rest)
+	}
+}
+
 func TestDetect_IgnoresATimestampThatIsNotAtTheFront(t *testing.T) {
 	got := Detect("service restarted at 2026-01-01 00:00:00 by operator", 2026, utc)
 	if got.HasTime {

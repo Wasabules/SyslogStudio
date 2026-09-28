@@ -73,6 +73,11 @@ type Result struct {
 	// rather than being told a number and left to trust it.
 	TimeDetected  int `json:"timeDetected"`
 	LevelDetected int `json:"levelDetected"`
+	// HostDetected counts lines whose host and application were read out of an
+	// RFC 3164 body — the shape rsyslog writes to disk. Reported because those
+	// lines fill the Hostname and App columns, which is the difference between
+	// a file you can filter and a wall of text.
+	HostDetected int `json:"hostDetected"`
 	// Unmatched counts lines that did not fit the declared format. Reported
 	// rather than hidden: a format that matches nothing is a format chosen
 	// wrongly, and the number says so before the import is confirmed.
@@ -188,6 +193,9 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 		}
 		if held.hasLevel {
 			res.LevelDetected++
+		}
+		if held.hasHost {
+			res.HostDetected++
 		}
 		return emit(held.msg)
 	}

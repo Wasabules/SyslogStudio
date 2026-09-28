@@ -123,6 +123,7 @@ type record struct {
 	syslog   bool
 	hasTime  bool
 	hasLevel bool
+	hasHost  bool
 }
 
 func newParser(f models.ImportFormat) (*parser, error) {
@@ -193,6 +194,12 @@ func (p *parser) parseAuto(line, file string) record {
 		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true}
 	}
 
+	return p.parsePlain(line, file)
+}
+
+// parsePlain reads a line that carries no priority: what it says about itself
+// is read, and the rest is left alone.
+func (p *parser) parsePlain(line, file string) record {
 	d := Detect(line, p.year, p.loc)
 	msg := base(d.Rest, line, file)
 	r := record{msg: msg}
@@ -204,6 +211,13 @@ func (p *parser) parseAuto(line, file string) record {
 		r.msg.Severity = d.Severity
 		r.msg.SeverityLabel = models.SeverityToLabel(d.Severity)
 		r.hasLevel = true
+	}
+	// An RFC 3164 body: the host, and then the tag, which the wire parser's own
+	// extractor takes off so a file and the wire agree on what a tag is.
+	if d.HasHost {
+		r.msg.Hostname = d.Host
+		syslog.ExtractTag(&r.msg)
+		r.hasHost = true
 	}
 	// A line that said something about itself began a record. One that said
 	// nothing did not — which is what lets a stack trace attach to the line
@@ -223,11 +237,15 @@ func (p *parser) parseSyslog(line, file string) record {
 	if isSyslogLine(line) {
 		return record{msg: msg, start: true, syslog: true}
 	}
-	// No priority: the parser's fallback stands, and the line did not start a
-	// record — in a syslog file, a line without a PRI is the tail of the one
-	// before it far more often than it is a message of its own.
-	msg.RawMessage = line
-	return record{msg: msg}
+	// No priority. The priority exists only on the wire, so a captured file
+	// routinely has none — rsyslog's default on-disk format is a timestamp, a
+	// host and a tag. Read it as such; a line that has none of that is the tail
+	// of the one before it.
+	r := p.parsePlain(line, file)
+	if !r.hasTime && !r.hasHost {
+		r.start = false
+	}
+	return r
 }
 
 // --- JSON --------------------------------------------------------------------
