@@ -51,6 +51,8 @@
     "clear": "Leeren",
     "csv": "CSV",
     "txt": "TXT",
+    "export": "Exportieren",
+    "exportHint": "Die gefilterten Nachrichten exportieren",
     "clearAllLogs": "Alle Protokolle löschen",
     "exportAsCSV": "Als CSV exportieren",
     "exportAsText": "Als Text exportieren",

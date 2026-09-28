@@ -51,6 +51,8 @@
     "clear": "清除",
     "csv": "CSV",
     "txt": "TXT",
+    "export": "导出",
+    "exportHint": "导出筛选后的消息",
     "clearAllLogs": "清除所有日志",
     "exportAsCSV": "导出为 CSV",
     "exportAsText": "导出为文本",

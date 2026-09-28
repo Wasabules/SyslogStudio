@@ -121,6 +121,9 @@
     }
 
     let showSeverityDropdown = false;
+    // CSV and text are the same act with a different extension, and the
+    // toolbar is the scarcest space in the window.
+    let showExport = false;
 </script>
 
 <ImportDialog bind:open={showImport} />
@@ -132,7 +135,12 @@
                 {$filter.severities.length > 0 ? $_('filter.severityCount', { values: { count: $filter.severities.length } }) : $_('filter.severity')}
                 <span class="arrow">&#9662;</span>
             </button>
-            {#if showSeverityDropdown}
+            {#if showExport}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <div class="backdrop" role="presentation" on:click={() => showExport = false}></div>
+{/if}
+
+{#if showSeverityDropdown}
                 <div class="dropdown">
                     {#each Object.entries(SEVERITY_LABELS) as [key, label]}
                         {@const sev = parseInt(key)}
@@ -180,8 +188,24 @@
         {/if}
         <button class="action-btn" on:click={() => showImport = true} title={$_('import.title')}>{$_('filter.import')}</button>
         <button class="action-btn" on:click={clearAll} title={$_('filter.clearAllLogs')}>{$_('filter.clear')}</button>
-        <button class="action-btn" on:click={exportCSV} title={$_('filter.exportAsCSV')}>{$_('filter.csv')}</button>
-        <button class="action-btn" on:click={exportText} title={$_('filter.exportAsText')}>{$_('filter.txt')}</button>
+        <div class="export-wrap">
+            <button class="action-btn" on:click={() => showExport = !showExport}
+                    aria-expanded={showExport} title={$_('filter.exportHint')}>
+                {$_('filter.export')}<span class="arrow">&#9662;</span>
+            </button>
+            {#if showExport}
+                <div class="dropdown export-menu">
+                    <button class="dropdown-item as-button"
+                            on:click={() => { showExport = false; exportCSV(); }}>
+                        {$_('filter.exportAsCSV')}
+                    </button>
+                    <button class="dropdown-item as-button"
+                            on:click={() => { showExport = false; exportText(); }}>
+                        {$_('filter.exportAsText')}
+                    </button>
+                </div>
+            {/if}
+        </div>
     </div>
 </div>
 
@@ -333,6 +357,19 @@
 
     .clear-btn:hover {
         background: var(--bg-hover);
+    }
+
+    .export-wrap { position: relative; }
+    /* Opens leftwards: this button sits at the right edge of the toolbar, and
+       a menu anchored left would hang off the window. */
+    .export-menu { left: auto; right: 0; min-width: 140px; }
+    .dropdown-item.as-button {
+        width: 100%;
+        background: none;
+        border: none;
+        text-align: left;
+        font-size: 11px;
+        color: var(--text-primary);
     }
 
     .action-btn {

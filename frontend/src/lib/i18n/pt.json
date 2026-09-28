@@ -51,6 +51,8 @@
     "clear": "Limpar",
     "csv": "CSV",
     "txt": "TXT",
+    "export": "Exportar",
+    "exportHint": "Exportar as mensagens filtradas",
     "clearAllLogs": "Apagar todos os registos",
     "exportAsCSV": "Exportar como CSV",
     "exportAsText": "Exportar como texto",

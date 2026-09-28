@@ -51,6 +51,8 @@
     "clear": "Effacer",
     "csv": "CSV",
     "txt": "TXT",
+    "export": "Exporter",
+    "exportHint": "Exporter les messages filtrés",
     "clearAllLogs": "Effacer tous les journaux",
     "exportAsCSV": "Exporter en CSV",
     "exportAsText": "Exporter en texte",

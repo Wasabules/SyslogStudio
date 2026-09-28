@@ -51,6 +51,8 @@
     "clear": "Cancella",
     "csv": "CSV",
     "txt": "TXT",
+    "export": "Esporta",
+    "exportHint": "Esporta i messaggi filtrati",
     "clearAllLogs": "Cancella tutti i registri",
     "exportAsCSV": "Esporta come CSV",
     "exportAsText": "Esporta come testo",

@@ -51,6 +51,8 @@
     "clear": "クリア",
     "csv": "CSV",
     "txt": "TXT",
+    "export": "エクスポート",
+    "exportHint": "絞り込んだメッセージをエクスポート",
     "clearAllLogs": "すべてのログを削除",
     "exportAsCSV": "CSV としてエクスポート",
     "exportAsText": "テキストとしてエクスポート",
