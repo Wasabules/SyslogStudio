@@ -295,7 +295,11 @@ export interface ImportPreview {
 // How a file should be read. 'auto' guesses and reports what it guessed; the
 // others are declared, which is what makes JSON lines, access logs and stack
 // traces readable — detection sees none of them.
-export type ImportMode = 'auto' | 'syslog' | 'json' | 'access' | 'logfmt' | 'custom';
+export type ImportMode =
+    | 'auto' | 'syslog' | 'json' | 'access' | 'logfmt' | 'custom'
+    // Shapes automatic detection reads on its own, which can also be declared:
+    // a name the dialog reports has to be a name the reader can choose.
+    | 'bsd' | 'klog' | 'logcat' | 'apache' | 'epoch';
 export interface ImportFormat {
     mode: ImportMode;
     // Field names for the json and logfmt modes. Empty means the usual

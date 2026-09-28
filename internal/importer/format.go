@@ -161,6 +161,10 @@ func (p *parser) parse(line, file string) record {
 		return p.parseLogfmt(line, file)
 	case models.ImportCustom:
 		return p.parseCustom(line, file)
+	case models.ImportBSD:
+		return p.parseBSD(line, file)
+	case models.ImportKlog, models.ImportLogcat, models.ImportApache, models.ImportEpoch:
+		return p.parseOneShape(p.format.Mode, line, file)
 	default:
 		return p.parseAuto(line, file)
 	}
@@ -284,6 +288,17 @@ func (p *parser) parseSyslog(line, file string) record {
 	// of the one before it.
 	r := p.parsePlain(line, file)
 	if !r.hasTime && !r.hasHost {
+		r.start = false
+	}
+	return r
+}
+
+// parseBSD reads the file format syslog daemons write: a timestamp, a host and
+// a tag, and no priority anywhere. A line without that shape is not a record —
+// in such a file it is the tail of the one above it.
+func (p *parser) parseBSD(line, file string) record {
+	r := p.parsePlain(line, file)
+	if !r.hasHost {
 		r.start = false
 	}
 	return r

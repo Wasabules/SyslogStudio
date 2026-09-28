@@ -42,19 +42,32 @@ const (
 	ShapeNone   = "none"  // nothing recognised
 )
 
-// ModeForShape is the declared format that reads a shape best, for the shapes
-// that have one. A klog or a logcat line has no mode of its own: automatic
-// detection is where it is read, so there is nothing to switch to.
+// ModeForShape is the format to declare for a shape.
+//
+// Every shape that can be recognised can also be chosen, so the name the
+// dialog reports and the entry the reader can pick are the same name. Only
+// "plain" and "none" have none: neither is a format, they are what is left
+// when nothing recognised the line.
 func ModeForShape(shape string) models.ImportMode {
 	switch shape {
-	case ShapeSyslog, ShapeBSD:
+	case ShapeSyslog:
 		return models.ImportSyslog
+	case ShapeBSD:
+		return models.ImportBSD
 	case ShapeJSON:
 		return models.ImportJSON
 	case ShapeAccess:
 		return models.ImportAccess
 	case ShapeLogfmt:
 		return models.ImportLogfmt
+	case ShapeKlog:
+		return models.ImportKlog
+	case ShapeLogcat:
+		return models.ImportLogcat
+	case ShapeApache:
+		return models.ImportApache
+	case ShapeEpoch:
+		return models.ImportEpoch
 	}
 	return ""
 }
@@ -115,6 +128,36 @@ var letterSeverity = map[string]models.Severity{
 	"I": models.SevInformational,
 	"D": models.SevDebug,
 	"V": models.SevDebug,
+}
+
+// parseOneShape applies a single shape, because the reader said the file is
+// that shape. A line that does not fit is not quietly handed to something
+// else: it comes back unrecognised, which is the honest answer to "read this
+// as klog" when the file is not klog.
+func (p *parser) parseOneShape(mode models.ImportMode, line, file string) record {
+	var (
+		re    *regexp.Regexp
+		build func([]string, string, string) record
+	)
+	switch mode {
+	case models.ImportKlog:
+		re, build = klogShape, p.buildKlog
+	case models.ImportLogcat:
+		if m := logcatShape.FindStringSubmatch(line); m != nil {
+			return p.buildLogcat(m, line, file)
+		}
+		re, build = logcatBriefShape, p.buildLogcatBrief
+	case models.ImportApache:
+		re, build = apacheErrorShape, p.buildApacheError
+	case models.ImportEpoch:
+		re, build = epochShape, p.buildEpoch
+	default:
+		return record{msg: base(line, line, file)}
+	}
+	if m := re.FindStringSubmatch(line); m != nil {
+		return build(m, line, file)
+	}
+	return record{msg: base(line, line, file)}
 }
 
 // parseShape tries the shapes that are recognisable on sight.

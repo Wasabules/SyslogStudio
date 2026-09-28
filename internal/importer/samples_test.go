@@ -40,12 +40,12 @@ func TestSampleFiles(t *testing.T) {
 			message: `GET /health HTTP/1.1 200 12 ua="kube-probe/1.29"`,
 		},
 		"apache-error.txt": {
-			imported: 5, detected: ShapeApache,
+			imported: 5, detected: ShapeApache, mode: models.ImportApache,
 			severity: "Error", procID: "1234",
 			message: "AH00037: Symbolic link not allowed: /var/www/html/data",
 		},
 		"archive-2019.txt": {
-			imported: 6, detected: ShapeBSD, mode: models.ImportSyslog,
+			imported: 6, detected: ShapeBSD, mode: models.ImportBSD,
 			severity: "Notice", host: "mail-1", app: "postfix/smtpd", procID: "3121",
 			message: "connect from unknown[192.0.2.91]",
 		},
@@ -60,12 +60,12 @@ func TestSampleFiles(t *testing.T) {
 			message: "listening on :8080",
 		},
 		"klog.txt": {
-			imported: 6, detected: ShapeKlog,
+			imported: 6, detected: ShapeKlog, mode: models.ImportKlog,
 			severity: "Info", app: "controller.go", procID: "1",
 			message: "Starting workers for queue depth 812",
 		},
 		"logcat.txt": {
-			imported: 9, detected: ShapeLogcat,
+			imported: 9, detected: ShapeLogcat, mode: models.ImportLogcat,
 			severity: "Info", app: "ActivityManager", procID: "1234",
 			message: "Start proc com.example.app for activity MainActivity",
 		},
@@ -88,7 +88,7 @@ func TestSampleFiles(t *testing.T) {
 			message:  "INFO   worker pool started with 16 threads",
 		},
 		"rsyslog-traditional.txt": {
-			imported: 6, detected: ShapeBSD, mode: models.ImportSyslog,
+			imported: 6, detected: ShapeBSD, mode: models.ImportBSD,
 			severity: "Notice", host: "nbb-ad-01.vms.example.invalid",
 			app: "Microsoft-Windows-Security-Auditing", procID: "756",
 			message: "An account was successfully logged on",
@@ -227,6 +227,44 @@ func TestSampleFiles_DeclaringTheDetectedModeLosesNothing(t *testing.T) {
 			if declared.Unmatched > auto.Unmatched {
 				t.Errorf("as %s: %d unmatched, detection had %d",
 					auto.DetectedMode, declared.Unmatched, auto.Unmatched)
+			}
+		})
+	}
+}
+
+// Declaring a format the file is not must say so, not quietly do something
+// else. That is the whole reason these shapes are selectable: a reader who
+// picks "Kubernetes klog" for an Apache log has made a mistake, and the
+// preview is where it should become obvious.
+func TestSampleFiles_TheWrongModeSaysSo(t *testing.T) {
+	dir := filepath.Join("..", "..", "tools", "sample-logs")
+	cases := []struct {
+		file string
+		mode models.ImportMode
+	}{
+		{"apache-error.txt", models.ImportKlog},
+		{"klog.txt", models.ImportAccess},
+		{"json-lines.txt", models.ImportLogcat},
+		{"access.txt", models.ImportEpoch},
+		{"plain-app.txt", models.ImportBSD},
+	}
+
+	for _, c := range cases {
+		t.Run(c.file+" as "+string(c.mode), func(t *testing.T) {
+			res, err := Read(Options{
+				Path:   filepath.Join(dir, c.file),
+				Year:   2026,
+				Format: models.ImportFormat{Mode: c.mode},
+			}, func(models.SyslogMessage) bool { return true })
+			if err != nil {
+				t.Fatalf("Read: %v", err)
+			}
+			if res.Unmatched != res.LinesRead-res.Blank {
+				t.Errorf("Unmatched = %d of %d lines; a format the file is not must not match any of it",
+					res.Unmatched, res.LinesRead-res.Blank)
+			}
+			if res.Detected != "" && res.Detected != "mixed" {
+				t.Errorf("Detected = %q on a file read with the wrong format", res.Detected)
 			}
 		})
 	}
