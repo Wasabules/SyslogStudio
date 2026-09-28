@@ -148,7 +148,11 @@
     "copy": "Copiar",
     "copiedToClipboard": "Copiado al portapapeles",
     "failedToCopy": "Error al copiar al portapapeles",
-    "matchesFound": "coincidencias encontradas"
+    "matchesFound": "coincidencias encontradas",
+    "resizeHint": "Arrastra para cambiar el ancho, doble clic para ajustar al valor más largo",
+    "fitColumn": "Ajustar esta columna",
+    "fitAll": "Ajustar todas las columnas",
+    "resetWidths": "Restablecer los anchos"
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",

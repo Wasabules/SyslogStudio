@@ -148,7 +148,11 @@
     "copy": "Kopieren",
     "copiedToClipboard": "In die Zwischenablage kopiert",
     "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen",
-    "matchesFound": "Treffer gefunden"
+    "matchesFound": "Treffer gefunden",
+    "resizeHint": "Ziehen zum Ändern der Breite, Doppelklick für den breitesten Wert",
+    "fitColumn": "Diese Spalte anpassen",
+    "fitAll": "Alle Spalten anpassen",
+    "resetWidths": "Spaltenbreiten zurücksetzen"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",

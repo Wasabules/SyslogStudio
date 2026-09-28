@@ -8,6 +8,11 @@
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
     import { _ } from 'svelte-i18n';
+    import {
+        columnWidths, widthVars, setColumnWidth, resetColumnWidths,
+        measureLongest, clampWidth, RESIZABLE,
+    } from '../lib/columns';
+    import type { ColumnKey } from '../lib/columns';
 
     const ROW_HEIGHT = 28;
     const GROUP_ROW_HEIGHT = 32;
@@ -370,6 +375,104 @@
     $: historyTotalPages = Math.max(1, Math.ceil(historyTotal / historyPageSize));
 
     // --- Sort ---
+    // The table, as data. Seven columns written out by hand is seven places to
+    // forget when one of them gains a resizer.
+    const COLUMNS: { key: ColumnKey | 'message'; sort: SortCol; label: string }[] = [
+        { key: 'severity', sort: 'severity', label: 'log.severity' },
+        { key: 'timestamp', sort: 'timestamp', label: 'log.timestamp' },
+        { key: 'protocol', sort: 'protocol', label: 'log.proto' },
+        { key: 'source', sort: 'sourceIP', label: 'log.source' },
+        { key: 'hostname', sort: 'hostname', label: 'log.hostname' },
+        { key: 'app', sort: 'appName', label: 'log.app' },
+        { key: 'message', sort: 'message', label: 'log.message' },
+    ];
+
+    let header: HTMLDivElement;
+    let menu: { x: number; y: number; key: ColumnKey } | null = null;
+
+    // --- dragging a column edge ----------------------------------------------
+    //
+    // Pointer events rather than mouse events, and a capture on the handle: the
+    // pointer leaves the 5px strip on the first frame of any real drag, and
+    // without the capture the resize stops the moment it does.
+    let drag: { key: ColumnKey; startX: number; startWidth: number } | null = null;
+
+    function startDrag(e: PointerEvent, key: ColumnKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        drag = { key, startX: e.clientX, startWidth: $columnWidths[key] };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
+    function onDrag(e: PointerEvent) {
+        if (!drag) return;
+        setColumnWidth(drag.key, drag.startWidth + (e.clientX - drag.startX));
+    }
+
+    function endDrag(e: PointerEvent) {
+        if (!drag) return;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        drag = null;
+    }
+
+    // --- fitting a column to its content -------------------------------------
+
+    /** What this column shows for a message, as the row renders it. */
+    function cellText(key: ColumnKey, msg: SyslogMessage): string {
+        switch (key) {
+            case 'severity': return msg.severityLabel;
+            case 'timestamp': return formatInZone(msg.timestamp, $activeZone);
+            case 'protocol': return msg.protocol;
+            case 'source': return redactIP(msg.sourceIP, $anonymous);
+            case 'hostname': return redactHost(msg.hostname, $anonymous);
+            case 'app': return msg.appName;
+        }
+    }
+
+    // Enough rows to answer the question without stalling on a full buffer.
+    // A column wide enough for the widest of five thousand lines is wide enough.
+    const FIT_SAMPLE = 5000;
+
+    /** The font a column renders in, read from the table rather than assumed. */
+    function columnFont(key: ColumnKey): string {
+        const cell = header?.parentElement?.querySelector<HTMLElement>(`.log-row .col-${key}`);
+        const el = cell ?? header?.querySelector<HTMLElement>(`.col-${key}`);
+        if (!el) return '12px sans-serif';
+        const style = getComputedStyle(el);
+        return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    }
+
+    function fitColumn(key: ColumnKey) {
+        const rows = $filteredMessages.slice(0, FIT_SAMPLE);
+        const values = rows.map(m => cellText(key, m));
+
+        // The heading has to fit too, or fitting a column to a file with no
+        // hostnames in it would hide the word "Hostname".
+        const headEl = header?.querySelector<HTMLElement>(`.col-${key}`);
+        const headStyle = headEl ? getComputedStyle(headEl) : null;
+        const headWidth = headEl && headStyle
+            ? measureLongest([headEl.innerText.trim()],
+                `${headStyle.fontStyle} ${headStyle.fontWeight} ${headStyle.fontSize} ${headStyle.fontFamily}`)
+            : 0;
+
+        // The padding a cell already spends, plus room for a sort arrow.
+        const CHROME = 26;
+        setColumnWidth(key, clampWidth(Math.max(measureLongest(values, columnFont(key)), headWidth) + CHROME));
+    }
+
+    function fitAllColumns() {
+        for (const key of RESIZABLE) fitColumn(key);
+    }
+
+    function openMenu(e: MouseEvent, key: ColumnKey) {
+        e.preventDefault();
+        menu = { x: e.clientX, y: e.clientY, key };
+    }
+
+    function closeMenu() {
+        menu = null;
+    }
+
     function toggleSort(col: SortCol) {
         if ($sortColumn === col) {
             if ($sortDirection === 'desc') $sortDirection = 'asc';
@@ -384,30 +487,42 @@
 
 </script>
 
-<div class="log-viewer-wrapper">
-    <div class="log-header">
-        <button class="col-header col-severity" class:sorted={$sortColumn === 'severity'} on:click={() => toggleSort('severity')}>
-            {$_('log.severity')}{#if $sortColumn === 'severity'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-timestamp" class:sorted={$sortColumn === 'timestamp'} on:click={() => toggleSort('timestamp')}>
-            {$_('log.timestamp')} <span class="col-zone">{$zoneAbbreviation}</span>{#if $sortColumn === 'timestamp'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-protocol" class:sorted={$sortColumn === 'protocol'} on:click={() => toggleSort('protocol')}>
-            {$_('log.proto')}{#if $sortColumn === 'protocol'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-source" class:sorted={$sortColumn === 'sourceIP'} on:click={() => toggleSort('sourceIP')}>
-            {$_('log.source')}{#if $sortColumn === 'sourceIP'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-hostname" class:sorted={$sortColumn === 'hostname'} on:click={() => toggleSort('hostname')}>
-            {$_('log.hostname')}{#if $sortColumn === 'hostname'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-app" class:sorted={$sortColumn === 'appName'} on:click={() => toggleSort('appName')}>
-            {$_('log.app')}{#if $sortColumn === 'appName'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-message" class:sorted={$sortColumn === 'message'} on:click={() => toggleSort('message')}>
-            {$_('log.message')}{#if $sortColumn === 'message'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
+<div class="log-viewer-wrapper" style={widthVars($columnWidths)}>
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="log-header" bind:this={header}>
+        {#each COLUMNS as col (col.key)}
+            <div class="col-wrap col-{col.key}">
+                <button class="col-header" class:sorted={$sortColumn === col.sort}
+                        on:click={() => toggleSort(col.sort)}
+                        on:contextmenu={e => { if (col.key !== 'message') openMenu(e, col.key); }}>
+                    {$_(col.label)}{#if col.key === 'timestamp'}&nbsp;<span class="col-zone">{$zoneAbbreviation}</span>{/if}{#if $sortColumn === col.sort}<span class="sort-arrow">{$sortDirection === 'asc' ? '\u25b2' : '\u25bc'}</span>{/if}
+                </button>
+                {#if col.key !== 'message'}
+                    {@const key = col.key}
+                    <!-- svelte-ignore a11y-no-static-element-interactions -->
+                    <div class="col-resizer" class:dragging={drag?.key === key}
+                         title={$_('log.resizeHint')}
+                         on:pointerdown={e => startDrag(e, key)}
+                         on:pointermove={onDrag}
+                         on:pointerup={endDrag}
+                         on:pointercancel={endDrag}
+                         on:dblclick={() => fitColumn(key)}></div>
+                {/if}
+            </div>
+        {/each}
     </div>
+
+    {#if menu}
+        {@const target = menu}
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="menu-backdrop" on:click={closeMenu} on:contextmenu|preventDefault={closeMenu}></div>
+        <div class="col-menu" style="left:{target.x}px; top:{target.y}px">
+            <button on:click={() => { fitColumn(target.key); closeMenu(); }}>{$_('log.fitColumn')}</button>
+            <button on:click={() => { fitAllColumns(); closeMenu(); }}>{$_('log.fitAll')}</button>
+            <button on:click={() => { resetColumnWidths(); closeMenu(); }}>{$_('log.resetWidths')}</button>
+        </div>
+    {/if}
 
     <div class="log-container" bind:this={container} on:scroll={onScroll}
          bind:clientHeight={containerHeight}>
@@ -553,14 +668,47 @@
     .log-header {
         display: flex; align-items: center; padding: 0 8px;
         background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);
-        font-size: 11px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0; gap: 0;
+        font-size: 11px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0;
+        /* The same gap the rows use, so a heading sits over its own column. */
+        gap: 4px;
     }
 
+    /* The width lives on the wrapper now: the button fills it, and the resize
+       handle sits at its edge without taking a share of it. */
+    .col-wrap { position: relative; display: flex; align-items: center; min-width: 0; }
     .col-header {
+        flex: 1; min-width: 0;
         background: transparent; color: var(--text-secondary); border: none; border-right: 1px solid var(--border-subtle);
         font-size: 11px; font-weight: 600; padding: 6px 6px; cursor: pointer; text-align: left;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+
+    /* Wider than it looks: a 5px target is a target you miss. The strip
+       straddles the edge so the cursor changes slightly before it. */
+    .col-resizer {
+        position: absolute; top: 0; bottom: 0; right: -4px; width: 9px;
+        cursor: col-resize; z-index: 2;
+        touch-action: none;
+    }
+    .col-resizer::after {
+        content: ''; position: absolute; top: 3px; bottom: 3px; left: 4px; width: 1px;
+        background: transparent; transition: background 0.1s;
+    }
+    .col-resizer:hover::after, .col-resizer.dragging::after { background: var(--accent); }
+
+    .menu-backdrop { position: fixed; inset: 0; z-index: 900; }
+    .col-menu {
+        position: fixed; z-index: 901;
+        display: flex; flex-direction: column; min-width: 160px;
+        background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: 4px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+        padding: 4px;
+    }
+    .col-menu button {
+        background: none; border: none; text-align: left; cursor: pointer;
+        padding: 6px 10px; font-size: 12px; color: var(--text-primary); border-radius: 3px;
+    }
+    .col-menu button:hover { background: var(--bg-hover); }
     .col-header:hover { background: var(--bg-hover); color: var(--text-primary); }
     .col-header.sorted { color: var(--accent); }
     .col-header:last-child { border-right: none; }
@@ -596,13 +744,16 @@
     .group-count { color: var(--text-muted); font-weight: 400; font-size: 11px; flex-shrink: 0; }
     .group-bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0; z-index: -1; transition: width 0.3s; }
 
-    .col-severity { width: 80px; flex-shrink: 0; }
-    .col-timestamp { width: 140px; flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); }
+    .col-severity { width: var(--w-severity, 80px); flex-shrink: 0; }
+    .col-timestamp { width: var(--w-timestamp, 140px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); }
     .col-zone { font-weight: 400; font-size: 10px; opacity: 0.7; }
-    .col-protocol { width: 40px; flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
-    .col-source { width: 110px; flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .col-hostname { width: 110px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .col-app { width: 100px; flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-protocol { width: var(--w-protocol, 40px); flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
+    .col-source { width: var(--w-source, 110px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-hostname { width: var(--w-hostname, 110px); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-app { width: var(--w-app, 100px); flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* A row cell keeps its own font and colour; the heading above it only needs
+       the width, which the wrapper carries. */
+    .col-wrap.col-message { flex: 1; min-width: 0; }
     .col-message { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
     .severity-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #10161d; text-align: center; min-width: 60px; }

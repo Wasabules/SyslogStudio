@@ -148,7 +148,11 @@
     "copy": "Copia",
     "copiedToClipboard": "Copiato negli appunti",
     "failedToCopy": "Impossibile copiare negli appunti",
-    "matchesFound": "corrispondenze trovate"
+    "matchesFound": "corrispondenze trovate",
+    "resizeHint": "Trascina per ridimensionare, doppio clic per adattare al valore più lungo",
+    "fitColumn": "Adatta questa colonna",
+    "fitAll": "Adatta tutte le colonne",
+    "resetWidths": "Reimposta le larghezze"
   },
   "dashboard": {
     "totalMessages": "Totale messaggi",

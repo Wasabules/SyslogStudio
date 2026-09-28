@@ -131,6 +131,8 @@ in a ticket without going through a redaction tool first.
 - **Filter, sort and group** by severity, facility, host, application, source IP or time range
 - **Explicit timezones** — follow the machine, pin to UTC, or name a zone; the column header
   says which one it is showing
+- **Resizable columns** — drag an edge, double-click it to fit the widest value, or use the
+  header's right-click menu to fit everything or start over. Widths are remembered
 - **Export** as CSV or plain text
 - **Import a log file** already on disk — `.log`, `.txt` or a rotated `.gz`. A captured
   syslog file is parsed exactly as it would be off the wire; a plain application log has its

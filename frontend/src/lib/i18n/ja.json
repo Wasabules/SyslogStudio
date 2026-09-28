@@ -148,7 +148,11 @@
     "copy": "コピー",
     "copiedToClipboard": "クリップボードにコピーしました",
     "failedToCopy": "クリップボードへのコピーに失敗しました",
-    "matchesFound": "件の一致"
+    "matchesFound": "件の一致",
+    "resizeHint": "ドラッグで幅変更、ダブルクリックで最長の値に合わせる",
+    "fitColumn": "この列を自動調整",
+    "fitAll": "すべての列を自動調整",
+    "resetWidths": "列幅をリセット"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",

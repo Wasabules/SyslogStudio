@@ -148,7 +148,11 @@
     "rawMessage": "Message brut",
     "copy": "Copier",
     "copiedToClipboard": "Copié dans le presse-papiers",
-    "failedToCopy": "Échec de la copie dans le presse-papiers"
+    "failedToCopy": "Échec de la copie dans le presse-papiers",
+    "resizeHint": "Glisser pour redimensionner, double-cliquer pour ajuster à la valeur la plus large",
+    "fitColumn": "Ajuster cette colonne",
+    "fitAll": "Ajuster toutes les colonnes",
+    "resetWidths": "Réinitialiser les largeurs"
   },
   "dashboard": {
     "totalMessages": "Total des messages",
