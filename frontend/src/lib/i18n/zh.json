@@ -153,7 +153,19 @@
     "fitColumn": "适应此列",
     "fitAll": "适应所有列",
     "resetWidths": "重置列",
-    "moveHint": "单击排序，拖动移动列"
+    "moveHint": "单击排序，拖动移动列",
+    "copyMessage": "复制消息",
+    "copyRaw": "复制原始行",
+    "copyJson": "复制为 JSON",
+    "copyValue": "复制“{value}”",
+    "copyReal": "复制真实值",
+    "copied": "已复制",
+    "copyFailed": "无法复制",
+    "filterHost": "按此主机筛选",
+    "filterApp": "按此应用筛选",
+    "filterSeverity": "按此严重程度筛选",
+    "around": "显示此行前后 {minutes} 分钟",
+    "createAlert": "从此行创建告警规则"
   },
   "dashboard": {
     "totalMessages": "消息总数",

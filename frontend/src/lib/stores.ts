@@ -182,6 +182,11 @@ export const filter = writable<FilterCriteria>({
 });
 
 export const selectedMessage = writable<SyslogMessage | null>(null);
+
+// A rule the alert view should open with, handed over by the log line it came
+// from. Cleared by the view once it has taken it, so returning to Alerts later
+// does not reopen a form nobody asked for.
+export const draftAlertRule = writable<Partial<AlertRule> | null>(null);
 export const autoScroll = writable<boolean>(true);
 export const activeView = writable<'logs' | 'dashboard' | 'alerts' | 'simulator' | 'notify'>('logs');
 export const logViewMode = writable<'live' | 'history'>('live');

@@ -153,7 +153,19 @@
     "fitColumn": "Ajustar esta columna",
     "fitAll": "Ajustar todas las columnas",
     "resetWidths": "Restablecer las columnas",
-    "moveHint": "Haz clic para ordenar, arrastra para mover la columna"
+    "moveHint": "Haz clic para ordenar, arrastra para mover la columna",
+    "copyMessage": "Copiar el mensaje",
+    "copyRaw": "Copiar la línea original",
+    "copyJson": "Copiar como JSON",
+    "copyValue": "Copiar «{value}»",
+    "copyReal": "Copiar el valor real",
+    "copied": "Copiado",
+    "copyFailed": "No se pudo copiar",
+    "filterHost": "Filtrar por este host",
+    "filterApp": "Filtrar por esta aplicación",
+    "filterSeverity": "Filtrar por esta severidad",
+    "around": "Mostrar {minutes} minutos alrededor de esta línea",
+    "createAlert": "Crear una regla de alerta desde esta línea"
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",

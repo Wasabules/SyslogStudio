@@ -3,7 +3,7 @@
     import { anonymous, redactText } from '../lib/anonymize';
     import { onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
-    import { alertRules, alertHistory } from '../lib/stores';
+    import { alertRules, alertHistory, draftAlertRule } from '../lib/stores';
     import type { AlertRule } from '../lib/stores';
     import { getAlertRules, addAlertRule, updateAlertRule, deleteAlertRule, getAlertHistory, clearAlertHistory } from '../lib/api';
     import { SEVERITY_LABELS } from '../lib/constants';
@@ -31,6 +31,23 @@
             console.warn('Failed to load alerts:', e);
         }
     });
+
+    // A line from the log view can arrive with a rule already sketched out.
+    // Taken once and cleared, so the form does not reopen on every later visit.
+    $: if ($draftAlertRule) applyDraft($draftAlertRule);
+
+    function applyDraft(draft: Partial<AlertRule>) {
+        draftAlertRule.set(null);
+        editingRule = null;
+        name = draft.name ?? '';
+        pattern = draft.pattern ?? '';
+        useRegex = draft.useRegex ?? false;
+        minSeverity = draft.minSeverity ?? -1;
+        hostname = draft.hostname ?? '';
+        appName = draft.appName ?? '';
+        cooldown = draft.cooldown ?? 60;
+        showForm = true;
+    }
 
     function resetForm() {
         editingRule = null;

@@ -153,7 +153,19 @@
     "fitColumn": "この列を自動調整",
     "fitAll": "すべての列を自動調整",
     "resetWidths": "列をリセット",
-    "moveHint": "クリックで並べ替え、ドラッグで列を移動"
+    "moveHint": "クリックで並べ替え、ドラッグで列を移動",
+    "copyMessage": "メッセージをコピー",
+    "copyRaw": "生の行をコピー",
+    "copyJson": "JSON としてコピー",
+    "copyValue": "「{value}」をコピー",
+    "copyReal": "実際の値をコピー",
+    "copied": "コピーしました",
+    "copyFailed": "コピーできませんでした",
+    "filterHost": "このホストで絞り込む",
+    "filterApp": "このアプリケーションで絞り込む",
+    "filterSeverity": "この重大度で絞り込む",
+    "around": "この行の前後 {minutes} 分を表示",
+    "createAlert": "この行からアラートルールを作成"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",

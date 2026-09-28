@@ -153,7 +153,19 @@
     "fitColumn": "Diese Spalte anpassen",
     "fitAll": "Alle Spalten anpassen",
     "resetWidths": "Spalten zurücksetzen",
-    "moveHint": "Klicken zum Sortieren, ziehen zum Verschieben der Spalte"
+    "moveHint": "Klicken zum Sortieren, ziehen zum Verschieben der Spalte",
+    "copyMessage": "Nachricht kopieren",
+    "copyRaw": "Rohzeile kopieren",
+    "copyJson": "Als JSON kopieren",
+    "copyValue": "„{value}“ kopieren",
+    "copyReal": "Echten Wert kopieren",
+    "copied": "Kopiert",
+    "copyFailed": "Kopieren nicht möglich",
+    "filterHost": "Nach diesem Host filtern",
+    "filterApp": "Nach dieser Anwendung filtern",
+    "filterSeverity": "Nach diesem Schweregrad filtern",
+    "around": "{minutes} Minuten um diese Zeile anzeigen",
+    "createAlert": "Alarmregel aus dieser Zeile erstellen"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",

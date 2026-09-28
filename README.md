@@ -131,6 +131,10 @@ in a ticket without going through a redaction tool first.
 - **Filter, sort and group** by severity, facility, host, application, source IP or time range
 - **Explicit timezones** — follow the machine, pin to UTC, or name a zone; the column header
   says which one it is showing
+- **Right-click a line** to copy it (message, raw line, JSON, or the cell you aimed at), to
+  narrow the view to that host, application, severity or the five minutes around it, or to turn
+  it into an alert rule. In anonymous mode copying yields what is on screen, and the real value
+  is a separate entry — you cannot paste a real address believing it was masked
 - **Columns you arrange** — drag an edge to resize, double-click it to fit the widest value,
   drag a heading to move the column, or use the header's right-click menu to fit everything or
   start over. Widths and order are remembered

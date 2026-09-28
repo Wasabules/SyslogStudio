@@ -31,6 +31,23 @@
         }, 200);
     }
 
+    // The filter can be set from outside this bar — the row context menu does
+    // it — and until now these boxes only ever PUSHED into the store. A list
+    // narrowed by a filter whose box looks empty is the same trap as a mode
+    // with no indicator: something is being hidden and nothing says what.
+    //
+    // The search box is deliberately left out: it is debounced, so the store
+    // lags what is being typed, and syncing it back would delete keystrokes.
+    $: followStore($filter);
+
+    function followStore(f: typeof $filter) {
+        if (f.hostname !== hostnameText) hostnameText = f.hostname;
+        if (f.appName !== appNameText) appNameText = f.appName;
+        if (f.sourceIP !== sourceIPText) sourceIPText = f.sourceIP;
+        if (f.dateFrom !== dateFrom) dateFrom = f.dateFrom;
+        if (f.dateTo !== dateTo) dateTo = f.dateTo;
+    }
+
     function setHostname() {
         filter.update(f => ({ ...f, hostname: hostnameText }));
     }

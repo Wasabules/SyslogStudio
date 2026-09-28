@@ -13,6 +13,8 @@
         moveColumn, measureLongest, clampWidth, RESIZABLE,
     } from '../lib/columns';
     import type { ColumnKey, AnyColumn } from '../lib/columns';
+    import { shownValue } from '../lib/cells';
+    import LogRowMenu from './LogRowMenu.svelte';
 
     const ROW_HEIGHT = 28;
     const GROUP_ROW_HEIGHT = 32;
@@ -480,18 +482,6 @@
 
     // --- fitting a column to its content -------------------------------------
 
-    /** What this column shows for a message, as the row renders it. */
-    function cellText(key: ColumnKey, msg: SyslogMessage): string {
-        switch (key) {
-            case 'severity': return msg.severityLabel;
-            case 'timestamp': return formatInZone(msg.timestamp, $activeZone);
-            case 'protocol': return msg.protocol;
-            case 'source': return redactIP(msg.sourceIP, $anonymous);
-            case 'hostname': return redactHost(msg.hostname, $anonymous);
-            case 'app': return msg.appName;
-        }
-    }
-
     // Enough rows to answer the question without stalling on a full buffer.
     // A column wide enough for the widest of five thousand lines is wide enough.
     const FIT_SAMPLE = 5000;
@@ -507,7 +497,7 @@
 
     function fitColumn(key: ColumnKey) {
         const rows = $filteredMessages.slice(0, FIT_SAMPLE);
-        const values = rows.map(m => cellText(key, m));
+        const values = rows.map(m => shownValue(key, m, $anonymous, $activeZone));
 
         // The heading has to fit too, or fitting a column to a file with no
         // hostnames in it would hide the word "Hostname".
@@ -525,6 +515,20 @@
 
     function fitAllColumns() {
         for (const key of RESIZABLE) fitColumn(key);
+    }
+
+    // --- what there is to do with one line -----------------------------------
+    let rowMenu: { msg: SyslogMessage; column: AnyColumn | null; x: number; y: number } | null = null;
+
+    function openRowMenu(e: MouseEvent, msg: SyslogMessage) {
+        e.preventDefault();
+        // Which cell was aimed at, so the menu can offer that value by name.
+        const cell = (e.target as HTMLElement)?.closest?.('[class*="col-"]');
+        const key = cell
+            ? Array.from(cell.classList)
+                .find(c => c.startsWith('col-') && c !== 'col-wrap')?.slice(4)
+            : undefined;
+        rowMenu = { msg, column: (key as AnyColumn) ?? null, x: e.clientX, y: e.clientY };
     }
 
     function openMenu(e: MouseEvent, key: AnyColumn) {
@@ -599,6 +603,11 @@
         </div>
     {/if}
 
+    {#if rowMenu}
+        <LogRowMenu msg={rowMenu.msg} column={rowMenu.column} x={rowMenu.x} y={rowMenu.y}
+                    onClose={() => (rowMenu = null)} />
+    {/if}
+
     <div class="log-container" bind:this={container} on:scroll={onScroll}
          bind:clientHeight={containerHeight}>
         <div class="log-spacer" style="height: {totalHeight}px;">
@@ -624,7 +633,8 @@
                          style="top: {rowPositions[visibleStart + i]}px; height: {ROW_HEIGHT}px;"
                          role="row" tabindex="0"
                          on:click={() => selectMessage(msg)}
-                         on:keydown={e => e.key === 'Enter' && selectMessage(msg)}>
+                         on:keydown={e => e.key === 'Enter' && selectMessage(msg)}
+                         on:contextmenu={e => openRowMenu(e, msg)}>
                         {#each $columnOrder as key (key)}
                             {#if key === 'severity'}
                                 <span class="col-severity">
