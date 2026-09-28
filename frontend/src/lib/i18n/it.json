@@ -152,7 +152,8 @@
     "resizeHint": "Trascina per ridimensionare, doppio clic per adattare al valore più lungo",
     "fitColumn": "Adatta questa colonna",
     "fitAll": "Adatta tutte le colonne",
-    "resetWidths": "Reimposta le larghezze"
+    "resetWidths": "Reimposta le colonne",
+    "moveHint": "Clic per ordinare, trascina per spostare la colonna"
   },
   "dashboard": {
     "totalMessages": "Totale messaggi",

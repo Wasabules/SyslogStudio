@@ -64,6 +64,63 @@ columnWidths.subscribe(value => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); } catch {}
 });
 
+// --- order -------------------------------------------------------------------
+//
+// Which column belongs where is the same kind of question as how wide it
+// should be, and it has the same answer: it depends on the file, so the reader
+// decides and the application remembers. Someone reading one host's log wants
+// the message first; someone watching twenty devices wants the host first.
+
+export type AnyColumn = ColumnKey | 'message';
+
+export const DEFAULT_ORDER: AnyColumn[] = [
+    'severity', 'timestamp', 'protocol', 'source', 'hostname', 'app', 'message',
+];
+
+const ORDER_KEY = 'syslogstudio-column-order';
+
+function initialOrder(): AnyColumn[] {
+    try {
+        const raw = localStorage.getItem(ORDER_KEY);
+        if (!raw) return [...DEFAULT_ORDER];
+        const stored = JSON.parse(raw);
+        if (!Array.isArray(stored)) return [...DEFAULT_ORDER];
+        // Kept, then completed: a stored order from an older version is missing
+        // whatever column has been added since, and dropping that column from
+        // the table would be a strange way to learn it exists.
+        const known = stored.filter((k): k is AnyColumn => DEFAULT_ORDER.includes(k));
+        const seen = new Set(known);
+        return [...known, ...DEFAULT_ORDER.filter(k => !seen.has(k))];
+    } catch {
+        return [...DEFAULT_ORDER];
+    }
+}
+
+export const columnOrder = writable<AnyColumn[]>(initialOrder());
+
+columnOrder.subscribe(value => {
+    try { localStorage.setItem(ORDER_KEY, JSON.stringify(value)); } catch {}
+});
+
+/** Moves a column so that it lands at `index` in the order. */
+export function moveColumn(key: AnyColumn, index: number) {
+    columnOrder.update(order => {
+        const from = order.indexOf(key);
+        if (from < 0) return order;
+        const next = order.filter(k => k !== key);
+        // The index was read against the order WITH the column still in it, so
+        // a move to the right has to account for the hole it leaves behind.
+        const adjusted = index > from ? index - 1 : index;
+        next.splice(Math.max(0, Math.min(next.length, adjusted)), 0, key);
+        return next;
+    });
+}
+
+export function resetColumns() {
+    columnOrder.set([...DEFAULT_ORDER]);
+    resetColumnWidths();
+}
+
 export function setColumnWidth(key: ColumnKey, px: number) {
     columnWidths.update(w => ({ ...w, [key]: clampWidth(px) }));
 }

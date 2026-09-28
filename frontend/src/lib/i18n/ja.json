@@ -152,7 +152,8 @@
     "resizeHint": "ドラッグで幅変更、ダブルクリックで最長の値に合わせる",
     "fitColumn": "この列を自動調整",
     "fitAll": "すべての列を自動調整",
-    "resetWidths": "列幅をリセット"
+    "resetWidths": "列をリセット",
+    "moveHint": "クリックで並べ替え、ドラッグで列を移動"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",

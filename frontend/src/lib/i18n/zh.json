@@ -152,7 +152,8 @@
     "resizeHint": "拖动调整宽度，双击适应最长内容",
     "fitColumn": "适应此列",
     "fitAll": "适应所有列",
-    "resetWidths": "重置列宽"
+    "resetWidths": "重置列",
+    "moveHint": "单击排序，拖动移动列"
   },
   "dashboard": {
     "totalMessages": "消息总数",

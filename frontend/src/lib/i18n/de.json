@@ -152,7 +152,8 @@
     "resizeHint": "Ziehen zum Ändern der Breite, Doppelklick für den breitesten Wert",
     "fitColumn": "Diese Spalte anpassen",
     "fitAll": "Alle Spalten anpassen",
-    "resetWidths": "Spaltenbreiten zurücksetzen"
+    "resetWidths": "Spalten zurücksetzen",
+    "moveHint": "Klicken zum Sortieren, ziehen zum Verschieben der Spalte"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",

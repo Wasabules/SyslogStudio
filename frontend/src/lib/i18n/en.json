@@ -152,7 +152,8 @@
     "resizeHint": "Drag to resize, double-click to fit the widest value",
     "fitColumn": "Fit this column",
     "fitAll": "Fit all columns",
-    "resetWidths": "Reset column widths"
+    "resetWidths": "Reset columns",
+    "moveHint": "Click to sort, drag to move the column"
   },
   "dashboard": {
     "totalMessages": "Total Messages",

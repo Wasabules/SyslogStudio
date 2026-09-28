@@ -9,10 +9,10 @@
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
     import { _ } from 'svelte-i18n';
     import {
-        columnWidths, widthVars, setColumnWidth, resetColumnWidths,
-        measureLongest, clampWidth, RESIZABLE,
+        columnWidths, columnOrder, widthVars, setColumnWidth, resetColumns,
+        moveColumn, measureLongest, clampWidth, RESIZABLE,
     } from '../lib/columns';
-    import type { ColumnKey } from '../lib/columns';
+    import type { ColumnKey, AnyColumn } from '../lib/columns';
 
     const ROW_HEIGHT = 28;
     const GROUP_ROW_HEIGHT = 32;
@@ -377,18 +377,18 @@
     // --- Sort ---
     // The table, as data. Seven columns written out by hand is seven places to
     // forget when one of them gains a resizer.
-    const COLUMNS: { key: ColumnKey | 'message'; sort: SortCol; label: string }[] = [
-        { key: 'severity', sort: 'severity', label: 'log.severity' },
-        { key: 'timestamp', sort: 'timestamp', label: 'log.timestamp' },
-        { key: 'protocol', sort: 'protocol', label: 'log.proto' },
-        { key: 'source', sort: 'sourceIP', label: 'log.source' },
-        { key: 'hostname', sort: 'hostname', label: 'log.hostname' },
-        { key: 'app', sort: 'appName', label: 'log.app' },
-        { key: 'message', sort: 'message', label: 'log.message' },
-    ];
+    const COLUMN: Record<AnyColumn, { sort: SortCol; label: string }> = {
+        severity: { sort: 'severity', label: 'log.severity' },
+        timestamp: { sort: 'timestamp', label: 'log.timestamp' },
+        protocol: { sort: 'protocol', label: 'log.proto' },
+        source: { sort: 'sourceIP', label: 'log.source' },
+        hostname: { sort: 'hostname', label: 'log.hostname' },
+        app: { sort: 'appName', label: 'log.app' },
+        message: { sort: 'message', label: 'log.message' },
+    };
 
     let header: HTMLDivElement;
-    let menu: { x: number; y: number; key: ColumnKey } | null = null;
+    let menu: { x: number; y: number; key: AnyColumn } | null = null;
 
     // --- dragging a column edge ----------------------------------------------
     //
@@ -413,6 +413,69 @@
         if (!drag) return;
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
         drag = null;
+    }
+
+    // --- carrying a column to another place ----------------------------------
+    //
+    // Pointer events rather than the HTML drag-and-drop API: that API insists
+    // on its own ghost image and its own drop semantics, and both fight a
+    // table whose columns are a flex row.
+    //
+    // Nothing happens until the pointer has travelled a few pixels, because
+    // every one of these presses is also a click on the sort button, and a
+    // heading that reordered itself on an imprecise click would be unusable.
+    let reorder: { key: AnyColumn; startX: number; active: boolean; over: number } | null = null;
+    let suppressClick = false;
+    const DRAG_THRESHOLD = 5;
+
+    function headerDown(e: PointerEvent, key: AnyColumn) {
+        if (e.button !== 0) return;
+        // A fresh press decides for itself. After a drag the browser does not
+        // always follow the release with a click, and a suppression left
+        // standing would then swallow the NEXT heading someone clicks — which
+        // reads as sorting having stopped working.
+        suppressClick = false;
+        reorder = { key, startX: e.clientX, active: false, over: $columnOrder.indexOf(key) };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
+    function headerMove(e: PointerEvent) {
+        if (!reorder || drag) return;
+        if (!reorder.active) {
+            if (Math.abs(e.clientX - reorder.startX) < DRAG_THRESHOLD) return;
+            reorder.active = true;
+        }
+        reorder = { ...reorder, over: dropIndexAt(e.clientX) };
+    }
+
+    /** Where the column would land if it were let go here. */
+    function dropIndexAt(x: number): number {
+        const wraps = Array.from(header?.querySelectorAll<HTMLElement>('.col-wrap') ?? []);
+        for (let i = 0; i < wraps.length; i++) {
+            const box = wraps[i].getBoundingClientRect();
+            if (x < box.left + box.width / 2) return i;
+        }
+        return wraps.length;
+    }
+
+    function headerUp(e: PointerEvent) {
+        if (!reorder) return;
+        const done = reorder;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        reorder = null;
+        if (!done.active) return;
+        // The press was a drag, so the click that follows it is not a request
+        // to sort.
+        suppressClick = true;
+        moveColumn(done.key, done.over);
+    }
+
+    function headerClick(sort: SortCol) {
+        if (suppressClick) {
+            suppressClick = false;
+            return;
+        }
+        toggleSort(sort);
     }
 
     // --- fitting a column to its content -------------------------------------
@@ -464,7 +527,7 @@
         for (const key of RESIZABLE) fitColumn(key);
     }
 
-    function openMenu(e: MouseEvent, key: ColumnKey) {
+    function openMenu(e: MouseEvent, key: AnyColumn) {
         e.preventDefault();
         menu = { x: e.clientX, y: e.clientY, key };
     }
@@ -490,23 +553,33 @@
 <div class="log-viewer-wrapper" style={widthVars($columnWidths)}>
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="log-header" bind:this={header}>
-        {#each COLUMNS as col (col.key)}
-            <div class="col-wrap col-{col.key}">
+        {#each $columnOrder as key, i (key)}
+            {@const col = COLUMN[key]}
+            <div class="col-wrap col-{key}"
+                 class:dragged={reorder?.active && reorder.key === key}
+                 class:drop-before={reorder?.active && reorder.over === i && reorder.key !== key}
+                 class:drop-after={reorder?.active && reorder.over === $columnOrder.length
+                                   && i === $columnOrder.length - 1 && reorder.key !== key}>
                 <button class="col-header" class:sorted={$sortColumn === col.sort}
-                        on:click={() => toggleSort(col.sort)}
-                        on:contextmenu={e => { if (col.key !== 'message') openMenu(e, col.key); }}>
-                    {$_(col.label)}{#if col.key === 'timestamp'}&nbsp;<span class="col-zone">{$zoneAbbreviation}</span>{/if}{#if $sortColumn === col.sort}<span class="sort-arrow">{$sortDirection === 'asc' ? '\u25b2' : '\u25bc'}</span>{/if}
+                        on:click={() => headerClick(col.sort)}
+                        on:pointerdown={e => headerDown(e, key)}
+                        on:pointermove={headerMove}
+                        on:pointerup={headerUp}
+                        on:pointercancel={headerUp}
+                        on:contextmenu={e => openMenu(e, key)}
+                        title={$_('log.moveHint')}>
+                    {$_(col.label)}{#if key === 'timestamp'}&nbsp;<span class="col-zone">{$zoneAbbreviation}</span>{/if}{#if $sortColumn === col.sort}<span class="sort-arrow">{$sortDirection === 'asc' ? '\u25b2' : '\u25bc'}</span>{/if}
                 </button>
-                {#if col.key !== 'message'}
-                    {@const key = col.key}
+                {#if key !== 'message'}
+                    {@const resizable = key}
                     <!-- svelte-ignore a11y-no-static-element-interactions -->
-                    <div class="col-resizer" class:dragging={drag?.key === key}
+                    <div class="col-resizer" class:dragging={drag?.key === resizable}
                          title={$_('log.resizeHint')}
-                         on:pointerdown={e => startDrag(e, key)}
+                         on:pointerdown={e => startDrag(e, resizable)}
                          on:pointermove={onDrag}
                          on:pointerup={endDrag}
                          on:pointercancel={endDrag}
-                         on:dblclick={() => fitColumn(key)}></div>
+                         on:dblclick={() => fitColumn(resizable)}></div>
                 {/if}
             </div>
         {/each}
@@ -518,9 +591,11 @@
         <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div class="menu-backdrop" on:click={closeMenu} on:contextmenu|preventDefault={closeMenu}></div>
         <div class="col-menu" style="left:{target.x}px; top:{target.y}px">
-            <button on:click={() => { fitColumn(target.key); closeMenu(); }}>{$_('log.fitColumn')}</button>
+            {#if target.key !== 'message'}
+                <button on:click={() => { fitColumn(target.key as ColumnKey); closeMenu(); }}>{$_('log.fitColumn')}</button>
+            {/if}
             <button on:click={() => { fitAllColumns(); closeMenu(); }}>{$_('log.fitAll')}</button>
-            <button on:click={() => { resetColumnWidths(); closeMenu(); }}>{$_('log.resetWidths')}</button>
+            <button on:click={() => { resetColumns(); closeMenu(); }}>{$_('log.resetWidths')}</button>
         </div>
     {/if}
 
@@ -550,17 +625,27 @@
                          role="row" tabindex="0"
                          on:click={() => selectMessage(msg)}
                          on:keydown={e => e.key === 'Enter' && selectMessage(msg)}>
-                        <span class="col-severity">
-                            <span class="severity-badge" style="background: {SEVERITY_COLORS[msg.severity]}">
-                                {msg.severityLabel}
-                            </span>
-                        </span>
-                        <span class="col-timestamp">{formatInZone(msg.timestamp, $activeZone)}</span>
-                        <span class="col-protocol">{msg.protocol}</span>
-                        <span class="col-source">{redactIP(msg.sourceIP, $anonymous)}</span>
-                        <span class="col-hostname">{redactHost(msg.hostname, $anonymous)}</span>
-                        <span class="col-app">{msg.appName}</span>
-                        <span class="col-message" title={redactText(msg.message, $anonymous)}>{redactText(msg.message, $anonymous)}</span>
+                        {#each $columnOrder as key (key)}
+                            {#if key === 'severity'}
+                                <span class="col-severity">
+                                    <span class="severity-badge" style="background: {SEVERITY_COLORS[msg.severity]}">
+                                        {msg.severityLabel}
+                                    </span>
+                                </span>
+                            {:else if key === 'timestamp'}
+                                <span class="col-timestamp">{formatInZone(msg.timestamp, $activeZone)}</span>
+                            {:else if key === 'protocol'}
+                                <span class="col-protocol">{msg.protocol}</span>
+                            {:else if key === 'source'}
+                                <span class="col-source">{redactIP(msg.sourceIP, $anonymous)}</span>
+                            {:else if key === 'hostname'}
+                                <span class="col-hostname">{redactHost(msg.hostname, $anonymous)}</span>
+                            {:else if key === 'app'}
+                                <span class="col-app">{msg.appName}</span>
+                            {:else}
+                                <span class="col-message" title={redactText(msg.message, $anonymous)}>{redactText(msg.message, $anonymous)}</span>
+                            {/if}
+                        {/each}
                     </div>
                 {/if}
             {/each}
@@ -695,6 +780,17 @@
         background: transparent; transition: background 0.1s;
     }
     .col-resizer:hover::after, .col-resizer.dragging::after { background: var(--accent); }
+
+    /* Carried, and where it would land. The line is on the wrapper rather than
+       a floating element so it cannot drift out of the header on a fast drag. */
+    .col-wrap.dragged { opacity: 0.4; }
+    .col-wrap.drop-before, .col-wrap.drop-after { position: relative; }
+    .col-wrap.drop-before::before, .col-wrap.drop-after::before {
+        content: ''; position: absolute; top: 2px; bottom: 2px; width: 2px;
+        background: var(--accent); z-index: 3;
+    }
+    .col-wrap.drop-before::before { left: -3px; }
+    .col-wrap.drop-after::before { right: -3px; }
 
     .menu-backdrop { position: fixed; inset: 0; z-index: 900; }
     .col-menu {
