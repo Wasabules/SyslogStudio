@@ -377,6 +377,9 @@
   },
   "anonymous": {
     "active": "Modo anónimo activo",
+    "banner": "Los nombres de host, direcciones, cuentas y dominios en pantalla son sustitutos, no los valores recibidos. Los datos guardados y las exportaciones no cambian.",
+    "showReal": "Mostrar los valores reales",
+    "off": "Modo anónimo desactivado",
     "disable": "Desactivar modo anónimo",
     "enable": "Activar modo anónimo",
     "hint": "Sustituye nombres de host, direcciones, usuarios, dominios y correos por alias estables, para poder compartir una captura. Solo la visualización — los datos almacenados y las exportaciones no cambian.",

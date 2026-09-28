@@ -4,6 +4,21 @@
     import { initEventListeners, destroyEventListeners } from './lib/events';
     import { activeView, serverStatus } from './lib/stores';
     import { anonymous, toggleAnonymous } from './lib/anonymize';
+    import AnonymousBanner from './components/AnonymousBanner.svelte';
+
+    // The mode can be switched from the sidebar button or from the settings
+    // panel, and the sidebar button sits directly above the settings one —
+    // which is how someone turns it on without meaning to. Saying so at the
+    // moment it changes is what turns a mystery back into a mode.
+    let lastAnonymous = $anonymous;
+    $: if ($anonymous !== lastAnonymous) {
+        lastAnonymous = $anonymous;
+        if ($anonymous) {
+            toastInfo($_('anonymous.active'));
+        } else {
+            toastSuccess($_('anonymous.off'));
+        }
+    }
     import { theme, toggleTheme } from './lib/theme';
     import ServerControls from './components/ServerControls.svelte';
     import FilterBar from './components/FilterBar.svelte';
@@ -19,7 +34,7 @@
     import CloseDialog from './components/CloseDialog.svelte';
     import UnlockScreen from './components/UnlockScreen.svelte';
     import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted } from './lib/api';
-    import { toastError } from './lib/toast';
+    import { toastError, toastInfo, toastSuccess } from './lib/toast';
     import { updateStore } from './lib/updateStore';
     import UpdateBanner from './components/UpdateBanner.svelte';
 
@@ -205,6 +220,7 @@
     <div class="main-area">
         <UpdateBanner />
         <ServerControls onTLSConfig={() => showTLSConfig = true} />
+        <AnonymousBanner />
 
         {#if $activeView === 'logs'}
             <FilterBar />

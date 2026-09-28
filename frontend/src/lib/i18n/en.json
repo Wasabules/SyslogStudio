@@ -377,6 +377,9 @@
   },
   "anonymous": {
     "active": "Anonymous mode is on",
+    "banner": "Hostnames, addresses, user names and domains on screen are stand-ins, not the values received. Stored data and exports are unchanged.",
+    "showReal": "Show real values",
+    "off": "Anonymous mode is off",
     "disable": "Disable anonymous mode",
     "enable": "Enable anonymous mode",
     "hint": "Replaces hostnames, addresses, usernames, domains and e-mail addresses with stable stand-ins, so a screenshot can be shared. Display only — stored data and exports are unchanged.",
