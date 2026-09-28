@@ -46,6 +46,27 @@
     let formatError = '';
     let format: ImportFormat = { mode: 'auto', joinContinuations: true, skipUnmatched: false };
 
+    // Set when the format was chosen by the detector rather than by hand, so
+    // the panel can say which of the two happened.
+    let adopted = false;
+
+    // The name of a shape the detector can report. The four that are also
+    // modes reuse the mode's own label, so the dropdown and the verdict cannot
+    // disagree about what "JSON" is called.
+    const SHAPE_LABEL: Record<string, string> = {
+        syslog: 'import.format_syslog',
+        json: 'import.format_json',
+        access: 'import.format_access',
+        logfmt: 'import.format_logfmt',
+        bsd: 'import.shape_bsd',
+        klog: 'import.shape_klog',
+        logcat: 'import.shape_logcat',
+        apache: 'import.shape_apache',
+        epoch: 'import.shape_epoch',
+        plain: 'import.shape_plain',
+        mixed: 'import.shape_mixed',
+    };
+
     let debounce: ReturnType<typeof setTimeout> | undefined;
     // Which request is the current one. Two previews can be in flight on a
     // large file, and the one that finishes last is not necessarily the one
@@ -61,6 +82,7 @@
         busy = false;
         showFormat = false;
         formatError = '';
+        adopted = false;
     }
 
     export function close() {
@@ -79,12 +101,34 @@
             format = await getImportFormat();
             preview = await previewLogFile(path, format);
             formatError = '';
+            await adoptDetected();
         } catch (e: any) {
             toastError(e?.message || String(e));
             path = '';
             preview = null;
         } finally {
             busy = false;
+        }
+    }
+
+    /**
+     * Take the detector's word for it, when it has one.
+     *
+     * Only from 'auto', and only once: a format chosen by hand is a decision,
+     * and overruling it would be the application arguing with the operator.
+     * The sample is then read again through the chosen mode, so what is on
+     * screen is what that mode actually produces rather than what the chain
+     * produced on the way to naming it.
+     */
+    async function adoptDetected() {
+        const mode = preview?.result?.detectedMode;
+        if (!mode || format.mode !== 'auto') return;
+        format = { ...format, mode };
+        adopted = true;
+        try {
+            preview = await previewLogFile(path, format);
+        } catch (e: any) {
+            formatError = e?.message || String(e);
         }
     }
 
@@ -180,6 +224,14 @@
                         {/if}
                     </div>
 
+                    {#if preview.result.detected}
+                        <p class="verdict">
+                            <b>{$_('import.detected')}</b>
+                            {$_(SHAPE_LABEL[preview.result.detected] ?? 'import.shape_plain')}{#if adopted}
+                                <span class="note-inline">{$_('import.adopted')}</span>{/if}
+                        </p>
+                    {/if}
+
                     {#if plain > 0 && format.mode === 'auto'}
                         <p class="note">
                             {$_('import.inferred', {
@@ -226,7 +278,7 @@
                         <div class="format">
                             <label class="row">
                                 <span class="row-label">{$_('import.format')}</span>
-                                <select bind:value={format.mode} on:change={refresh}>
+                                <select bind:value={format.mode} on:change={() => { adopted = false; refresh(); }}>
                                     {#each MODES as mode}
                                         <option value={mode}>{$_(`import.format_${mode}`)}</option>
                                     {/each}
@@ -346,6 +398,8 @@
     }
     .lead { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
     .note { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
+    .verdict { margin: 0; font-size: 12px; color: var(--text-primary); line-height: 1.5; }
+    .note-inline { font-size: 10px; color: var(--text-secondary); }
     .error {
         margin: 0; font-size: 11px; line-height: 1.5;
         color: var(--severity-error, #ff5555);

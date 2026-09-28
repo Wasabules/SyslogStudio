@@ -1,0 +1,5 @@
+[Mon Mar 17 21:42:10.123456 2026] [core:error] [pid 1234] AH00037: Symbolic link not allowed: /var/www/html/data
+[Mon Mar 17 21:42:11.004512 2026] [ssl:warn] [pid 1234] AH01906: server certificate is a CA certificate
+[Mon Mar 17 21:42:12.870233 2026] [proxy_fcgi:error] [pid 1301] AH01071: Got error 'PHP message: Uncaught TypeError'
+[Mon Mar 17 21:42:20.113900 2026] [mpm_event:notice] [pid 1200] AH00489: Apache/2.4.62 configured -- resuming normal operations
+[Mon Mar 17 21:43:02.551277 2026] [authz_core:error] [pid 1310] AH01630: client denied by server configuration: /srv/admin

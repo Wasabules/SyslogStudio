@@ -23,6 +23,42 @@ import (
 // or an invented severity is worse than an unparsed line, because the line
 // still shows its text while the field quietly lies.
 
+// The names a line's recognised shape can carry. They are counted per file so
+// the interface can say what a file IS — a reader who opens an Apache access
+// log wants to be told it is one, not merely to have it parsed correctly
+// behind their back.
+const (
+	ShapeSyslog = "syslog" // a priority, parsed as it would be off the wire
+	ShapeBSD    = "bsd"    // RFC 3164 with no priority, as rsyslog writes files
+	ShapeJSON   = "json"
+	ShapeAccess = "access"
+	ShapeLogfmt = "logfmt"
+	ShapeKlog   = "klog"
+	ShapeLogcat = "logcat"
+	ShapeApache = "apache" // the error log, not the access log
+	ShapeEpoch  = "epoch"
+	ShapeCustom = "custom"
+	ShapePlain  = "plain" // a timestamp or a level read out of free text
+	ShapeNone   = "none"  // nothing recognised
+)
+
+// ModeForShape is the declared format that reads a shape best, for the shapes
+// that have one. A klog or a logcat line has no mode of its own: automatic
+// detection is where it is read, so there is nothing to switch to.
+func ModeForShape(shape string) models.ImportMode {
+	switch shape {
+	case ShapeSyslog, ShapeBSD:
+		return models.ImportSyslog
+	case ShapeJSON:
+		return models.ImportJSON
+	case ShapeAccess:
+		return models.ImportAccess
+	case ShapeLogfmt:
+		return models.ImportLogfmt
+	}
+	return ""
+}
+
 // klog, which every Kubernetes component writes:
 //
 //	I0317 21:42:10.123456    1234 controller.go:212] Starting workers
@@ -38,6 +74,16 @@ var klogShape = regexp.MustCompile(
 //	03-17 21:42:10.123  1234  5678 E ActivityManager: ANR in com.example
 var logcatShape = regexp.MustCompile(
 	`^(\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEFA])\s+([^:]{1,48}):\s?(.*)$`)
+
+// Android's other logcat form, which `adb logcat` writes by default and which
+// carries no timestamp at all:
+//
+//	E/ActivityManager( 1234): ANR in com.example.app
+//
+// The severity is the leading letter, and the shape — letter, slash, tag, a
+// parenthesised pid, colon — is specific enough that nothing else falls in it.
+var logcatBriefShape = regexp.MustCompile(
+	`^([VDIWEFA])/([^(/]{1,40})\(\s*(\d+)\):\s?(.*)$`)
 
 // Apache's error log, where the header is bracketed and the year comes last:
 //
@@ -79,6 +125,9 @@ func (p *parser) parseShape(line, file string) (record, bool) {
 	if m := logcatShape.FindStringSubmatch(line); m != nil {
 		return p.buildLogcat(m, line, file), true
 	}
+	if m := logcatBriefShape.FindStringSubmatch(line); m != nil {
+		return p.buildLogcatBrief(m, line, file), true
+	}
 	if m := apacheErrorShape.FindStringSubmatch(line); m != nil {
 		return p.buildApacheError(m, line, file), true
 	}
@@ -104,7 +153,7 @@ func (p *parser) withTime(r *record, token string) {
 }
 
 func (p *parser) buildKlog(m []string, line, file string) record {
-	r := record{msg: base(m[6], line, file), start: true}
+	r := record{msg: base(m[6], line, file), start: true, shape: ShapeKlog}
 	p.withLevel(&r, m[1])
 	p.withTime(&r, m[2])
 	// The source file is what a klog reader filters on — "controller.go" is
@@ -117,11 +166,20 @@ func (p *parser) buildKlog(m []string, line, file string) record {
 }
 
 func (p *parser) buildLogcat(m []string, line, file string) record {
-	r := record{msg: base(m[6], line, file), start: true}
+	r := record{msg: base(m[6], line, file), start: true, shape: ShapeLogcat}
 	p.withTime(&r, m[1])
 	p.withLevel(&r, m[4])
 	r.msg.AppName = strings.TrimSpace(m[5])
 	r.msg.ProcID = m[2]
+	r.hasHost = true
+	return r
+}
+
+func (p *parser) buildLogcatBrief(m []string, line, file string) record {
+	r := record{msg: base(m[4], line, file), start: true, shape: ShapeLogcat}
+	p.withLevel(&r, m[1])
+	r.msg.AppName = strings.TrimSpace(m[2])
+	r.msg.ProcID = m[3]
 	r.hasHost = true
 	return r
 }
@@ -139,7 +197,7 @@ func (p *parser) buildApacheError(m []string, line, file string) record {
 		rest = strings.TrimSpace(apachePID.ReplaceAllString(rest, ""))
 	}
 
-	r := record{msg: base(rest, line, file), start: true}
+	r := record{msg: base(rest, line, file), start: true, shape: ShapeApache}
 	p.withTime(&r, m[1])
 	if sev, ok := detectSeverity(header); ok {
 		r.msg.Severity = sev
@@ -162,7 +220,7 @@ func stripModule(s string) string {
 }
 
 func (p *parser) buildEpoch(m []string, line, file string) record {
-	r := record{msg: base(m[2], line, file), start: true}
+	r := record{msg: base(m[2], line, file), start: true, shape: ShapeEpoch}
 	if secs, err := strconv.ParseFloat(m[1], 64); err == nil {
 		if t, ok := epochToTime(secs); ok {
 			r.msg.Timestamp = t

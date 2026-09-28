@@ -14,6 +14,9 @@ export namespace importer {
 	    joined: number;
 	    stopped: boolean;
 	    bySeverity: Record<string, number>;
+	    byShape: Record<string, number>;
+	    detected: string;
+	    detectedMode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Result(source);
@@ -34,6 +37,9 @@ export namespace importer {
 	        this.joined = source["joined"];
 	        this.stopped = source["stopped"];
 	        this.bySeverity = source["bySeverity"];
+	        this.byShape = source["byShape"];
+	        this.detected = source["detected"];
+	        this.detectedMode = source["detectedMode"];
 	    }
 	}
 	export class Preview {

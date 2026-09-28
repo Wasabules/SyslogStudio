@@ -274,6 +274,12 @@ export interface ImportResult {
     levelDetected: number;
     // Lines whose host and application were read out of an RFC 3164 body.
     hostDetected: number;
+    // What recognised each line, and what the file turned out to be. 'mixed'
+    // when no single shape holds a clear majority; detectedMode is the format
+    // to read it as, when the shape has one.
+    byShape: Record<string, number>;
+    detected: string;
+    detectedMode: ImportMode | '';
     // Lines that did not fit the declared format, and continuation lines folded
     // into the record above them.
     unmatched: number;

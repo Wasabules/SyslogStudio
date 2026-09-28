@@ -124,6 +124,10 @@ type record struct {
 	hasTime  bool
 	hasLevel bool
 	hasHost  bool
+	// shape names what recognised this line. Counted so the file as a whole
+	// can be named: a reader who opens an access log wants to be told it is
+	// one, not merely to have it parsed correctly behind their back.
+	shape string
 }
 
 func newParser(f models.ImportFormat) (*parser, error) {
@@ -200,7 +204,7 @@ func (p *parser) applyLevel(msg *models.SyslogMessage, raw string, r *record) {
 func (p *parser) parseAuto(line, file string) record {
 	// A priority is not a guess at all.
 	if isSyslogLine(line) {
-		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true}
+		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true, shape: ShapeSyslog}
 	}
 	// One JSON object per line, the shape most applications write today.
 	if looksLikeJSON(line) {
@@ -247,6 +251,15 @@ func (p *parser) parsePlain(line, file string) record {
 		syslog.ExtractTag(&r.msg)
 		r.hasHost = true
 	}
+
+	switch {
+	case d.HasHost:
+		r.shape = ShapeBSD
+	case r.hasTime || r.hasLevel:
+		r.shape = ShapePlain
+	default:
+		r.shape = ShapeNone
+	}
 	// A line that said something about itself began a record. One that said
 	// nothing did not — which is what lets a stack trace attach to the line
 	// above it without a file of plain sentences collapsing into one message.
@@ -263,7 +276,7 @@ func isSyslogLine(line string) bool {
 func (p *parser) parseSyslog(line, file string) record {
 	msg := syslog.Parse([]byte(line), file, "file")
 	if isSyslogLine(line) {
-		return record{msg: msg, start: true, syslog: true}
+		return record{msg: msg, start: true, syslog: true, shape: ShapeSyslog}
 	}
 	// No priority. The priority exists only on the wire, so a captured file
 	// routinely has none — rsyslog's default on-disk format is a timestamp, a
@@ -295,7 +308,7 @@ func (p *parser) parseJSON(line, file string) record {
 		text = trimmed
 	}
 	msg := base(text, line, file)
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeJSON}
 
 	if v, ok := pick(obj, p.format.JSONTime, jsonTimeKeys); ok {
 		if t, ok := p.parseStampValue(v); ok {
@@ -381,7 +394,7 @@ func (p *parser) parseAccess(line, file string) record {
 
 	msg := base(text, line, file)
 	msg.Hostname = client
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeAccess}
 
 	if t, err := time.Parse(accessTimeLayout, stamp); err == nil {
 		r.msg.Timestamp = t
@@ -444,7 +457,7 @@ func (p *parser) parseLogfmt(line, file string) record {
 	}
 
 	msg := base(text, line, file)
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeLogfmt}
 
 	if v, ok := pickString(obj, p.format.JSONTime, jsonTimeKeys); ok {
 		p.applyTime(&r.msg, v, &r)
@@ -555,7 +568,7 @@ func (p *parser) parseCustom(line, file string) record {
 		text = line
 	}
 	msg := base(text, line, file)
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeCustom}
 
 	if v := fields["time"]; v != "" {
 		p.applyTime(&r.msg, v, &r)
