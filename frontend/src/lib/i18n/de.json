@@ -73,6 +73,7 @@
     "linesSampled": "Zeilen als Stichprobe",
     "syslogLines": "mit Syslog-Priorität",
     "plainLines": "reiner Text",
+    "hostDetected": "mit Host und Anwendung",
     "inferred": "Von {total} Klartextzeilen wurde bei {time} ein Zeitstempel und bei {level} ein Level erkannt. Der Rest behält die Vorgabe.",
     "persist": "Auch in die Datenbank speichern",
     "persistHint": "Standardmäßig aus: Importierte Zeilen erscheinen dann im Verlauf neben empfangenem Verkehr.",

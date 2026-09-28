@@ -169,6 +169,9 @@
                         <div><b>{preview.result.imported.toLocaleString()}</b><span>{$_('import.linesSampled')}</span></div>
                         <div><b>{preview.result.syslog.toLocaleString()}</b><span>{$_('import.syslogLines')}</span></div>
                         <div><b>{plain.toLocaleString()}</b><span>{$_('import.plainLines')}</span></div>
+                        {#if preview.result.hostDetected > 0}
+                            <div><b>{preview.result.hostDetected.toLocaleString()}</b><span>{$_('import.hostDetected')}</span></div>
+                        {/if}
                         {#if preview.result.unmatched > 0}
                             <div class="warn"><b>{preview.result.unmatched.toLocaleString()}</b><span>{$_('import.unmatched')}</span></div>
                         {/if}

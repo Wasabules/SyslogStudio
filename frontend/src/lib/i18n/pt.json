@@ -73,6 +73,7 @@
     "linesSampled": "linhas amostradas",
     "syslogLines": "com prioridade syslog",
     "plainLines": "texto simples",
+    "hostDetected": "com anfitrião e aplicação",
     "inferred": "De {total} linhas de texto simples, foi reconhecida uma data/hora em {time} e um nível em {level}. As restantes mantêm o valor predefinido.",
     "persist": "Guardar também na base de dados",
     "persistHint": "Desativado por predefinição: as linhas importadas passariam a aparecer no histórico ao lado do tráfego recebido.",

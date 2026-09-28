@@ -73,6 +73,7 @@
     "linesSampled": "righe campionate",
     "syslogLines": "con priorità syslog",
     "plainLines": "testo semplice",
+    "hostDetected": "con host e applicazione",
     "inferred": "Su {total} righe di testo semplice, è stata riconosciuta una data/ora in {time} e un livello in {level}. Le altre mantengono il valore predefinito.",
     "persist": "Salva anche nel database",
     "persistHint": "Disattivato per impostazione predefinita: le righe importate comparirebbero nella cronologia accanto al traffico ricevuto.",

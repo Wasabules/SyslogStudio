@@ -73,6 +73,7 @@
     "linesSampled": "采样行数",
     "syslogLines": "含 syslog 优先级",
     "plainLines": "纯文本",
+    "hostDetected": "含主机和应用",
     "inferred": "在 {total} 行纯文本中，识别出 {time} 行的时间戳和 {level} 行的级别。其余保持默认值。",
     "persist": "同时保存到数据库",
     "persistHint": "默认关闭：开启后导入的行会与接收到的流量一起出现在历史记录中。",

@@ -198,30 +198,35 @@ func TestImportLogFile_DoesNotRememberAFormatThatFailed(t *testing.T) {
 }
 
 // A declared format has to reach the importer, or the dialog is decoration.
+//
+// Detection reads a JSON line on its own now, so the contrast has to come from
+// something it cannot know: a level under a field name of the application's
+// own choosing.
 func TestPreviewLogFile_AppliesTheDeclaredFormat(t *testing.T) {
 	app, _ := importApp(t)
 	p := filepath.Join(t.TempDir(), "app.json.log")
-	line := `{"time":"2026-03-17T21:42:10Z","level":"error","msg":"connection refused"}` + "\n"
+	line := `{"time":"2026-03-17T21:42:10Z","prio":"error","msg":"connection refused"}` + "\n"
 	if err := os.WriteFile(p, []byte(line), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Detection reads nothing out of a JSON line, which is the gap the modes
-	// exist to close.
 	auto, err := app.PreviewLogFile(p, models.ImportFormat{Mode: models.ImportAuto})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if auto.Result.LevelDetected != 0 {
-		t.Errorf("detection claims to read a level out of JSON: %d", auto.Result.LevelDetected)
+		t.Errorf("a level was read from a field nothing could have guessed: %d",
+			auto.Result.LevelDetected)
 	}
 
-	declared, err := app.PreviewLogFile(p, models.ImportFormat{Mode: models.ImportJSON})
+	declared, err := app.PreviewLogFile(p, models.ImportFormat{
+		Mode: models.ImportJSON, JSONLevel: "prio",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if declared.Result.LevelDetected != 1 || declared.Messages[0].SeverityLabel != "Error" {
-		t.Errorf("declaring JSON changed nothing: level=%d severity=%q",
+		t.Errorf("naming the field changed nothing: level=%d severity=%q",
 			declared.Result.LevelDetected, declared.Messages[0].SeverityLabel)
 	}
 }

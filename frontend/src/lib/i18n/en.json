@@ -73,6 +73,7 @@
     "linesSampled": "lines sampled",
     "syslogLines": "with a syslog priority",
     "plainLines": "plain text",
+    "hostDetected": "with host and app",
     "inferred": "Out of {total} plain lines, a timestamp was recognised on {time} and a level on {level}. The rest keep the default.",
     "persist": "Also save to the database",
     "persistHint": "Off by default: imported lines would then appear in History next to received traffic.",

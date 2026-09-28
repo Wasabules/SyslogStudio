@@ -272,6 +272,8 @@ export interface ImportResult {
     syslog: number;
     timeDetected: number;
     levelDetected: number;
+    // Lines whose host and application were read out of an RFC 3164 body.
+    hostDetected: number;
     // Lines that did not fit the declared format, and continuation lines folded
     // into the record above them.
     unmatched: number;

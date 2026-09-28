@@ -73,6 +73,7 @@
     "linesSampled": "líneas muestreadas",
     "syslogLines": "con prioridad syslog",
     "plainLines": "texto sin formato",
+    "hostDetected": "con host y aplicación",
     "inferred": "De {total} líneas de texto sin formato, se reconoció una marca de tiempo en {time} y un nivel en {level}. El resto conserva el valor predeterminado.",
     "persist": "Guardar también en la base de datos",
     "persistHint": "Desactivado por defecto: las líneas importadas aparecerían en el historial junto al tráfico recibido.",

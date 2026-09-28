@@ -43,6 +43,16 @@ var severityWords = map[string]models.Severity{
 	"NOTICE": models.SevNotice,
 	"INFO":   models.SevInformational, "INFORMATION": models.SevInformational,
 	"DEBUG": models.SevDebug, "TRACE": models.SevDebug, "FINE": models.SevDebug,
+
+	// The three-letter spellings Serilog, NLog and several Go loggers write.
+	// "ERR" is above; the rest are here. Each still has to stand on its own to
+	// match, so a word ending in "inf" or "dbg" is not a level.
+	"FTL": models.SevCritical,
+	"WRN": models.SevWarning,
+	"INF": models.SevInformational,
+	"DBG": models.SevDebug, "VRB": models.SevDebug,
+	// java.util.logging, whose FINER and FINEST sit below FINE.
+	"FINER": models.SevDebug, "FINEST": models.SevDebug,
 }
 
 // severityPattern finds a severity word standing on its own.
@@ -52,8 +62,9 @@ var severityWords = map[string]models.Severity{
 // also inside "TERRAFORM", "REFERRAL" and every other word with those three
 // letters in the middle. A word that is part of a longer word is not a level.
 var severityPattern = regexp.MustCompile(
-	`(?i)(?:^|[\s\[\(<|:=,/])(EMERG(?:ENCY)?|PANIC|ALERT|CRIT(?:ICAL)?|FATAL|ERR(?:OR)?|SEVERE|` +
-		`WARN(?:ING)?|NOTICE|INFO(?:RMATION)?|DEBUG|TRACE|FINE)(?:$|[\s\]\)>|:=,/\"])`)
+	`(?i)(?:^|[\s\[\(<|:=,/])(EMERG(?:ENCY)?|PANIC|ALERT|CRIT(?:ICAL)?|FATAL|FTL|ERR(?:OR)?|SEVERE|` +
+		`WARN(?:ING)?|WRN|NOTICE|INFO(?:RMATION)?|INF|DEBUG|DBG|TRACE|VRB|FINEST|FINER|FINE)` +
+		`(?:$|[\s\]\)>|:=,/\"])`)
 
 // timeToken matches the timestamp shapes people actually write, anchored to the
 // start of the line.
@@ -66,7 +77,15 @@ var severityPattern = regexp.MustCompile(
 var timeToken = regexp.MustCompile(
 	`^(?:` +
 		// ISO 8601 / RFC 3339, with or without a fraction and a zone.
-		`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?` +
+		`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?: ?(?:Z|[+-]\d{2}:?\d{2}))?` +
+		`|` +
+		// Slashes instead of dashes: Go's standard logger, and nginx's error
+		// log, which between them account for a great many files.
+		`\d{4}/\d{2}/\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?` +
+		`|` +
+		// Day and month only, as Android and several embedded loggers write.
+		// The year comes from the format panel.
+		`\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:[.,]\d+)?` +
 		`|` +
 		// Apache and nginx access logs.
 		`\d{2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2}(?: [+-]\d{4})?` +
@@ -78,11 +97,15 @@ var timeToken = regexp.MustCompile(
 // timeLayouts are tried against a token that already looks like a timestamp.
 var timeLayouts = []string{
 	"2006-01-02T15:04:05.999999999Z07:00",
+	"2006-01-02T15:04:05.999999999Z0700",
 	"2006-01-02T15:04:05Z07:00",
+	"2006-01-02T15:04:05Z0700",
 	"2006-01-02T15:04:05.999999999",
 	"2006-01-02T15:04:05",
 	"2006-01-02 15:04:05.999999999 -07:00",
+	"2006-01-02 15:04:05.999999999 -0700",
 	"2006-01-02 15:04:05.999999999Z07:00",
+	"2006-01-02 15:04:05.999999999Z0700",
 	"2006-01-02 15:04:05.999999999",
 	"2006-01-02 15:04:05Z07:00",
 	"2006-01-02 15:04:05 -07:00",
@@ -91,6 +114,16 @@ var timeLayouts = []string{
 	"02/Jan/2006:15:04:05",
 	"Jan _2 15:04:05",
 	"Jan 2 15:04:05",
+	// Go's standard logger and nginx.
+	"2006/01/02 15:04:05.999999999",
+	"2006/01/02 15:04:05",
+	"2006/01/02T15:04:05",
+	// Apache's error log, where the year comes last.
+	"Mon Jan _2 15:04:05.999999999 2006",
+	"Mon Jan 2 15:04:05 2006",
+	// Android's logcat and Kubernetes' klog, neither of which writes a year.
+	"01-02 15:04:05.999999999",
+	"0102 15:04:05.999999999",
 }
 
 // syslogBody matches what follows the timestamp in an RFC 3164 line: a
@@ -153,6 +186,13 @@ type Detection struct {
 func detectTime(line string, year int, loc *time.Location) (time.Time, string, bool) {
 	trimmed := strings.TrimLeft(line, " 	")
 
+	// Ruby's Logger, and Rails with it, writes the severity letter and a comma
+	// before the bracket: "I, [2026-03-17T21:42:10.123456 #1234]".
+	if len(trimmed) > 3 && trimmed[1] == ',' && trimmed[2] == ' ' &&
+		trimmed[0] >= 'A' && trimmed[0] <= 'Z' {
+		trimmed = trimmed[3:]
+	}
+
 	// Many formats bracket the stamp: [2026-03-17 21:42:10].
 	bracketed := strings.HasPrefix(trimmed, "[")
 	if bracketed {
@@ -181,7 +221,13 @@ func detectTime(line string, year int, loc *time.Location) (time.Time, string, b
 		}
 		rest := strings.TrimSpace(trimmed[len(token):])
 		if bracketed {
-			rest = strings.TrimSpace(strings.TrimPrefix(rest, "]"))
+			// Close the bracket the stamp opened, along with whatever else was
+			// inside it: Ruby writes "[<time> #1234]", and leaving "#1234]" at
+			// the front of the message is something the reader has to step
+			// over on every line.
+			if i := strings.IndexByte(rest, ']'); i >= 0 && i <= 16 {
+				rest = strings.TrimSpace(rest[i+1:])
+			}
 		}
 		rest = strings.TrimSpace(strings.TrimLeft(rest, "-–:"))
 		return t, rest, true

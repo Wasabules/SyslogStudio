@@ -189,11 +189,39 @@ func (p *parser) applyLevel(msg *models.SyslogMessage, raw string, r *record) {
 
 // --- automatic ---------------------------------------------------------------
 
+// parseAuto reads a line without being told what it is.
+//
+// A chain, from the formats that announce themselves to the ones that have to
+// be inferred. Order is precedence, and every branch before the last is
+// anchored and specific: a line reaches the general detector only when nothing
+// has recognised it outright. That is what lets the panel be wide without the
+// wide part being a guess — a JSON object, a klog line and an access line each
+// look like exactly one thing.
 func (p *parser) parseAuto(line, file string) record {
+	// A priority is not a guess at all.
 	if isSyslogLine(line) {
 		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true}
 	}
-
+	// One JSON object per line, the shape most applications write today.
+	if looksLikeJSON(line) {
+		if r := p.parseJSON(line, file); r.start {
+			return r
+		}
+	}
+	// klog, logcat, Apache's error log, an epoch at the front: shapes that a
+	// wider timestamp list could never reach.
+	if r, ok := p.parseShape(line, file); ok {
+		return r
+	}
+	// An access line carries its timestamp in the middle, where nothing looking
+	// at the front of a line will ever find it.
+	if accessPattern.MatchString(line) {
+		return p.parseAccess(line, file)
+	}
+	// key=value, when the FIRST pair is one of the known fields.
+	if looksLikeLogfmt(line) {
+		return p.parseLogfmt(line, file)
+	}
 	return p.parsePlain(line, file)
 }
 

@@ -9,6 +9,7 @@ export namespace importer {
 	    syslog: number;
 	    timeDetected: number;
 	    levelDetected: number;
+	    hostDetected: number;
 	    unmatched: number;
 	    joined: number;
 	    stopped: boolean;
@@ -28,6 +29,7 @@ export namespace importer {
 	        this.syslog = source["syslog"];
 	        this.timeDetected = source["timeDetected"];
 	        this.levelDetected = source["levelDetected"];
+	        this.hostDetected = source["hostDetected"];
 	        this.unmatched = source["unmatched"];
 	        this.joined = source["joined"];
 	        this.stopped = source["stopped"];

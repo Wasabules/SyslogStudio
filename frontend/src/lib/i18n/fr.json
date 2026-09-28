@@ -73,6 +73,7 @@
     "linesSampled": "lignes échantillonnées",
     "syslogLines": "avec une priorité syslog",
     "plainLines": "texte brut",
+    "hostDetected": "avec hôte et application",
     "inferred": "Sur {total} lignes de texte brut, un horodatage a été reconnu sur {time} et un niveau sur {level}. Les autres conservent la valeur par défaut.",
     "persist": "Enregistrer aussi dans la base de données",
     "persistHint": "Désactivé par défaut : les lignes importées apparaîtraient alors dans l’historique à côté du trafic reçu.",

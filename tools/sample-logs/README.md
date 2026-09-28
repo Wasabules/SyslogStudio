@@ -16,6 +16,7 @@ RFC 2606, so nothing here points at a real host.
 | `logcat.txt` | Custom pattern (below) | 9 messages, 9 levels, no timestamps — the format has none |
 | `syslog-capture.txt` | Syslog (or automatic) | 8 messages, all 8 **with a syslog priority**: nothing is guessed |
 | `messy.txt` | Automatic detection | 7 messages, 4 unrecognised — tick *Skip lines that do not match* and it drops to 3 |
+| `auto-formats.txt` | Automatic detection | 24 messages, 20 timestamps, 15 levels, 6 with a host or app, 1 unrecognised — one line per format the recogniser knows |
 | `archive-2019.txt` | Automatic detection | 6 messages filed under the **current year**; put 2019 in the Year box and they move |
 
 ## The pattern for `logcat.txt`
@@ -50,6 +51,13 @@ lone `E` is a letter, not a severity. Declared as the level field, it is one.
   lines that do not match* does to it.
 - **`archive-2019.txt`** — BSD timestamps, which carry no year. For the Year
   box.
+- **`auto-formats.txt`** — one line per shape automatic detection handles, in a
+  single file, because it decides line by line: RFC 5424 and RFC 3164 with a
+  priority and without, rsyslog's two stock templates, systemd, Go's standard
+  logger, nginx and Apache error logs, an access line, Kubernetes klog, Android
+  logcat, a Squid epoch, logback, Python logging, Serilog, MySQL, zap, Docker,
+  Ruby, .NET, two JSON dialects, logfmt — and one line with no shape at all,
+  which must stay unrecognised.
 
 Import never fires alert rules and never relays to a notification destination,
 so none of this can reach anything outside the application. Ticking *Also save
