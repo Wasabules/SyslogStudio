@@ -399,6 +399,9 @@
   },
   "anonymous": {
     "active": "Modo anónimo ativo",
+    "banner": "Os nomes de anfitrião, endereços, contas e domínios apresentados são substitutos, não os valores recebidos. Os dados guardados não mudam.",
+    "showReal": "Mostrar os valores reais",
+    "off": "Modo anónimo desativado",
     "disable": "Desativar modo anónimo",
     "enable": "Ativar modo anónimo",
     "hint": "Substitui nomes de host, endereços, utilizadores, domínios e e-mails por substitutos estáveis, para poder partilhar uma captura de ecrã. Apenas a apresentação — os dados guardados e as exportações não mudam.",
