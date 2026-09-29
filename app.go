@@ -71,10 +71,6 @@ func NewApp() *App {
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-
-	// Registered here because it needs the context, and dropping a file is
-	// something someone may do before touching anything else.
-	a.WatchFileDrops()
 	a.updater.SetContext(ctx)
 	emitter := event.NewWailsEventEmitter(ctx)
 	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)

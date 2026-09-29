@@ -98,7 +98,36 @@ function safeEventsOff(eventName: string) {
     } catch (e) {}
 }
 
+/**
+ * Files dropped on the window.
+ *
+ * This call is what does the work. Enabling file drop on the Go side only
+ * allows it; the runtime installs its dragover and drop listeners here, and
+ * resolves the real paths through them. Without this call nothing is listening
+ * and a dropped file does nothing at all — no event, no error, no sign the
+ * window considered it.
+ *
+ * `true` keeps the runtime's own rule that the drop must land on an element
+ * marked as a target, which style.css sets for the whole window.
+ */
+function setupFileDrop() {
+    try {
+        window.runtime?.OnFileDrop?.((_x, _y, paths) => {
+            const first = Array.isArray(paths) ? paths.find(p => typeof p === 'string' && p !== '') : '';
+            if (!first) return;
+            // A drop is a request to look at something, and the import dialog
+            // is where that happens.
+            activeView.set('logs');
+            pendingImportPath.set(first);
+        }, true);
+    } catch (e) {
+        console.warn('File drop not available:', e);
+    }
+}
+
 export async function initEventListeners() {
+    setupFileDrop();
+
     await initNotifications();
     safeEventsOn('syslog:messages', (batch: SyslogMessage[]) => {
         addMessages(batch);
@@ -116,15 +145,6 @@ export async function initEventListeners() {
         statusStore.set(newStatus);
     });
 
-    // A file dropped on the window. The path is put where the import dialog
-    // will find it and the log view is brought forward, because a drop is a
-    // request to look at something and the dialog lives there.
-    safeEventsOn('syslog:filedrop', (path: string) => {
-        if (typeof path !== 'string' || path === '') return;
-        activeView.set('logs');
-        pendingImportPath.set(path);
-    });
-
     safeEventsOn('syslog:alerts', (events: AlertEvent[]) => {
         alertHistory.update(h => [...h, ...events].slice(-500));
         for (const event of events) {
@@ -134,7 +154,6 @@ export async function initEventListeners() {
 }
 
 export function destroyEventListeners() {
-    safeEventsOff('syslog:filedrop');
     safeEventsOff('syslog:messages');
     safeEventsOff('syslog:message');
     safeEventsOff('syslog:stats');

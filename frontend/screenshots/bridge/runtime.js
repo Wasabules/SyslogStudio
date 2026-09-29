@@ -93,7 +93,14 @@ export const EventsEmit = emit;
 export function InitializeNotifications() { return Promise.resolve(true); }
 export function IsNotificationAvailable() { return Promise.resolve(false); }
 export function SendNotification() { return Promise.resolve(); }
-export function OnFileDrop() {}
+// Keeps the callback so a test can deliver a drop the way the desktop runtime
+// does. In the demo nothing ever calls it, which is correct: a web page has no
+// paths to give.
+export function OnFileDrop(callback) {
+    if (typeof callback === 'function' && typeof window !== 'undefined') {
+        window.__SYSLOGSTUDIO_DROP__ = callback;
+    }
+}
 export function OnFileDropOff() {}
 export function WindowSetTitle() {}
 export function BrowserOpenURL(url) {

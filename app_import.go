@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"SyslogStudio/internal/importer"
@@ -35,27 +34,6 @@ import (
 // importBatch is how many messages are sent to the renderer at once. The same
 // shape the receiver uses, so the viewer's existing path handles them.
 const importBatch = 500
-
-// WatchFileDrops offers a file dropped on the window to the import dialog.
-//
-// Only the first: importing is one file at a time, and silently taking one of
-// several would be a coin toss the operator did not ask for. Nothing is read
-// here — the path is handed to the dialog, which previews it like any other,
-// because a file that arrives by accident must be as inspectable as one that
-// was chosen on purpose.
-func (a *App) WatchFileDrops() {
-	if a.ctx == nil {
-		return
-	}
-	wailsRuntime.OnFileDrop(a.ctx, func(_, _ int, paths []string) {
-		for _, path := range paths {
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				wailsRuntime.EventsEmit(a.ctx, "syslog:filedrop", path)
-				return
-			}
-		}
-	})
-}
 
 // SelectLogFile asks for a file to import.
 func (a *App) SelectLogFile() (string, error) {
