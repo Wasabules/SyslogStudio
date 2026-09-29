@@ -1088,7 +1088,17 @@
     /* Picked, as opposed to opened: the detail panel shows one message, and
        these are the ones something will be done with. */
     .log-row.picked { background: var(--accent-bg, rgba(59, 130, 246, 0.16)); }
-    .scroll-btn.on { color: var(--accent); }
+    /* Held: the button is now the way OUT, so it stops shouting. Outlined
+       rather than filled — the filled version put accent text on an accent
+       background and could not be read at all. The padding drops by a pixel
+       to pay for the border, so the box does not jump when it changes. */
+    .scroll-btn.on {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        padding: 1px 9px;
+    }
+    .scroll-btn.on:hover { background: var(--accent-bg, rgba(59, 130, 246, 0.14)); }
 
     .col-received { width: var(--w-received, 140px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-muted); }
     .col-procID { width: var(--w-procID, 70px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
