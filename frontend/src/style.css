@@ -149,3 +149,32 @@ select {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--bg-hover);
 }
+
+/*
+ * Dropping a log file on the window.
+ *
+ * Wails only treats a drop as a FILE drop when the element under the cursor
+ * carries this property — enabling it on the Go side is not enough, and
+ * without it a dropped file does nothing at all, silently. Declared here so
+ * the whole window accepts one: a custom property inherits, so every element
+ * is a target and there is no corner of the window that quietly refuses.
+ */
+html {
+    --wails-drop-target: drop;
+}
+
+/*
+ * Wails marks the targets under the cursor while a file is being dragged. Said
+ * out loud, because a window that accepts a file and shows nothing until the
+ * mouse is released is indistinguishable from one that ignores it.
+ */
+body.wails-drop-target-active::after {
+    content: '';
+    position: fixed;
+    inset: 6px;
+    border: 2px dashed var(--accent);
+    border-radius: 8px;
+    background: rgba(74, 158, 255, 0.07);
+    pointer-events: none;
+    z-index: 9999;
+}
