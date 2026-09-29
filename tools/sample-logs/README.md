@@ -16,7 +16,26 @@ RFC 2606, so nothing here points at a real host.
 | `logcat.txt` | Custom pattern (below) | 9 messages, 9 levels, no timestamps — the format has none |
 | `syslog-capture.txt` | Syslog (or automatic) | 8 messages, all 8 **with a syslog priority**: nothing is guessed |
 | `messy.txt` | Automatic detection | 7 messages, 4 unrecognised — tick *Skip lines that do not match* and it drops to 3 |
+| `apache-error.txt` | Automatic detection | 5 messages, detected as **Apache error log**, severity out of `[core:error]`, pid out of `[pid 1234]` |
+| `klog.txt` | Automatic detection | 6 messages, detected as **Kubernetes klog**, severity from the leading letter, source file as the application |
+| `logcat.txt` | Automatic detection | 9 messages, detected as **Android logcat**, tag as the application |
+| `nginx-error.txt` | Automatic detection | 5 messages, slash-dated, severity out of `[error]` |
+| `rsyslog-traditional.txt` | Automatic detection | 6 messages, detected as **syslog without a priority** — host and tag in their own columns (#50) |
+| `auto-formats.txt` | Automatic detection | 24 messages, 20 timestamps, 15 levels, 6 with a host or app, 1 unrecognised — one line per format the recogniser knows |
 | `archive-2019.txt` | Automatic detection | 6 messages filed under the **current year**; put 2019 in the Year box and they move |
+
+## What the importer says a file is
+
+Every file is named as well as read: the dialog reports what the sample turned
+out to be — *Apache access log*, *Kubernetes klog*, *syslog without a
+priority* — and switches the format selector to it when that shape has a mode
+of its own. A file with no single dominant shape is called *mixed*, because
+announcing one would be a confident answer to a question that has none.
+
+`internal/importer/samples_test.go` checks every file in this directory: how
+many messages it yields, what it is detected as, and the fields of its first
+message. A file with no expectation fails that test, so adding a sample here
+means making a claim about it.
 
 ## The pattern for `logcat.txt`
 
@@ -24,8 +43,10 @@ RFC 2606, so nothing here points at a real host.
 ^(?P<level>[VDIWEF])/(?P<app>[^(]+)\(\s*\d+\): (?P<msg>.*)$
 ```
 
-Single-letter levels, which detection deliberately never reads: in free text a
-lone `E` is a letter, not a severity. Declared as the level field, it is one.
+Since the brief logcat form is now recognised on its own, this pattern is no
+longer needed for that file — it stays as the worked example of a custom
+pattern, and of reading a single-letter level from a field that was declared to
+be one. In free text a lone `E` is a letter, not a severity.
 
 ## What each file is for
 
@@ -50,6 +71,13 @@ lone `E` is a letter, not a severity. Declared as the level field, it is one.
   lines that do not match* does to it.
 - **`archive-2019.txt`** — BSD timestamps, which carry no year. For the Year
   box.
+- **`auto-formats.txt`** — one line per shape automatic detection handles, in a
+  single file, because it decides line by line: RFC 5424 and RFC 3164 with a
+  priority and without, rsyslog's two stock templates, systemd, Go's standard
+  logger, nginx and Apache error logs, an access line, Kubernetes klog, Android
+  logcat, a Squid epoch, logback, Python logging, Serilog, MySQL, zap, Docker,
+  Ruby, .NET, two JSON dialects, logfmt — and one line with no shape at all,
+  which must stay unrecognised.
 
 Import never fires alert rules and never relays to a notification destination,
 so none of this can reach anything outside the application. Ticking *Also save

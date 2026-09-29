@@ -73,6 +73,11 @@ type Result struct {
 	// rather than being told a number and left to trust it.
 	TimeDetected  int `json:"timeDetected"`
 	LevelDetected int `json:"levelDetected"`
+	// HostDetected counts lines whose host and application were read out of an
+	// RFC 3164 body — the shape rsyslog writes to disk. Reported because those
+	// lines fill the Hostname and App columns, which is the difference between
+	// a file you can filter and a wall of text.
+	HostDetected int `json:"hostDetected"`
 	// Unmatched counts lines that did not fit the declared format. Reported
 	// rather than hidden: a format that matches nothing is a format chosen
 	// wrongly, and the number says so before the import is confirmed.
@@ -86,6 +91,16 @@ type Result struct {
 	// BySeverity counts the result per severity label, which is the question
 	// the feature exists to answer.
 	BySeverity map[string]int `json:"bySeverity"`
+	// ByShape counts what recognised each line, and Detected names the shape
+	// the file is when the sample agrees on one. A file that is all one thing
+	// should be SAID to be that thing: parsing an access log correctly while
+	// the panel still reads "automatic detection" is right and unconvincing at
+	// the same time.
+	ByShape  map[string]int `json:"byShape"`
+	Detected string         `json:"detected"`
+	// DetectedMode is the declared format matching Detected, empty when the
+	// shape has no mode of its own or the file is mixed.
+	DetectedMode models.ImportMode `json:"detectedMode"`
 }
 
 // Preview is a sample of what an import would produce, for confirming before
@@ -133,7 +148,11 @@ func (m multiCloser) Close() error {
 // is how the caller enforces its own ceiling without this package knowing about
 // ring buffers.
 func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
-	res := Result{File: filepath.Base(opts.Path), BySeverity: map[string]int{}}
+	res := Result{
+		File:       filepath.Base(opts.Path),
+		BySeverity: map[string]int{},
+		ByShape:    map[string]int{},
+	}
 
 	// A format answers the two questions a file cannot, when it was told them;
 	// the caller's Year and Location are the fallback, which is what keeps a
@@ -188,6 +207,12 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 		}
 		if held.hasLevel {
 			res.LevelDetected++
+		}
+		if held.hasHost {
+			res.HostDetected++
+		}
+		if held.shape != "" {
+			res.ByShape[held.shape]++
 		}
 		return emit(held.msg)
 	}
@@ -248,8 +273,47 @@ func Read(opts Options, emit func(models.SyslogMessage) bool) (Result, error) {
 	return finish(res, sc)
 }
 
+// nameTheFile decides what the file IS from what its lines turned out to be.
+//
+// A clear majority, not a plurality: half access lines and half something else
+// is a mixed file, and announcing it as an access log would be a confident
+// answer to a question that has none — the kind of wrong that is worse than
+// saying nothing at all.
+const detectionMajority = 0.9
+
+func nameTheFile(res *Result) {
+	if res.Imported == 0 {
+		return
+	}
+	best, count := "", 0
+	for shape, n := range res.ByShape {
+		if n > count || (n == count && shape < best) {
+			best, count = shape, n
+		}
+	}
+	if best == "" {
+		return
+	}
+	if best == ShapeNone {
+		// Mostly unrecognised. "Mixed" if anything at all was read, and
+		// silence if nothing was: claiming a shape for a file of banners
+		// would be inventing one.
+		if len(res.ByShape) > 1 {
+			res.Detected = "mixed"
+		}
+		return
+	}
+	if float64(count) < detectionMajority*float64(res.Imported) {
+		res.Detected = "mixed"
+		return
+	}
+	res.Detected = best
+	res.DetectedMode = ModeForShape(best)
+}
+
 // finish reports a read error in the terms its remedy differs by.
 func finish(res Result, sc *bufio.Scanner) (Result, error) {
+	nameTheFile(&res)
 	if err := sc.Err(); err != nil {
 		// A line past the ceiling is the one error worth naming, because the
 		// remedy is different from "the file is unreadable".

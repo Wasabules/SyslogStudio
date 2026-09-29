@@ -272,6 +272,14 @@ export interface ImportResult {
     syslog: number;
     timeDetected: number;
     levelDetected: number;
+    // Lines whose host and application were read out of an RFC 3164 body.
+    hostDetected: number;
+    // What recognised each line, and what the file turned out to be. 'mixed'
+    // when no single shape holds a clear majority; detectedMode is the format
+    // to read it as, when the shape has one.
+    byShape: Record<string, number>;
+    detected: string;
+    detectedMode: ImportMode | '';
     // Lines that did not fit the declared format, and continuation lines folded
     // into the record above them.
     unmatched: number;
@@ -287,7 +295,11 @@ export interface ImportPreview {
 // How a file should be read. 'auto' guesses and reports what it guessed; the
 // others are declared, which is what makes JSON lines, access logs and stack
 // traces readable — detection sees none of them.
-export type ImportMode = 'auto' | 'syslog' | 'json' | 'access' | 'logfmt' | 'custom';
+export type ImportMode =
+    | 'auto' | 'syslog' | 'json' | 'access' | 'logfmt' | 'custom'
+    // Shapes automatic detection reads on its own, which can also be declared:
+    // a name the dialog reports has to be a name the reader can choose.
+    | 'bsd' | 'klog' | 'logcat' | 'apache' | 'epoch';
 export interface ImportFormat {
     mode: ImportMode;
     // Field names for the json and logfmt modes. Empty means the usual

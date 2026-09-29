@@ -9,10 +9,14 @@ export namespace importer {
 	    syslog: number;
 	    timeDetected: number;
 	    levelDetected: number;
+	    hostDetected: number;
 	    unmatched: number;
 	    joined: number;
 	    stopped: boolean;
 	    bySeverity: Record<string, number>;
+	    byShape: Record<string, number>;
+	    detected: string;
+	    detectedMode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Result(source);
@@ -28,10 +32,14 @@ export namespace importer {
 	        this.syslog = source["syslog"];
 	        this.timeDetected = source["timeDetected"];
 	        this.levelDetected = source["levelDetected"];
+	        this.hostDetected = source["hostDetected"];
 	        this.unmatched = source["unmatched"];
 	        this.joined = source["joined"];
 	        this.stopped = source["stopped"];
 	        this.bySeverity = source["bySeverity"];
+	        this.byShape = source["byShape"];
+	        this.detected = source["detected"];
+	        this.detectedMode = source["detectedMode"];
 	    }
 	}
 	export class Preview {

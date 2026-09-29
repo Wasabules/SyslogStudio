@@ -1,0 +1,24 @@
+<134>1 2026-03-17T21:42:10Z web-1 sshd 4242 - - Accepted publickey for deploy from 203.0.113.9
+<38>Mar 17 21:42:11 web-1 sshd[4242]: Failed password for root from 192.0.2.55 port 51422
+Sep 18 08:05:13 nbb-ad-01.vms.example.invalid Microsoft-Windows-Security-Auditing[756]: An account was logged on
+2026-09-18T08:05:14.123456+02:00 relay-1 rsyslogd[1301]: action resumed (module builtin:omfwd)
+Sep 18 08:05:15 web-1 systemd[1]: Started Daily apt upgrade and clean activities.
+2026/03/17 21:42:12 starting worker pool with 16 threads
+2026/03/17 21:42:13 [error] 1234#0: *1 connect() failed while connecting to upstream
+[Mon Mar 17 21:42:14.123456 2026] [core:error] [pid 1234] AH00037: Symbolic link not allowed
+198.51.100.7 - - [17/Mar/2026:21:42:15 +0000] "GET /health HTTP/1.1" 500 172 "-" "kube-probe/1.29"
+I0317 21:42:16.123456    1234 controller.go:212] Starting workers for queue depth 812
+03-17 21:42:17.123  1234  5678 E ActivityManager: ANR in com.example.app
+1774388538.123    123 198.51.100.7 TCP_MISS/200 4021 GET http://example.invalid/ - HIER_DIRECT
+2026-03-17 21:42:19,123 [http-nio-8080-exec-3] ERROR c.e.Service - connection refused
+2026-03-17 21:42:20,456 - reconciler - WARNING - queue depth 812 above soft limit 500
+2026-03-17 21:42:21.123 +02:00 [INF] Now listening on http://localhost:5000
+2026-03-17T21:42:22.123456Z 0 [Warning] [MY-010068] CA certificate ca.pem is self signed
+2026-03-17T21:42:23.123+0200	INFO	pkg/file.go:42	server started
+2026-03-17T21:42:24.123456789Z Starting container runtime
+I, [2026-03-17T21:42:25.123456 #1234]  INFO -- : Completed 200 OK in 42ms
+info: Microsoft.Hosting.Lifetime[0] Application started
+{"time":"2026-03-17T21:42:26Z","level":"error","msg":"pool exhausted","service":"api","host":"web-1"}
+{"level":50,"time":1774388547123,"msg":"replication slot lost","service":"replicator"}
+ts=2026-03-17T21:42:28Z level=warn msg="certificate expiring" domain=relay.example.invalid days=12
+just some text with no shape at all

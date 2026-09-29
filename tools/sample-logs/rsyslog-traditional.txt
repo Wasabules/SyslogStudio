@@ -1,0 +1,6 @@
+Sep 18 08:05:13 nbb-ad-01.vms.example.invalid Microsoft-Windows-Security-Auditing[756]: An account was successfully logged on
+Sep 18 08:05:14 nbb-ad-01.vms.example.invalid Microsoft-Windows-Security-Auditing[756]: An account was logged off
+Sep 18 08:05:31 nbb-ad-01.vms.example.invalid Microsoft-Windows-GroupPolicy[1668]: Completed periodic policy processing
+Sep 18 08:06:08 nbb-ad-01.vms.example.invalid Microsoft-Windows-Sysmon[3368]: File created: RuleName technique_id=T1574.010
+Sep 18 08:06:49 nbb-ad-01.vms.example.invalid Microsoft-Windows-Sysmon[3368]: Registry value set: EventType SetValue
+Sep 18 08:07:02 relay-01.vms.example.invalid rsyslogd[1301]: action resumed (module builtin:omfwd)

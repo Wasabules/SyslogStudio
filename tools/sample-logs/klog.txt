@@ -1,0 +1,6 @@
+I0317 21:42:10.123456       1 controller.go:212] Starting workers for queue depth 812
+I0317 21:42:10.884301       1 shared_informer.go:311] Caches are synced for endpoint-slice
+W0317 21:42:14.201118      17 reflector.go:539] watch of *v1.Pod ended with an error
+E0317 21:42:19.773420      17 controller.go:318] error syncing 'default/api-7f9c': pod not found
+I0317 21:42:25.010044       1 event.go:389] Event occurred: ScalingReplicaSet set replicas to 4
+F0317 21:43:01.664208      22 server.go:105] failed to listen on 0.0.0.0:6443: address already in use

@@ -484,6 +484,15 @@ export const IMPORT_PREVIEW = {
     // fixture has no stack trace in it.
     unmatched: IMPORT_SCRIPT.filter((e) => e.silent).length,
     joined: 0,
+    // Three lines carry a priority and eleven do not: no single shape holds
+    // the file, which is exactly what "mixed" is for.
+    byShape: {
+      syslog: IMPORT_SCRIPT.filter((e) => e.pri).length,
+      plain: IMPORT_SCRIPT.filter((e) => !e.pri && !e.silent).length,
+      none: IMPORT_SCRIPT.filter((e) => e.silent).length,
+    },
+    detected: 'mixed',
+    detectedMode: '',
     stopped: false,
     bySeverity: IMPORT_SCRIPT.reduce((acc, e) => {
       const label = SEVERITY_LABELS[e.sev];

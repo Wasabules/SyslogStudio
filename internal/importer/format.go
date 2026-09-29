@@ -123,6 +123,11 @@ type record struct {
 	syslog   bool
 	hasTime  bool
 	hasLevel bool
+	hasHost  bool
+	// shape names what recognised this line. Counted so the file as a whole
+	// can be named: a reader who opens an access log wants to be told it is
+	// one, not merely to have it parsed correctly behind their back.
+	shape string
 }
 
 func newParser(f models.ImportFormat) (*parser, error) {
@@ -156,6 +161,10 @@ func (p *parser) parse(line, file string) record {
 		return p.parseLogfmt(line, file)
 	case models.ImportCustom:
 		return p.parseCustom(line, file)
+	case models.ImportBSD:
+		return p.parseBSD(line, file)
+	case models.ImportKlog, models.ImportLogcat, models.ImportApache, models.ImportEpoch:
+		return p.parseOneShape(p.format.Mode, line, file)
 	default:
 		return p.parseAuto(line, file)
 	}
@@ -188,11 +197,45 @@ func (p *parser) applyLevel(msg *models.SyslogMessage, raw string, r *record) {
 
 // --- automatic ---------------------------------------------------------------
 
+// parseAuto reads a line without being told what it is.
+//
+// A chain, from the formats that announce themselves to the ones that have to
+// be inferred. Order is precedence, and every branch before the last is
+// anchored and specific: a line reaches the general detector only when nothing
+// has recognised it outright. That is what lets the panel be wide without the
+// wide part being a guess — a JSON object, a klog line and an access line each
+// look like exactly one thing.
 func (p *parser) parseAuto(line, file string) record {
+	// A priority is not a guess at all.
 	if isSyslogLine(line) {
-		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true}
+		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true, shape: ShapeSyslog}
 	}
+	// One JSON object per line, the shape most applications write today.
+	if looksLikeJSON(line) {
+		if r := p.parseJSON(line, file); r.start {
+			return r
+		}
+	}
+	// klog, logcat, Apache's error log, an epoch at the front: shapes that a
+	// wider timestamp list could never reach.
+	if r, ok := p.parseShape(line, file); ok {
+		return r
+	}
+	// An access line carries its timestamp in the middle, where nothing looking
+	// at the front of a line will ever find it.
+	if accessPattern.MatchString(line) {
+		return p.parseAccess(line, file)
+	}
+	// key=value, when the FIRST pair is one of the known fields.
+	if looksLikeLogfmt(line) {
+		return p.parseLogfmt(line, file)
+	}
+	return p.parsePlain(line, file)
+}
 
+// parsePlain reads a line that carries no priority: what it says about itself
+// is read, and the rest is left alone.
+func (p *parser) parsePlain(line, file string) record {
 	d := Detect(line, p.year, p.loc)
 	msg := base(d.Rest, line, file)
 	r := record{msg: msg}
@@ -204,6 +247,22 @@ func (p *parser) parseAuto(line, file string) record {
 		r.msg.Severity = d.Severity
 		r.msg.SeverityLabel = models.SeverityToLabel(d.Severity)
 		r.hasLevel = true
+	}
+	// An RFC 3164 body: the host, and then the tag, which the wire parser's own
+	// extractor takes off so a file and the wire agree on what a tag is.
+	if d.HasHost {
+		r.msg.Hostname = d.Host
+		syslog.ExtractTag(&r.msg)
+		r.hasHost = true
+	}
+
+	switch {
+	case d.HasHost:
+		r.shape = ShapeBSD
+	case r.hasTime || r.hasLevel:
+		r.shape = ShapePlain
+	default:
+		r.shape = ShapeNone
 	}
 	// A line that said something about itself began a record. One that said
 	// nothing did not — which is what lets a stack trace attach to the line
@@ -221,13 +280,28 @@ func isSyslogLine(line string) bool {
 func (p *parser) parseSyslog(line, file string) record {
 	msg := syslog.Parse([]byte(line), file, "file")
 	if isSyslogLine(line) {
-		return record{msg: msg, start: true, syslog: true}
+		return record{msg: msg, start: true, syslog: true, shape: ShapeSyslog}
 	}
-	// No priority: the parser's fallback stands, and the line did not start a
-	// record — in a syslog file, a line without a PRI is the tail of the one
-	// before it far more often than it is a message of its own.
-	msg.RawMessage = line
-	return record{msg: msg}
+	// No priority. The priority exists only on the wire, so a captured file
+	// routinely has none — rsyslog's default on-disk format is a timestamp, a
+	// host and a tag. Read it as such; a line that has none of that is the tail
+	// of the one before it.
+	r := p.parsePlain(line, file)
+	if !r.hasTime && !r.hasHost {
+		r.start = false
+	}
+	return r
+}
+
+// parseBSD reads the file format syslog daemons write: a timestamp, a host and
+// a tag, and no priority anywhere. A line without that shape is not a record —
+// in such a file it is the tail of the one above it.
+func (p *parser) parseBSD(line, file string) record {
+	r := p.parsePlain(line, file)
+	if !r.hasHost {
+		r.start = false
+	}
+	return r
 }
 
 // --- JSON --------------------------------------------------------------------
@@ -249,7 +323,7 @@ func (p *parser) parseJSON(line, file string) record {
 		text = trimmed
 	}
 	msg := base(text, line, file)
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeJSON}
 
 	if v, ok := pick(obj, p.format.JSONTime, jsonTimeKeys); ok {
 		if t, ok := p.parseStampValue(v); ok {
@@ -335,7 +409,7 @@ func (p *parser) parseAccess(line, file string) record {
 
 	msg := base(text, line, file)
 	msg.Hostname = client
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeAccess}
 
 	if t, err := time.Parse(accessTimeLayout, stamp); err == nil {
 		r.msg.Timestamp = t
@@ -398,7 +472,7 @@ func (p *parser) parseLogfmt(line, file string) record {
 	}
 
 	msg := base(text, line, file)
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeLogfmt}
 
 	if v, ok := pickString(obj, p.format.JSONTime, jsonTimeKeys); ok {
 		p.applyTime(&r.msg, v, &r)
@@ -509,7 +583,7 @@ func (p *parser) parseCustom(line, file string) record {
 		text = line
 	}
 	msg := base(text, line, file)
-	r := record{msg: msg, start: true}
+	r := record{msg: msg, start: true, shape: ShapeCustom}
 
 	if v := fields["time"]; v != "" {
 		p.applyTime(&r.msg, v, &r)

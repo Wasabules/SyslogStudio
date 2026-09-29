@@ -1,0 +1,5 @@
+2026/03/17 21:42:10 [error] 1234#0: *1 connect() failed (111: Connection refused) while connecting to upstream
+2026/03/17 21:42:11 [warn] 1234#0: *2 an upstream response is buffered to a temporary file
+2026/03/17 21:42:30 [error] 1234#0: *9 upstream timed out (110: Connection timed out) while reading response header
+2026/03/17 21:43:00 [notice] 1200#0: signal process started
+2026/03/17 21:43:41 [crit] 1234#0: *14 SSL_do_handshake() failed (SSL: error:0A00006C)

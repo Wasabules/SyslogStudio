@@ -349,6 +349,16 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 
 // extractAppFromMsg tries to extract app name and PID from the message TAG field.
 // Common format: "appname[pid]: message" or "appname: message"
+// ExtractTag pulls an RFC 3164 TAG — "app[pid]:" or "app:" — off the front of
+// a message, filling AppName and ProcID.
+//
+// Exported for the importer. A file written by rsyslog carries the same TAG as
+// a line off the wire does, and a second definition of what a tag looks like
+// would drift from this one the first time either changed.
+func ExtractTag(msg *models.SyslogMessage) {
+	extractAppFromMsg(msg)
+}
+
 func extractAppFromMsg(msg *models.SyslogMessage) {
 	if msg.Message == "" {
 		return

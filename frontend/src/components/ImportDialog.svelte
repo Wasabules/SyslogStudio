@@ -36,7 +36,80 @@
 
     const dispatch = createEventDispatcher<{ imported: ImportResult }>();
 
-    const MODES: ImportMode[] = ['auto', 'syslog', 'json', 'access', 'logfmt', 'custom'];
+    /**
+     * The formats offered, by category.
+     *
+     * The list used to name the six parsing ENGINES, while the recogniser knew
+     * twenty formats — so a file could be reported as "Kubernetes klog" and
+     * then not be in the list at all. What a reader thinks in is a format's
+     * name, not an engine's, so the entries are names; several map to the same
+     * engine, and a couple carry field names with them.
+     *
+     * An entry's label is the same string the verdict uses, so the file cannot
+     * be called one thing above and another below.
+     */
+    type FormatEntry = {
+        id: string;
+        group: string;
+        label: string;
+        hint: string;
+        mode: ImportMode;
+        preset?: Partial<ImportFormat>;
+    };
+
+    const FORMATS: FormatEntry[] = [
+        { id: 'auto', group: '', label: 'import.format_auto', hint: 'import.hint_auto', mode: 'auto' },
+
+        { id: 'syslog', group: 'import.group_syslog', label: 'import.format_syslog', hint: 'import.hint_syslog', mode: 'syslog' },
+        { id: 'bsd', group: 'import.group_syslog', label: 'import.shape_bsd', hint: 'import.hint_bsd', mode: 'bsd' },
+
+        { id: 'access', group: 'import.group_web', label: 'import.format_access', hint: 'import.hint_access', mode: 'access' },
+        { id: 'apache', group: 'import.group_web', label: 'import.shape_apache', hint: 'import.hint_apache', mode: 'apache' },
+
+        { id: 'json', group: 'import.group_structured', label: 'import.format_json', hint: 'import.hint_json', mode: 'json' },
+        {
+            id: 'clef', group: 'import.group_structured', label: 'import.format_clef',
+            hint: 'import.hint_clef', mode: 'json',
+            preset: { jsonTime: '@t', jsonLevel: '@l', jsonMessage: '@m' },
+        },
+        { id: 'logfmt', group: 'import.group_structured', label: 'import.format_logfmt', hint: 'import.hint_logfmt', mode: 'logfmt' },
+
+        { id: 'klog', group: 'import.group_platform', label: 'import.shape_klog', hint: 'import.hint_klog', mode: 'klog' },
+        { id: 'logcat', group: 'import.group_platform', label: 'import.shape_logcat', hint: 'import.hint_logcat', mode: 'logcat' },
+        { id: 'epoch', group: 'import.group_platform', label: 'import.shape_epoch', hint: 'import.hint_epoch', mode: 'epoch' },
+
+        { id: 'custom', group: 'import.group_custom', label: 'import.format_custom', hint: 'import.hint_custom', mode: 'custom' },
+    ];
+
+    // Grouped for the markup, in the order above.
+    const GROUPED: { key: string; entries: FormatEntry[] }[] = FORMATS.reduce((acc, entry) => {
+        const last = acc[acc.length - 1];
+        if (last && last.key === entry.group) last.entries.push(entry);
+        else acc.push({ key: entry.group, entries: [entry] });
+        return acc;
+    }, [] as { key: string; entries: FormatEntry[] }[]);
+
+    /** Which entry a format IS, so the list shows what is in force. */
+    function entryFor(f: ImportFormat): FormatEntry {
+        const sameMode = FORMATS.filter(e => e.mode === f.mode);
+        const withPreset = sameMode.find(e => e.preset
+            && Object.entries(e.preset).every(([k, v]) =>
+                (f as unknown as Record<string, unknown>)[k] === v));
+        return withPreset ?? sameMode.find(e => !e.preset) ?? FORMATS[0];
+    }
+
+    /** Choosing an entry gives exactly that entry's configuration. */
+    function pickFormat(id: string) {
+        const entry = FORMATS.find(e => e.id === id) ?? FORMATS[0];
+        adopted = false;
+        format = {
+            ...format,
+            mode: entry.mode,
+            jsonTime: '', jsonLevel: '', jsonMessage: '', jsonHost: '', jsonApp: '',
+            ...(entry.preset ?? {}),
+        };
+        refresh();
+    }
 
     let path = '';
     let preview: ImportPreview | null = null;
@@ -45,6 +118,27 @@
     let showFormat = false;
     let formatError = '';
     let format: ImportFormat = { mode: 'auto', joinContinuations: true, skipUnmatched: false };
+
+    // Set when the format was chosen by the detector rather than by hand, so
+    // the panel can say which of the two happened.
+    let adopted = false;
+
+    // The name of a shape the detector can report. The four that are also
+    // modes reuse the mode's own label, so the dropdown and the verdict cannot
+    // disagree about what "JSON" is called.
+    const SHAPE_LABEL: Record<string, string> = {
+        syslog: 'import.format_syslog',
+        json: 'import.format_json',
+        access: 'import.format_access',
+        logfmt: 'import.format_logfmt',
+        bsd: 'import.shape_bsd',
+        klog: 'import.shape_klog',
+        logcat: 'import.shape_logcat',
+        apache: 'import.shape_apache',
+        epoch: 'import.shape_epoch',
+        plain: 'import.shape_plain',
+        mixed: 'import.shape_mixed',
+    };
 
     let debounce: ReturnType<typeof setTimeout> | undefined;
     // Which request is the current one. Two previews can be in flight on a
@@ -61,6 +155,7 @@
         busy = false;
         showFormat = false;
         formatError = '';
+        adopted = false;
     }
 
     export function close() {
@@ -79,12 +174,34 @@
             format = await getImportFormat();
             preview = await previewLogFile(path, format);
             formatError = '';
+            await adoptDetected();
         } catch (e: any) {
             toastError(e?.message || String(e));
             path = '';
             preview = null;
         } finally {
             busy = false;
+        }
+    }
+
+    /**
+     * Take the detector's word for it, when it has one.
+     *
+     * Only from 'auto', and only once: a format chosen by hand is a decision,
+     * and overruling it would be the application arguing with the operator.
+     * The sample is then read again through the chosen mode, so what is on
+     * screen is what that mode actually produces rather than what the chain
+     * produced on the way to naming it.
+     */
+    async function adoptDetected() {
+        const mode = preview?.result?.detectedMode;
+        if (!mode || format.mode !== 'auto') return;
+        format = { ...format, mode };
+        adopted = true;
+        try {
+            preview = await previewLogFile(path, format);
+        } catch (e: any) {
+            formatError = e?.message || String(e);
         }
     }
 
@@ -141,7 +258,8 @@
     $: severities = preview
         ? Object.entries(preview.result.bySeverity).sort((a, b) => b[1] - a[1])
         : [];
-    $: modeLabel = $_(`import.format_${format.mode}`);
+    $: current = entryFor(format);
+    $: modeLabel = $_(current.label);
 </script>
 
 <svelte:window on:keydown={onKey} />
@@ -169,6 +287,9 @@
                         <div><b>{preview.result.imported.toLocaleString()}</b><span>{$_('import.linesSampled')}</span></div>
                         <div><b>{preview.result.syslog.toLocaleString()}</b><span>{$_('import.syslogLines')}</span></div>
                         <div><b>{plain.toLocaleString()}</b><span>{$_('import.plainLines')}</span></div>
+                        {#if preview.result.hostDetected > 0}
+                            <div><b>{preview.result.hostDetected.toLocaleString()}</b><span>{$_('import.hostDetected')}</span></div>
+                        {/if}
                         {#if preview.result.unmatched > 0}
                             <div class="warn"><b>{preview.result.unmatched.toLocaleString()}</b><span>{$_('import.unmatched')}</span></div>
                         {/if}
@@ -176,6 +297,14 @@
                             <div><b>{preview.result.joined.toLocaleString()}</b><span>{$_('import.joined')}</span></div>
                         {/if}
                     </div>
+
+                    {#if preview.result.detected}
+                        <p class="verdict">
+                            <b>{$_('import.detected')}</b>
+                            {$_(SHAPE_LABEL[preview.result.detected] ?? 'import.shape_plain')}{#if adopted}
+                                <span class="note-inline">{$_('import.adopted')}</span>{/if}
+                        </p>
+                    {/if}
 
                     {#if plain > 0 && format.mode === 'auto'}
                         <p class="note">
@@ -223,13 +352,23 @@
                         <div class="format">
                             <label class="row">
                                 <span class="row-label">{$_('import.format')}</span>
-                                <select bind:value={format.mode} on:change={refresh}>
-                                    {#each MODES as mode}
-                                        <option value={mode}>{$_(`import.format_${mode}`)}</option>
+                                <select value={current.id} on:change={e => pickFormat(e.currentTarget.value)}>
+                                    {#each GROUPED as group}
+                                        {#if group.key === ''}
+                                            {#each group.entries as entry (entry.id)}
+                                                <option value={entry.id}>{$_(entry.label)}</option>
+                                            {/each}
+                                        {:else}
+                                            <optgroup label={$_(group.key)}>
+                                                {#each group.entries as entry (entry.id)}
+                                                    <option value={entry.id}>{$_(entry.label)}</option>
+                                                {/each}
+                                            </optgroup>
+                                        {/if}
                                     {/each}
                                 </select>
                             </label>
-                            <p class="note">{$_(`import.hint_${format.mode}`)}</p>
+                            <p class="note">{$_(current.hint)}</p>
 
                             {#if format.mode === 'json' || format.mode === 'logfmt'}
                                 <p class="note">{$_('import.fieldsHint')}</p>
@@ -343,6 +482,8 @@
     }
     .lead { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
     .note { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
+    .verdict { margin: 0; font-size: 12px; color: var(--text-primary); line-height: 1.5; }
+    .note-inline { font-size: 10px; color: var(--text-secondary); }
     .error {
         margin: 0; font-size: 11px; line-height: 1.5;
         color: var(--severity-error, #ff5555);

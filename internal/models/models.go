@@ -860,12 +860,24 @@ const (
 	ImportLogfmt ImportMode = "logfmt"
 	// ImportCustom reads a regular expression with named groups.
 	ImportCustom ImportMode = "custom"
+
+	// The shapes below are recognised by automatic detection on their own.
+	// They are also modes so that a file can be DECLARED to be one: a name the
+	// interface can report is a name the interface must let you choose, and
+	// choosing it makes the reading strict — a file that is not klog then says
+	// so, instead of detection quietly doing something else with it.
+	ImportBSD    ImportMode = "bsd"    // syslog with no priority, as written to a file
+	ImportKlog   ImportMode = "klog"   // Kubernetes
+	ImportLogcat ImportMode = "logcat" // Android
+	ImportApache ImportMode = "apache" // the error log
+	ImportEpoch  ImportMode = "epoch"  // Squid and friends
 )
 
 // Valid reports whether the mode is one this application knows.
 func (m ImportMode) Valid() bool {
 	switch m {
-	case ImportAuto, ImportSyslog, ImportJSON, ImportAccess, ImportLogfmt, ImportCustom:
+	case ImportAuto, ImportSyslog, ImportJSON, ImportAccess, ImportLogfmt, ImportCustom,
+		ImportBSD, ImportKlog, ImportLogcat, ImportApache, ImportEpoch:
 		return true
 	}
 	return false
