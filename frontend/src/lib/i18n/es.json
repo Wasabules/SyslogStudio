@@ -66,7 +66,14 @@
     "modeRegex": "Búsqueda por regex (clic para cambiar a Texto)",
     "ftsPlaceholder": "error OR fail OR timeout",
     "regexPlaceholder": "(error|fail|timeout)",
-    "import": "Importar"
+    "import": "Importar",
+    "saved": "Guardados",
+    "savedHint": "Filtros guardados",
+    "noSavedFilters": "Nada guardado aún",
+    "nameThisFilter": "Nombra este filtro",
+    "saveFilter": "Guardar",
+    "filterSaved": "Guardado como «{name}»",
+    "nothingToSave": "Define un filtro primero"
   },
   "import": {
     "title": "Importar un archivo de registro",
@@ -169,7 +176,18 @@
     "around": "Mostrar {minutes} minutos alrededor de esta línea",
     "createAlert": "Crear una regla de alerta desde esta línea",
     "resizePanel": "Arrastra para cambiar el ancho, doble clic para restablecer",
-    "columns": "Columnas"
+    "columns": "Columnas",
+    "frozen": "Flujo detenido",
+    "frozenCount": "{count} mensajes nuevos esperando",
+    "resume": "Reanudar",
+    "freeze": "Detener",
+    "freezeHint": "Mantener la lista quieta mientras se lee",
+    "copyPicked": "Copiar {count} mensajes",
+    "copyPickedJson": "Copiar {count} mensajes como JSON",
+    "exportPickedCsv": "Exportar {count} como CSV",
+    "exportPickedTxt": "Exportar {count} como texto",
+    "previousMessage": "Mensaje anterior",
+    "nextMessage": "Mensaje siguiente"
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",

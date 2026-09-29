@@ -1,4 +1,5 @@
-import { addMessages, stats as statsStore, serverStatus as statusStore, alertHistory } from './stores';
+import { addMessages, stats as statsStore, serverStatus as statusStore, alertHistory,
+         pendingImportPath, activeView } from './stores';
 import type { SyslogMessage, ServerStats, ServerStatus, AlertEvent } from './stores';
 
 let notificationsReady = false;
@@ -115,6 +116,15 @@ export async function initEventListeners() {
         statusStore.set(newStatus);
     });
 
+    // A file dropped on the window. The path is put where the import dialog
+    // will find it and the log view is brought forward, because a drop is a
+    // request to look at something and the dialog lives there.
+    safeEventsOn('syslog:filedrop', (path: string) => {
+        if (typeof path !== 'string' || path === '') return;
+        activeView.set('logs');
+        pendingImportPath.set(path);
+    });
+
     safeEventsOn('syslog:alerts', (events: AlertEvent[]) => {
         alertHistory.update(h => [...h, ...events].slice(-500));
         for (const event of events) {
@@ -124,6 +134,7 @@ export async function initEventListeners() {
 }
 
 export function destroyEventListeners() {
+    safeEventsOff('syslog:filedrop');
     safeEventsOff('syslog:messages');
     safeEventsOff('syslog:message');
     safeEventsOff('syslog:stats');

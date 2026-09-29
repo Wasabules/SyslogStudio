@@ -1,6 +1,6 @@
 <script lang="ts">
     import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
-    import { selectedMessage } from '../lib/stores';
+    import { selectedMessage, filteredMessages } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { toastSuccess, toastError } from '../lib/toast';
@@ -21,6 +21,17 @@
             }
         }
     }
+    // Where this message sits in the list, so the panel can walk it.
+    $: position = $selectedMessage
+        ? $filteredMessages.findIndex(m => m.id === $selectedMessage?.id)
+        : -1;
+
+    function step(delta: number) {
+        if (position < 0) return;
+        const next = $filteredMessages[position + delta];
+        if (next) $selectedMessage = next;
+    }
+
     // Dragging the edge. Leftwards widens the panel, which is why the delta is
     // subtracted: the panel grows into the space the list gives up.
     let dragging = false;
@@ -64,6 +75,15 @@
              on:dblclick={() => setDetailWidth(DEFAULT_DETAIL_WIDTH)}></div>
         <div class="detail-header">
             <span class="detail-title">{$_('log.messageDetail')}</span>
+            <!-- Walking the list from inside the panel: having to go back to
+                 the row to see the next one is the long way round. -->
+            <span class="detail-nav">
+                <button class="nav-arrow" disabled={position <= 0}
+                        title={$_('log.previousMessage')} on:click={() => step(-1)}>&#9650;</button>
+                <span class="detail-position">{position >= 0 ? position + 1 : '-'}/{$filteredMessages.length}</span>
+                <button class="nav-arrow" disabled={position < 0 || position >= $filteredMessages.length - 1}
+                        title={$_('log.nextMessage')} on:click={() => step(1)}>&#9660;</button>
+            </span>
             <button class="close-btn" on:click={close} aria-label={$_('common.close')}>&times;</button>
         </div>
 
@@ -153,6 +173,15 @@
 
 <style>
     .tz-tag { font-size: 10px; opacity: 0.6; }
+
+    .detail-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px; }
+    .detail-position { font-size: 10px; color: var(--text-muted); font-family: monospace; }
+    .nav-arrow {
+        background: none; border: none; cursor: pointer; padding: 2px 5px;
+        color: var(--text-secondary); font-size: 9px; border-radius: 3px;
+    }
+    .nav-arrow:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-arrow:disabled { opacity: 0.35; cursor: default; }
 
     .splitter {
         position: absolute; top: 0; bottom: 0; left: -5px; width: 9px;

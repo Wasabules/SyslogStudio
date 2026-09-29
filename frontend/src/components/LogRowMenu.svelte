@@ -16,11 +16,12 @@
     import { _ } from 'svelte-i18n';
     import { anonymous } from '../lib/anonymize';
     import { activeZone } from '../lib/timezone';
-    import { filter, activeView, draftAlertRule } from '../lib/stores';
+    import { filter, activeView, draftAlertRule, pickedIDs, filteredMessages } from '../lib/stores';
     import type { SyslogMessage } from '../lib/stores';
     import type { AnyColumn } from '../lib/columns';
     import { shownValue, realValue, messageAsJSON, toLocalInput } from '../lib/cells';
     import { copyText } from '../lib/clipboard';
+    import { exportSelection } from '../lib/api';
     import { toastSuccess, toastError } from '../lib/toast';
     import { redactText } from '../lib/anonymize';
 
@@ -53,6 +54,28 @@
     // Only worth offering when the two differ; for a protocol or a severity
     // they never do.
     $: masked = $anonymous && real.trim() !== '' && real !== shown;
+
+    // What was picked out by hand, in the order the list shows it — an export
+    // that reordered a log would be a strange thing to hand to anyone.
+    $: picked = $filteredMessages.filter(m => $pickedIDs.has(m.id));
+    $: several = picked.length > 1;
+
+    async function copyPicked(asJSON: boolean) {
+        const text = asJSON
+            ? '[\n' + picked.map(m => messageAsJSON(m, $anonymous)).join(',\n') + '\n]'
+            : picked.map(m => redactText(m.message, $anonymous)).join('\n');
+        await copy(text);
+    }
+
+    async function exportPicked(format: 'csv' | 'txt') {
+        onClose();
+        try {
+            const path = await exportSelection(picked.map(m => m.id), format, $activeZone);
+            if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
+        } catch (e: any) {
+            toastError(e?.message || String(e));
+        }
+    }
 
     async function copy(text: string) {
         onClose();
@@ -106,6 +129,22 @@
         {#if masked}
             <button class="real" on:click={() => copy(real)}>{$_('log.copyReal')}</button>
         {/if}
+    {/if}
+
+    {#if several}
+        <div class="sep"></div>
+        <button on:click={() => copyPicked(false)}>
+            {$_('log.copyPicked', { values: { count: picked.length } })}
+        </button>
+        <button on:click={() => copyPicked(true)}>
+            {$_('log.copyPickedJson', { values: { count: picked.length } })}
+        </button>
+        <button on:click={() => exportPicked('csv')}>
+            {$_('log.exportPickedCsv', { values: { count: picked.length } })}
+        </button>
+        <button on:click={() => exportPicked('txt')}>
+            {$_('log.exportPickedTxt', { values: { count: picked.length } })}
+        </button>
     {/if}
 
     <div class="sep"></div>

@@ -42,6 +42,8 @@ export function ExportCertificate():Promise<string>;
 
 export function ExportLogs(arg1:models.FilterCriteria,arg2:string,arg3:string):Promise<string>;
 
+export function ExportSelection(arg1:Array<string>,arg2:string,arg3:string):Promise<string>;
+
 export function ExportServerCertificate():Promise<string>;
 
 export function GenerateCA(arg1:models.CertOptions):Promise<models.CertInfo>;
@@ -171,3 +173,5 @@ export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
 export function UnlockDatabase(arg1:string):Promise<void>;
 
 export function UpdateAlertRule(arg1:models.AlertRule):Promise<boolean>;
+
+export function WatchFileDrops():Promise<void>;

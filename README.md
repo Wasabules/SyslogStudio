@@ -139,6 +139,14 @@ in a ticket without going through a redaction tool first.
   drag a heading to move the column, and right-click any heading to add or remove one: facility,
   process id, message id, RFC version and received time are all there, hidden until wanted.
   Widths, order and choice are remembered
+- **Keyboard navigation** — arrows, Page Up/Down, Home/End walk the list, Escape closes the
+  detail, `/` jumps to the search box. Shift+arrows extend a selection
+- **Pick several lines** — click, Ctrl-click, Shift-click, then copy them or export exactly
+  those. In anonymous mode you copy what is on screen, not what is behind it
+- **Freeze the stream** while you read it — nothing is dropped, and the list says how many
+  arrived and catches up when you release it
+- **Saved filters** — name the set of criteria you keep retyping and recall it in one click
+- **Drop a log file on the window** to import it, with the same preview as the file picker
 - **A detail panel you can widen** — drag the edge between the list and the message, double-click
   it to go back to the default
 - **Export** as CSV or plain text

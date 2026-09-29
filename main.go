@@ -70,6 +70,12 @@ func main() {
 		Windows: &windows.Options{
 			WebviewUserDataPath: webviewDataPath,
 		},
+		// Dropping a file on the window is the gesture the import dialog was
+		// missing: the feature reads a file off disk, and until now the only
+		// way to name one was a dialog three clicks away.
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop: true,
+		},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
 

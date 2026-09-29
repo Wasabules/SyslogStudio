@@ -7,6 +7,7 @@
     import { exportLogs, clearMessages } from '../lib/api';
     import ImportDialog from './ImportDialog.svelte';
     import { toastSuccess, toastError } from '../lib/toast';
+    import { savedFilters, saveFilter, deleteFilter, isEmptyFilter } from '../lib/savedFilters';
 
     // Importing sits beside exporting: it is the same operation the other way
     // round, and that is where someone looks for it.
@@ -124,6 +125,26 @@
     // CSV and text are the same act with a different extension, and the
     // toolbar is the scarcest space in the window.
     let showExport = false;
+
+    // The same four criteria get retyped a dozen times a day. Naming a set and
+    // recalling it is the whole feature; the rest is staying out of the way.
+    let showSaved = false;
+    let newFilterName = '';
+
+    function applySaved(criteria: typeof $filter) {
+        // Replaced wholesale rather than merged: a saved filter is a state to
+        // return to, and merging would leave whatever was set before it.
+        filter.set({ ...criteria });
+        showSaved = false;
+    }
+
+    function saveCurrent() {
+        const name = newFilterName.trim();
+        if (!name || isEmptyFilter($filter)) return;
+        saveFilter(name, $filter);
+        newFilterName = '';
+        toastSuccess($_('filter.filterSaved', { values: { name } }));
+    }
 </script>
 
 <ImportDialog bind:open={showImport} />
@@ -138,6 +159,11 @@
             {#if showExport}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="backdrop" role="presentation" on:click={() => showExport = false}></div>
+{/if}
+
+{#if showSaved}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <div class="backdrop" role="presentation" on:click={() => showSaved = false}></div>
 {/if}
 
 {#if showSeverityDropdown}
@@ -173,6 +199,7 @@
         <div class="search-group">
             <input type="text" bind:value={searchText} on:input={debounceSearch}
                    class="filter-input search-input"
+                   data-search-box
                    placeholder={searchMode === 'fts' ? $_('filter.ftsPlaceholder') : searchMode === 'regex' ? $_('filter.regexPlaceholder') : $_('filter.searchMessages')} />
             <button class="search-mode-btn" class:mode-fts={searchMode === 'fts'} class:mode-regex={searchMode === 'regex'}
                     on:click={cycleSearchMode}
@@ -186,6 +213,42 @@
         {#if $filter.severities.length > 0 || $filter.hostname || $filter.appName || $filter.sourceIP || $filter.search || $filter.dateFrom || $filter.dateTo}
             <button class="clear-btn" on:click={clearFilters}>{$_('filter.clearFilters')}</button>
         {/if}
+        <div class="saved-wrap">
+            <button class="action-btn" on:click={() => showSaved = !showSaved}
+                    aria-expanded={showSaved} title={$_('filter.savedHint')}>
+                {$_('filter.saved')}{#if $savedFilters.length}<span class="saved-count">{$savedFilters.length}</span>{/if}<span class="arrow">&#9662;</span>
+            </button>
+            {#if showSaved}
+                <div class="dropdown saved-menu">
+                    {#each $savedFilters as entry (entry.id)}
+                        <div class="saved-row">
+                            <button class="saved-apply" on:click={() => applySaved(entry.criteria)}>
+                                {entry.name}
+                            </button>
+                            <button class="saved-delete" title={$_('common.delete')}
+                                    on:click|stopPropagation={() => deleteFilter(entry.id)}>&times;</button>
+                        </div>
+                    {/each}
+                    {#if $savedFilters.length === 0}
+                        <div class="saved-empty">{$_('filter.noSavedFilters')}</div>
+                    {/if}
+
+                    <div class="saved-new">
+                        <input type="text" bind:value={newFilterName}
+                               placeholder={$_('filter.nameThisFilter')}
+                               disabled={isEmptyFilter($filter)}
+                               on:keydown={e => e.key === 'Enter' && saveCurrent()} />
+                        <button class="saved-save" on:click={saveCurrent}
+                                disabled={!newFilterName.trim() || isEmptyFilter($filter)}>
+                            {$_('filter.saveFilter')}
+                        </button>
+                    </div>
+                    {#if isEmptyFilter($filter)}
+                        <div class="saved-empty">{$_('filter.nothingToSave')}</div>
+                    {/if}
+                </div>
+            {/if}
+        </div>
         <button class="action-btn" on:click={() => showImport = true} title={$_('import.title')}>{$_('filter.import')}</button>
         <button class="action-btn" on:click={clearAll} title={$_('filter.clearAllLogs')}>{$_('filter.clear')}</button>
         <div class="export-wrap">
@@ -358,6 +421,43 @@
     .clear-btn:hover {
         background: var(--bg-hover);
     }
+
+    .saved-wrap { position: relative; }
+    .saved-menu { left: auto; right: 0; min-width: 230px; max-height: 320px; overflow-y: auto; }
+    .saved-count {
+        display: inline-block; margin-left: 5px; padding: 0 5px;
+        border-radius: 8px; background: var(--bg-hover); color: var(--text-secondary);
+        font-size: 10px;
+    }
+    .saved-row { display: flex; align-items: center; }
+    .saved-apply {
+        flex: 1; min-width: 0; text-align: left; cursor: pointer;
+        background: none; border: none; color: var(--text-primary);
+        font-size: 12px; padding: 6px 10px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .saved-row:hover { background: var(--bg-hover); }
+    .saved-delete {
+        flex-shrink: 0; background: none; border: none; cursor: pointer;
+        color: var(--text-muted); font-size: 14px; padding: 2px 10px;
+    }
+    .saved-delete:hover { color: var(--severity-error, #ff5555); }
+    .saved-empty { padding: 6px 10px; font-size: 10px; color: var(--text-muted); }
+    .saved-new {
+        display: flex; gap: 4px; padding: 6px;
+        border-top: 1px solid var(--border-color); margin-top: 4px;
+    }
+    .saved-new input {
+        flex: 1; min-width: 0; padding: 4px 7px; font-size: 11px;
+        background: var(--bg-secondary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: 3px;
+    }
+    .saved-save {
+        flex-shrink: 0; padding: 4px 8px; font-size: 11px; cursor: pointer;
+        background: var(--bg-secondary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: 3px;
+    }
+    .saved-save:disabled, .saved-new input:disabled { opacity: 0.5; cursor: default; }
 
     .export-wrap { position: relative; }
     /* Opens leftwards: this button sits at the right edge of the toolbar, and

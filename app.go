@@ -71,6 +71,10 @@ func NewApp() *App {
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// Registered here because it needs the context, and dropping a file is
+	// something someone may do before touching anything else.
+	a.WatchFileDrops()
 	a.updater.SetContext(ctx)
 	emitter := event.NewWailsEventEmitter(ctx)
 	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)
@@ -926,6 +930,66 @@ func (a *App) ExportLogs(filter models.FilterCriteria, format string, timezone s
 		err = writeText(path, messages, loc)
 	}
 
+	if err != nil {
+		return "", fmt.Errorf("failed to write export: %w", err)
+	}
+	return path, nil
+}
+
+// ExportSelection writes only the messages whose ids are given.
+//
+// The same writers and the same dialog as a full export; what differs is
+// which messages. Picking a handful of lines out of a stream and handing
+// exactly those to someone is a different act from exporting everything a
+// filter matched, and doing it by narrowing the filter until only those
+// remain is not a thing anyone should have to do.
+func (a *App) ExportSelection(ids []string, format string, timezone string) (string, error) {
+	if len(ids) == 0 {
+		return "", fmt.Errorf("nothing selected")
+	}
+
+	wanted := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		wanted[id] = true
+	}
+	// Taken from the buffer in buffer order, not in the order they were
+	// clicked: an export that reordered a log would be a strange thing to hand
+	// to anyone.
+	var messages []models.SyslogMessage
+	for _, msg := range a.server.GetMessages(models.FilterCriteria{}) {
+		if wanted[msg.ID] {
+			messages = append(messages, msg)
+		}
+	}
+	if len(messages) == 0 {
+		return "", fmt.Errorf("the selected messages are no longer in the buffer")
+	}
+
+	defaultFilename := "syslog_selection.txt"
+	filters := []wailsRuntime.FileFilter{{DisplayName: "Text Files (*.txt)", Pattern: "*.txt"}}
+	if format == "csv" {
+		defaultFilename = "syslog_selection.csv"
+		filters = []wailsRuntime.FileFilter{{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"}}
+	}
+
+	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
+		Title:           "Export Selection",
+		DefaultFilename: defaultFilename,
+		Filters:         filters,
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", nil
+	}
+
+	loc := resolveLocation(timezone)
+	if format == "csv" {
+		err = writeCSV(path, messages, loc)
+	} else {
+		err = writeText(path, messages, loc)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to write export: %w", err)
 	}

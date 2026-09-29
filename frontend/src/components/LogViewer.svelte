@@ -2,7 +2,8 @@
     import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
     import { onMount, onDestroy } from 'svelte';
     import { filteredMessages, selectedMessage, autoScroll, logViewMode, historyResult, filter,
-             stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages } from '../lib/stores';
+             stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages,
+             frozen, newSinceFreeze, pickedIDs, pickAnchor, clearPicked, activeView } from '../lib/stores';
     import type { SyslogMessage, SortColumn as SortCol, GroupBy as GroupByType, MessageGroup } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
@@ -245,6 +246,156 @@
             const atBottom = container.scrollTop >= container.scrollHeight - container.clientHeight - 50;
             if (!atBottom && $autoScroll) $autoScroll = false;
         }
+    }
+
+    // --- picking several lines -----------------------------------------------
+    //
+    // A plain click still opens one message, because that is what a click on a
+    // row has always done. Ctrl adds or removes one, Shift takes everything
+    // between — the two gestures every list in every operating system uses, so
+    // there is nothing to learn.
+
+    /** The messages on screen, in the order they are displayed. */
+    $: displayedMessages = virtualRows
+        .filter(r => r.type === 'msg' && r.msg)
+        .map(r => r.msg as SyslogMessage);
+
+    function pickOnly(id: string) {
+        pickedIDs.set(new Set([id]));
+        pickAnchor.set(id);
+    }
+
+    function togglePick(id: string) {
+        pickedIDs.update(set => {
+            const next = new Set(set);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+        pickAnchor.set(id);
+    }
+
+    /** Everything between the anchor and here, the anchor staying put. */
+    function pickRange(anchorID: string, toID: string) {
+        const ids = displayedMessages.map(m => m.id);
+        const from = ids.indexOf(anchorID);
+        const to = ids.indexOf(toID);
+        if (from < 0 || to < 0) {
+            pickOnly(toID);
+            return;
+        }
+        const [lo, hi] = from <= to ? [from, to] : [to, from];
+        pickedIDs.set(new Set(ids.slice(lo, hi + 1)));
+    }
+
+    function onRowClick(e: MouseEvent, msg: SyslogMessage) {
+        if (e.shiftKey) window.getSelection()?.removeAllRanges();
+        const anchor = $pickAnchor;
+        if (e.shiftKey && anchor) pickRange(anchor, msg.id);
+        else if (e.ctrlKey || e.metaKey) togglePick(msg.id);
+        else pickOnly(msg.id);
+        selectMessage(msg);
+    }
+
+    // --- moving about with the keyboard --------------------------------------
+    //
+    // A list of ten thousand lines that can only be walked with a mouse is a
+    // list nobody walks. The keys are the ones a list already answers to
+    // everywhere else, which is the point: nothing here is worth learning.
+
+    /** Puts a row on screen without moving more than it has to. */
+    function scrollRowIntoView(index: number) {
+        if (!container || index < 0 || index >= rowPositions.length) return;
+        const top = rowPositions[index];
+        const bottom = top + rowHeight(virtualRows[index]);
+        if (top < container.scrollTop) container.scrollTop = top;
+        else if (bottom > container.scrollTop + containerHeight) {
+            container.scrollTop = bottom - containerHeight;
+        }
+    }
+
+    /** Moves the selection by `delta` rows, skipping the group headings. */
+    function moveSelection(delta: number, extend: boolean) {
+        const rows = virtualRows;
+        if (rows.length === 0) return;
+
+        const current = rows.findIndex(r => r.type === 'msg' && r.msg?.id === $selectedMessage?.id);
+        let next = current < 0 ? (delta > 0 ? 0 : rows.length - 1) : current + delta;
+        next = Math.max(0, Math.min(rows.length - 1, next));
+        const step = delta > 0 ? 1 : -1;
+        while (next >= 0 && next < rows.length && rows[next].type !== 'msg') next += step;
+        if (next < 0 || next >= rows.length || !rows[next].msg) return;
+
+        const msg = rows[next].msg as SyslogMessage;
+        // Walking the list is reading it, and reading it means not being
+        // dragged to the bottom by the next arrival.
+        if ($autoScroll) $autoScroll = false;
+        if (extend && $pickAnchor) pickRange($pickAnchor, msg.id);
+        else pickOnly(msg.id);
+        $selectedMessage = msg;
+        scrollRowIntoView(next);
+    }
+
+    function focusSearch() {
+        // By name, not by position: "the first text box in the filter bar" is
+        // the source address, and a shortcut that lands in the wrong field is
+        // worse than no shortcut.
+        const box = document.querySelector<HTMLInputElement>('[data-search-box]');
+        box?.focus();
+        box?.select();
+    }
+
+    function onWindowKey(e: KeyboardEvent) {
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+
+        // The one key that works from inside a field: leaving it is what it is
+        // for.
+        if (typing) {
+            if (e.key === 'Escape') (el as HTMLInputElement).blur();
+            return;
+        }
+        if ($activeView !== 'logs') return;
+
+        const rowsPerPage = Math.max(1, Math.floor(containerHeight / ROW_HEIGHT) - 1);
+        switch (e.key) {
+            case 'ArrowDown': e.preventDefault(); moveSelection(1, e.shiftKey); break;
+            case 'ArrowUp': e.preventDefault(); moveSelection(-1, e.shiftKey); break;
+            case 'PageDown': e.preventDefault(); moveSelection(rowsPerPage, e.shiftKey); break;
+            case 'PageUp': e.preventDefault(); moveSelection(-rowsPerPage, e.shiftKey); break;
+            case 'Home': e.preventDefault(); moveSelection(-virtualRows.length, e.shiftKey); break;
+            case 'End': e.preventDefault(); moveSelection(virtualRows.length, e.shiftKey); break;
+            case 'Escape':
+                e.preventDefault();
+                if ($selectedMessage) $selectedMessage = null;
+                else clearPicked();
+                break;
+            case '/':
+                e.preventDefault();
+                focusSearch();
+                break;
+            case 'a':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    pickedIDs.set(new Set(displayedMessages.map(m => m.id)));
+                }
+                break;
+            case 'f':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    focusSearch();
+                }
+                break;
+        }
+    }
+
+    // Wherever the selection came from — a click, the keyboard, the detail
+    // panel's arrows — the row it names has to be visible.
+    $: if ($selectedMessage) keepSelectedVisible($selectedMessage.id);
+
+    function keepSelectedVisible(id: string) {
+        const index = virtualRows.findIndex(r => r.type === 'msg' && r.msg?.id === id);
+        if (index >= 0) scrollRowIntoView(index);
     }
 
     function selectMessage(msg: SyslogMessage) {
@@ -560,7 +711,20 @@
 
 </script>
 
+<svelte:window on:keydown={onWindowKey} />
+
 <div class="log-viewer-wrapper" style={widthVars($columnWidths)}>
+    {#if $frozen}
+        <div class="frozen-bar" role="status">
+            <span class="frozen-dot"></span>
+            <span>{$_('log.frozen')}</span>
+            <span class="frozen-count">
+                {$newSinceFreeze > 0 ? $_('log.frozenCount', { values: { count: $newSinceFreeze } }) : ''}
+            </span>
+            <button class="frozen-resume" on:click={() => ($frozen = false)}>{$_('log.resume')}</button>
+        </div>
+    {/if}
+
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="log-header" bind:this={header}>
         {#each $visibleColumns as key, i (key)}
@@ -648,7 +812,8 @@
                          class:indented={isGrouped}
                          style="top: {rowPositions[visibleStart + i]}px; height: {ROW_HEIGHT}px;"
                          role="row" tabindex="0"
-                         on:click={() => selectMessage(msg)}
+                         class:picked={$pickedIDs.has(msg.id)}
+                         on:click={e => onRowClick(e, msg)}
                          on:keydown={e => e.key === 'Enter' && selectMessage(msg)}
                          on:contextmenu={e => openRowMenu(e, msg)}>
                         {#each $visibleColumns as key (key)}
@@ -739,6 +904,13 @@
         </div>
 
         <div class="footer-right">
+            {#if $logViewMode === 'live'}
+                <button class="scroll-btn" class:on={$frozen}
+                        title={$frozen ? $_('log.resume') : $_('log.freezeHint')}
+                        on:click={() => ($frozen = !$frozen)}>
+                    {$frozen ? '\u25b6' : '\u23f8'} {$frozen ? $_('log.resume') : $_('log.freeze')}
+                </button>
+            {/if}
             {#if $logViewMode === 'live' && !$autoScroll && !isGrouped}
                 <button class="scroll-btn" on:click={scrollToBottom}>&#8595; {$_('log.autoScroll')}</button>
             {/if}
@@ -788,6 +960,7 @@
 
     .log-header {
         display: flex; align-items: center; padding: 0 8px;
+        user-select: none;
         background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);
         font-size: 11px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0;
         /* The same gap the rows use, so a heading sits over its own column. */
@@ -860,6 +1033,11 @@
 
     .log-row {
         position: absolute; left: 0; right: 0; display: flex; align-items: center;
+        /* Shift-click means "everything up to here" in a list. Without this it
+           also means "select this text", and the browser's own highlight then
+           covers the one that says which rows are picked. Copying is what the
+           context menu is for. */
+        user-select: none;
         padding: 0 8px; gap: 4px; font-size: 12px; cursor: pointer;
         border-bottom: 1px solid var(--border-subtle);
     }
@@ -887,6 +1065,31 @@
     .col-source { width: var(--w-source, 110px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-hostname { width: var(--w-hostname, 110px); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-app { width: var(--w-app, 100px); flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .frozen-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 5px 12px; flex-shrink: 0;
+        background: var(--accent-bg, rgba(59, 130, 246, 0.12));
+        border-bottom: 1px solid var(--border-color);
+        font-size: 11px; color: var(--text-primary);
+    }
+    .frozen-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--accent); flex-shrink: 0;
+    }
+    .frozen-count { color: var(--text-secondary); }
+    .frozen-resume {
+        margin-left: auto; flex-shrink: 0;
+        padding: 3px 10px; font-size: 11px; cursor: pointer;
+        background: var(--bg-secondary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: 3px;
+    }
+    .frozen-resume:hover { background: var(--bg-hover); }
+
+    /* Picked, as opposed to opened: the detail panel shows one message, and
+       these are the ones something will be done with. */
+    .log-row.picked { background: var(--accent-bg, rgba(59, 130, 246, 0.16)); }
+    .scroll-btn.on { color: var(--accent); }
+
     .col-received { width: var(--w-received, 140px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-muted); }
     .col-procID { width: var(--w-procID, 70px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .col-facility { width: var(--w-facility, 90px); flex-shrink: 0; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

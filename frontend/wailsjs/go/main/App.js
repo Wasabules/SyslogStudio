@@ -78,6 +78,10 @@ export function ExportLogs(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportLogs'](arg1, arg2, arg3);
 }
 
+export function ExportSelection(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ExportSelection'](arg1, arg2, arg3);
+}
+
 export function ExportServerCertificate() {
   return window['go']['main']['App']['ExportServerCertificate']();
 }
@@ -336,4 +340,8 @@ export function UnlockDatabase(arg1) {
 
 export function UpdateAlertRule(arg1) {
   return window['go']['main']['App']['UpdateAlertRule'](arg1);
+}
+
+export function WatchFileDrops() {
+  return window['go']['main']['App']['WatchFileDrops']();
 }

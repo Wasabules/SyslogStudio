@@ -66,7 +66,14 @@
     "modeRegex": "正規表現検索（クリックでテキストに切替）",
     "ftsPlaceholder": "error OR fail OR timeout",
     "regexPlaceholder": "(error|fail|timeout)",
-    "import": "インポート"
+    "import": "インポート",
+    "saved": "保存済み",
+    "savedHint": "保存したフィルター",
+    "noSavedFilters": "まだ保存されていません",
+    "nameThisFilter": "このフィルターに名前を",
+    "saveFilter": "保存",
+    "filterSaved": "「{name}」として保存しました",
+    "nothingToSave": "まずフィルターを設定してください"
   },
   "import": {
     "title": "ログファイルをインポート",
@@ -169,7 +176,18 @@
     "around": "この行の前後 {minutes} 分を表示",
     "createAlert": "この行からアラートルールを作成",
     "resizePanel": "ドラッグで幅変更、ダブルクリックでリセット",
-    "columns": "列"
+    "columns": "列",
+    "frozen": "ストリーム停止中",
+    "frozenCount": "{count} 件の新着メッセージが待機中",
+    "resume": "再開",
+    "freeze": "停止",
+    "freezeHint": "読む間リストを固定する",
+    "copyPicked": "{count} 件をコピー",
+    "copyPickedJson": "{count} 件を JSON でコピー",
+    "exportPickedCsv": "{count} 件を CSV でエクスポート",
+    "exportPickedTxt": "{count} 件をテキストでエクスポート",
+    "previousMessage": "前のメッセージ",
+    "nextMessage": "次のメッセージ"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",

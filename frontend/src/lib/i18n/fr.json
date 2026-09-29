@@ -66,7 +66,14 @@
     "modeRegex": "Recherche regex (cliquer pour passer en Texte)",
     "ftsPlaceholder": "error OR fail OR timeout",
     "regexPlaceholder": "(error|fail|timeout)",
-    "import": "Importer"
+    "import": "Importer",
+    "saved": "Enregistrés",
+    "savedHint": "Filtres enregistrés",
+    "noSavedFilters": "Rien d’enregistré",
+    "nameThisFilter": "Nommer ce filtre",
+    "saveFilter": "Enregistrer",
+    "filterSaved": "Enregistré sous « {name} »",
+    "nothingToSave": "Définissez d’abord un filtre"
   },
   "import": {
     "title": "Importer un fichier de journaux",
@@ -169,7 +176,18 @@
     "around": "Afficher {minutes} minutes autour de cette ligne",
     "createAlert": "Créer une règle d’alerte depuis cette ligne",
     "resizePanel": "Glisser pour redimensionner, double-cliquer pour réinitialiser",
-    "columns": "Colonnes"
+    "columns": "Colonnes",
+    "frozen": "Flux gelé",
+    "frozenCount": "{count} nouveaux messages en attente",
+    "resume": "Reprendre",
+    "freeze": "Geler",
+    "freezeHint": "Garder la liste immobile pendant la lecture",
+    "copyPicked": "Copier {count} messages",
+    "copyPickedJson": "Copier {count} messages en JSON",
+    "exportPickedCsv": "Exporter {count} en CSV",
+    "exportPickedTxt": "Exporter {count} en texte",
+    "previousMessage": "Message précédent",
+    "nextMessage": "Message suivant"
   },
   "dashboard": {
     "totalMessages": "Total des messages",

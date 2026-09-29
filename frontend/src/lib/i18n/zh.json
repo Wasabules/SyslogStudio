@@ -66,7 +66,14 @@
     "modeRegex": "正则搜索（点击切换到文本）",
     "ftsPlaceholder": "error OR fail OR timeout",
     "regexPlaceholder": "(error|fail|timeout)",
-    "import": "导入"
+    "import": "导入",
+    "saved": "已保存",
+    "savedHint": "已保存的筛选",
+    "noSavedFilters": "尚未保存任何内容",
+    "nameThisFilter": "为此筛选命名",
+    "saveFilter": "保存",
+    "filterSaved": "已保存为“{name}”",
+    "nothingToSave": "请先设置筛选条件"
   },
   "import": {
     "title": "导入日志文件",
@@ -169,7 +176,18 @@
     "around": "显示此行前后 {minutes} 分钟",
     "createAlert": "从此行创建告警规则",
     "resizePanel": "拖动调整宽度，双击重置",
-    "columns": "列"
+    "columns": "列",
+    "frozen": "流已暂停",
+    "frozenCount": "{count} 条新消息等待中",
+    "resume": "继续",
+    "freeze": "暂停",
+    "freezeHint": "阅读时保持列表不动",
+    "copyPicked": "复制 {count} 条消息",
+    "copyPickedJson": "以 JSON 复制 {count} 条消息",
+    "exportPickedCsv": "将 {count} 条导出为 CSV",
+    "exportPickedTxt": "将 {count} 条导出为文本",
+    "previousMessage": "上一条消息",
+    "nextMessage": "下一条消息"
   },
   "dashboard": {
     "totalMessages": "消息总数",

@@ -66,7 +66,14 @@
     "modeRegex": "Regex-Suche (klicken für Text)",
     "ftsPlaceholder": "error OR fail OR timeout",
     "regexPlaceholder": "(error|fail|timeout)",
-    "import": "Importieren"
+    "import": "Importieren",
+    "saved": "Gespeichert",
+    "savedHint": "Gespeicherte Filter",
+    "noSavedFilters": "Noch nichts gespeichert",
+    "nameThisFilter": "Diesen Filter benennen",
+    "saveFilter": "Speichern",
+    "filterSaved": "Als „{name}“ gespeichert",
+    "nothingToSave": "Erst einen Filter setzen"
   },
   "import": {
     "title": "Logdatei importieren",
@@ -169,7 +176,18 @@
     "around": "{minutes} Minuten um diese Zeile anzeigen",
     "createAlert": "Alarmregel aus dieser Zeile erstellen",
     "resizePanel": "Ziehen zum Ändern der Breite, Doppelklick zum Zurücksetzen",
-    "columns": "Spalten"
+    "columns": "Spalten",
+    "frozen": "Strom angehalten",
+    "frozenCount": "{count} neue Nachrichten warten",
+    "resume": "Fortsetzen",
+    "freeze": "Anhalten",
+    "freezeHint": "Die Liste beim Lesen stillhalten",
+    "copyPicked": "{count} Nachrichten kopieren",
+    "copyPickedJson": "{count} Nachrichten als JSON kopieren",
+    "exportPickedCsv": "{count} als CSV exportieren",
+    "exportPickedTxt": "{count} als Text exportieren",
+    "previousMessage": "Vorherige Nachricht",
+    "nextMessage": "Nächste Nachricht"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",

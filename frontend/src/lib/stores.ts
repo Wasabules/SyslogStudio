@@ -1,4 +1,4 @@
-import { writable, readable } from 'svelte/store';
+import { writable, readable, derived } from 'svelte/store';
 import type { Readable } from 'svelte/store';
 
 export interface SyslogMessage {
@@ -183,6 +183,64 @@ export const filter = writable<FilterCriteria>({
 
 export const selectedMessage = writable<SyslogMessage | null>(null);
 
+/**
+ * Hold the list still while it is being read.
+ *
+ * Turning auto-scroll off stops the view chasing the bottom, but messages keep
+ * arriving and the rows still move under the cursor. During the flood that
+ * follows an incident — the moment someone most needs to read one line — that
+ * is the difference between reading and trying to.
+ *
+ * Nothing is dropped: messages accumulate as always, and the list catches up
+ * the moment it is released.
+ */
+export const frozen = writable<boolean>(false);
+
+/** Every message ever received, so "how many since I froze" has an answer. */
+export const receivedTotal = writable<number>(0);
+
+/** receivedTotal at the moment of freezing. */
+const frozenAt = writable<number>(0);
+
+frozen.subscribe(value => {
+    if (!value) return;
+    let total = 0;
+    receivedTotal.subscribe(v => { total = v; })();
+    frozenAt.set(total);
+});
+
+/** How many arrived while the list was held. */
+export const newSinceFreeze: Readable<number> = derived(
+    [frozen, receivedTotal, frozenAt],
+    ([isFrozen, total, at]) => (isFrozen ? Math.max(0, total - at) : 0),
+);
+
+/**
+ * The messages picked out by hand, by id.
+ *
+ * Distinct from selectedMessage, which is the one the detail panel shows:
+ * picking several is for doing something with them together — copying them
+ * into a ticket, exporting exactly those — and that is a different act from
+ * looking at one.
+ */
+export const pickedIDs = writable<Set<string>>(new Set());
+
+/** The row a range selection grows from. */
+export const pickAnchor = writable<string | null>(null);
+
+export function clearPicked() {
+    pickedIDs.set(new Set());
+    pickAnchor.set(null);
+}
+
+/**
+ * A file dropped on the window, waiting for the import dialog to take it.
+ *
+ * A store rather than a direct call because the dialog is mounted inside the
+ * filter bar, and a drop can land while any view is open.
+ */
+export const pendingImportPath = writable<string>('');
+
 // A rule the alert view should open with, handed over by the log line it came
 // from. Cleared by the view once it has taken it, so returning to Alerts later
 // does not reopen a form nobody asked for.
@@ -308,6 +366,16 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
     let pending = false;
 
     function recalc() {
+        // Held still on purpose. The messages are already in the buffer; what
+        // is suspended is rebuilding the view from it, so nothing is lost and
+        // releasing shows everything at once.
+        let held = false;
+        frozen.subscribe(v => { held = v; })();
+        if (held) {
+            pending = false;
+            return;
+        }
+
         let msgs: SyslogMessage[] = [];
         let f: FilterCriteria = { severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', searchMode: 'text' as SearchMode, dateFrom: '', dateTo: '' };
         let sc: SortColumn = '';
@@ -337,15 +405,21 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
     const unsub2 = filter.subscribe(() => scheduleRecalc());
     const unsub3 = sortColumn.subscribe(() => scheduleRecalc());
     const unsub4 = sortDirection.subscribe(() => scheduleRecalc());
+    // Releasing rebuilds immediately: waiting out the throttle would leave the
+    // list stale for a moment after the very click that asked for it.
+    const unsub5 = frozen.subscribe(isFrozen => { if (!isFrozen) scheduleRecalc(); });
 
     return () => {
-        unsub1(); unsub2(); unsub3(); unsub4();
+        unsub1(); unsub2(); unsub3(); unsub4(); unsub5();
         if (timer) clearTimeout(timer);
     };
 });
 
 // Efficient addMessages: mutate in place, avoid copying the entire array
 export function addMessages(newMsgs: SyslogMessage[]) {
+    if (newMsgs.length > 0) {
+        receivedTotal.update(n => n + newMsgs.length);
+    }
     messages.update(current => {
         // Push new messages
         for (let i = 0; i < newMsgs.length; i++) {
