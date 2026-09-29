@@ -377,7 +377,7 @@
   },
   "anonymous": {
     "active": "Anonymer Modus ist aktiv",
-    "banner": "Hostnamen, Adressen, Benutzernamen und Domains auf dem Bildschirm sind Platzhalter, nicht die empfangenen Werte. Gespeicherte Daten und Exporte bleiben unverändert.",
+    "banner": "Hostnamen, Adressen, Benutzernamen und Domains auf dem Bildschirm sind Platzhalter, nicht die empfangenen Werte. Gespeicherte Daten bleiben unverändert.",
     "showReal": "Echte Werte anzeigen",
     "off": "Anonymer Modus ist aus",
     "disable": "Anonymen Modus deaktivieren",

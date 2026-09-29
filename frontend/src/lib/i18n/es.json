@@ -377,7 +377,7 @@
   },
   "anonymous": {
     "active": "Modo anónimo activo",
-    "banner": "Los nombres de host, direcciones, cuentas y dominios en pantalla son sustitutos, no los valores recibidos. Los datos guardados y las exportaciones no cambian.",
+    "banner": "Los nombres de host, direcciones, cuentas y dominios en pantalla son sustitutos, no los valores recibidos. Los datos guardados no cambian.",
     "showReal": "Mostrar los valores reales",
     "off": "Modo anónimo desactivado",
     "disable": "Desactivar modo anónimo",

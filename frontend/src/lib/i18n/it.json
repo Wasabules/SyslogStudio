@@ -377,7 +377,7 @@
   },
   "anonymous": {
     "active": "Modalità anonima attiva",
-    "banner": "Nomi host, indirizzi, account e domini a schermo sono sostituti, non i valori ricevuti. I dati salvati e le esportazioni restano invariati.",
+    "banner": "Nomi host, indirizzi, account e domini a schermo sono sostituti, non i valori ricevuti. I dati salvati restano invariati.",
     "showReal": "Mostra i valori reali",
     "off": "Modalità anonima disattivata",
     "disable": "Disattiva modalità anonima",

@@ -377,7 +377,7 @@
   },
   "anonymous": {
     "active": "Mode anonyme actif",
-    "banner": "Les noms d’hôtes, adresses, comptes et domaines affichés sont des substituts, pas les valeurs reçues. Les données enregistrées et les exports sont inchangés.",
+    "banner": "Les noms d’hôtes, adresses, comptes et domaines affichés sont des substituts, pas les valeurs reçues. Les données enregistrées sont inchangées.",
     "showReal": "Afficher les vraies valeurs",
     "off": "Mode anonyme désactivé",
     "disable": "Désactiver le mode anonyme",
