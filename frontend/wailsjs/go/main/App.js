@@ -78,6 +78,14 @@ export function ExportLogs(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportLogs'](arg1, arg2, arg3);
 }
 
+export function ExportMessages(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ExportMessages'](arg1, arg2, arg3);
+}
+
+export function ExportSelection(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ExportSelection'](arg1, arg2, arg3);
+}
+
 export function ExportServerCertificate() {
   return window['go']['main']['App']['ExportServerCertificate']();
 }

@@ -1,10 +1,11 @@
 <script lang="ts">
     import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
-    import { selectedMessage } from '../lib/stores';
+    import { selectedMessage, filteredMessages } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { toastSuccess, toastError } from '../lib/toast';
     import { _ } from 'svelte-i18n';
+    import { detailWidth, setDetailWidth, DEFAULT_DETAIL_WIDTH } from '../lib/layout';
 
     function close() {
         $selectedMessage = null;
@@ -20,13 +21,69 @@
             }
         }
     }
+    // Where this message sits in the list, so the panel can walk it.
+    $: position = $selectedMessage
+        ? $filteredMessages.findIndex(m => m.id === $selectedMessage?.id)
+        : -1;
+
+    function step(delta: number) {
+        if (position < 0) return;
+        const next = $filteredMessages[position + delta];
+        if (next) $selectedMessage = next;
+    }
+
+    // Dragging the edge. Leftwards widens the panel, which is why the delta is
+    // subtracted: the panel grows into the space the list gives up.
+    let dragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    function startResize(e: PointerEvent) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        dragging = true;
+        startX = e.clientX;
+        startWidth = $detailWidth;
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
+    function onResize(e: PointerEvent) {
+        if (!dragging) return;
+        setDetailWidth(startWidth - (e.clientX - startX));
+    }
+
+    function endResize(e: PointerEvent) {
+        if (!dragging) return;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        dragging = false;
+    }
 </script>
 
 {#if $selectedMessage}
     {@const msg = $selectedMessage}
-    <div class="detail-panel">
+    <div class="detail-panel" style="width:{$detailWidth}px">
+        <!-- The edge between the list and the detail, draggable. Nine pixels
+             wide and straddling the border, because a one-pixel border is not
+             something anyone can hit on purpose. -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="splitter" class:dragging={dragging}
+             title={$_('log.resizePanel')}
+             on:pointerdown={startResize}
+             on:pointermove={onResize}
+             on:pointerup={endResize}
+             on:pointercancel={endResize}
+             on:dblclick={() => setDetailWidth(DEFAULT_DETAIL_WIDTH)}></div>
         <div class="detail-header">
             <span class="detail-title">{$_('log.messageDetail')}</span>
+            <!-- Walking the list from inside the panel: having to go back to
+                 the row to see the next one is the long way round. -->
+            <span class="detail-nav">
+                <button class="nav-arrow" disabled={position <= 0}
+                        title={$_('log.previousMessage')} on:click={() => step(-1)}>&#9650;</button>
+                <span class="detail-position">{position >= 0 ? position + 1 : '-'}/{$filteredMessages.length}</span>
+                <button class="nav-arrow" disabled={position < 0 || position >= $filteredMessages.length - 1}
+                        title={$_('log.nextMessage')} on:click={() => step(1)}>&#9660;</button>
+            </span>
             <button class="close-btn" on:click={close} aria-label={$_('common.close')}>&times;</button>
         </div>
 
@@ -117,8 +174,27 @@
 <style>
     .tz-tag { font-size: 10px; opacity: 0.6; }
 
+    .detail-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px; }
+    .detail-position { font-size: 10px; color: var(--text-muted); font-family: monospace; }
+    .nav-arrow {
+        background: none; border: none; cursor: pointer; padding: 2px 5px;
+        color: var(--text-secondary); font-size: 9px; border-radius: 3px;
+    }
+    .nav-arrow:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-arrow:disabled { opacity: 0.35; cursor: default; }
+
+    .splitter {
+        position: absolute; top: 0; bottom: 0; left: -5px; width: 9px;
+        cursor: col-resize; z-index: 5; touch-action: none;
+    }
+    .splitter::after {
+        content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px;
+        background: transparent; transition: background 0.1s;
+    }
+    .splitter:hover::after, .splitter.dragging::after { background: var(--accent); }
+
     .detail-panel {
-        width: 350px;
+        position: relative;
         background: var(--bg-secondary);
         border-left: 1px solid var(--border-color);
         display: flex;

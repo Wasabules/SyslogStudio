@@ -2,12 +2,21 @@
     import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
     import { onMount, onDestroy } from 'svelte';
     import { filteredMessages, selectedMessage, autoScroll, logViewMode, historyResult, filter,
-             stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages } from '../lib/stores';
+             stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages,
+             frozen, newSinceFreeze, pickedIDs, pickAnchor, clearPicked, activeView } from '../lib/stores';
     import type { SyslogMessage, SortColumn as SortCol, GroupBy as GroupByType, MessageGroup } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
     import { _ } from 'svelte-i18n';
+    import {
+        columnWidths, columnOrder, visibleColumns, hiddenColumns, widthVars,
+        setColumnWidth, resetColumns, moveColumnBefore, toggleColumn,
+        measureLongest, clampWidth, RESIZABLE,
+    } from '../lib/columns';
+    import type { ColumnKey, AnyColumn } from '../lib/columns';
+    import { shownValue } from '../lib/cells';
+    import LogRowMenu from './LogRowMenu.svelte';
 
     const ROW_HEIGHT = 28;
     const GROUP_ROW_HEIGHT = 32;
@@ -239,6 +248,169 @@
         }
     }
 
+    // --- picking several lines -----------------------------------------------
+    //
+    // A plain click still opens one message, because that is what a click on a
+    // row has always done. Ctrl adds or removes one, Shift takes everything
+    // between — the two gestures every list in every operating system uses, so
+    // there is nothing to learn.
+
+    /** The messages on screen, in the order they are displayed. */
+    $: displayedMessages = virtualRows
+        .filter(r => r.type === 'msg' && r.msg)
+        .map(r => r.msg as SyslogMessage);
+
+    function pickOnly(id: string) {
+        pickedIDs.set(new Set([id]));
+        pickAnchor.set(id);
+    }
+
+    function togglePick(id: string) {
+        pickedIDs.update(set => {
+            const next = new Set(set);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+        pickAnchor.set(id);
+    }
+
+    /** Everything between the anchor and here, the anchor staying put. */
+    function pickRange(anchorID: string, toID: string) {
+        const ids = displayedMessages.map(m => m.id);
+        const from = ids.indexOf(anchorID);
+        const to = ids.indexOf(toID);
+        if (from < 0 || to < 0) {
+            pickOnly(toID);
+            return;
+        }
+        const [lo, hi] = from <= to ? [from, to] : [to, from];
+        pickedIDs.set(new Set(ids.slice(lo, hi + 1)));
+    }
+
+    function onRowClick(e: MouseEvent, msg: SyslogMessage) {
+        if (e.shiftKey) window.getSelection()?.removeAllRanges();
+        const anchor = $pickAnchor;
+        if (e.shiftKey && anchor) pickRange(anchor, msg.id);
+        else if (e.ctrlKey || e.metaKey) togglePick(msg.id);
+        else pickOnly(msg.id);
+        selectMessage(msg);
+    }
+
+    // --- moving about with the keyboard --------------------------------------
+    //
+    // A list of ten thousand lines that can only be walked with a mouse is a
+    // list nobody walks. The keys are the ones a list already answers to
+    // everywhere else, which is the point: nothing here is worth learning.
+
+    /** Puts a row on screen without moving more than it has to. */
+    function scrollRowIntoView(index: number) {
+        if (!container || index < 0 || index >= rowPositions.length) return;
+        const top = rowPositions[index];
+        const bottom = top + rowHeight(virtualRows[index]);
+        if (top < container.scrollTop) container.scrollTop = top;
+        else if (bottom > container.scrollTop + containerHeight) {
+            container.scrollTop = bottom - containerHeight;
+        }
+    }
+
+    /** Moves the selection by `delta` rows, skipping the group headings. */
+    function moveSelection(delta: number, extend: boolean) {
+        const rows = virtualRows;
+        if (rows.length === 0) return;
+
+        const current = rows.findIndex(r => r.type === 'msg' && r.msg?.id === $selectedMessage?.id);
+        let next = current < 0 ? (delta > 0 ? 0 : rows.length - 1) : current + delta;
+        next = Math.max(0, Math.min(rows.length - 1, next));
+        const step = delta > 0 ? 1 : -1;
+        while (next >= 0 && next < rows.length && rows[next].type !== 'msg') next += step;
+        if (next < 0 || next >= rows.length || !rows[next].msg) return;
+
+        const msg = rows[next].msg as SyslogMessage;
+        // Walking the list is reading it, and reading it means not being
+        // dragged to the bottom by the next arrival.
+        if ($autoScroll) $autoScroll = false;
+        if (extend && $pickAnchor) pickRange($pickAnchor, msg.id);
+        else pickOnly(msg.id);
+        $selectedMessage = msg;
+        scrollRowIntoView(next);
+    }
+
+    function focusSearch() {
+        // By name, not by position: "the first text box in the filter bar" is
+        // the source address, and a shortcut that lands in the wrong field is
+        // worse than no shortcut.
+        const box = document.querySelector<HTMLInputElement>('[data-search-box]');
+        box?.focus();
+        box?.select();
+    }
+
+    /**
+     * True while something is layered over the list.
+     *
+     * A dialog or a menu takes the interaction, and arrow keys that reached
+     * the list behind it would move a selection nobody can see — and Escape
+     * would clear it at the same moment the dialog was closing on the same
+     * keystroke.
+     */
+    function overlayIsOpen(): boolean {
+        return !!document.querySelector(
+            '[role="dialog"], .modal-backdrop, .menu-backdrop, .row-menu-backdrop, .backdrop');
+    }
+
+    function onWindowKey(e: KeyboardEvent) {
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+
+        // The one key that works from inside a field: leaving it is what it is
+        // for.
+        if (typing) {
+            if (e.key === 'Escape') (el as HTMLInputElement).blur();
+            return;
+        }
+        if ($activeView !== 'logs' || overlayIsOpen()) return;
+
+        const rowsPerPage = Math.max(1, Math.floor(containerHeight / ROW_HEIGHT) - 1);
+        switch (e.key) {
+            case 'ArrowDown': e.preventDefault(); moveSelection(1, e.shiftKey); break;
+            case 'ArrowUp': e.preventDefault(); moveSelection(-1, e.shiftKey); break;
+            case 'PageDown': e.preventDefault(); moveSelection(rowsPerPage, e.shiftKey); break;
+            case 'PageUp': e.preventDefault(); moveSelection(-rowsPerPage, e.shiftKey); break;
+            case 'Home': e.preventDefault(); moveSelection(-virtualRows.length, e.shiftKey); break;
+            case 'End': e.preventDefault(); moveSelection(virtualRows.length, e.shiftKey); break;
+            case 'Escape':
+                e.preventDefault();
+                if ($selectedMessage) $selectedMessage = null;
+                else clearPicked();
+                break;
+            case '/':
+                e.preventDefault();
+                focusSearch();
+                break;
+            case 'a':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    pickedIDs.set(new Set(displayedMessages.map(m => m.id)));
+                }
+                break;
+            case 'f':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    focusSearch();
+                }
+                break;
+        }
+    }
+
+    // Wherever the selection came from — a click, the keyboard, the detail
+    // panel's arrows — the row it names has to be visible.
+    $: if ($selectedMessage) keepSelectedVisible($selectedMessage.id);
+
+    function keepSelectedVisible(id: string) {
+        const index = virtualRows.findIndex(r => r.type === 'msg' && r.msg?.id === id);
+        if (index >= 0) scrollRowIntoView(index);
+    }
+
     function selectMessage(msg: SyslogMessage) {
         $selectedMessage = $selectedMessage?.id === msg.id ? null : msg;
     }
@@ -370,6 +542,174 @@
     $: historyTotalPages = Math.max(1, Math.ceil(historyTotal / historyPageSize));
 
     // --- Sort ---
+    // The table, as data. Seven columns written out by hand is seven places to
+    // forget when one of them gains a resizer.
+    const COLUMN: Record<AnyColumn, { sort: SortCol; label: string }> = {
+        severity: { sort: 'severity', label: 'log.severity' },
+        timestamp: { sort: 'timestamp', label: 'log.timestamp' },
+        received: { sort: 'receivedAt', label: 'log.received' },
+        protocol: { sort: 'protocol', label: 'log.proto' },
+        source: { sort: 'sourceIP', label: 'log.source' },
+        hostname: { sort: 'hostname', label: 'log.hostname' },
+        app: { sort: 'appName', label: 'log.app' },
+        procID: { sort: 'procID', label: 'log.procID' },
+        facility: { sort: 'facility', label: 'log.facility' },
+        msgID: { sort: 'msgID', label: 'log.msgID' },
+        version: { sort: 'version', label: 'log.version' },
+        message: { sort: 'message', label: 'log.message' },
+    };
+
+    let header: HTMLDivElement;
+    let menu: { x: number; y: number; key: AnyColumn } | null = null;
+
+    // --- dragging a column edge ----------------------------------------------
+    //
+    // Pointer events rather than mouse events, and a capture on the handle: the
+    // pointer leaves the 5px strip on the first frame of any real drag, and
+    // without the capture the resize stops the moment it does.
+    let drag: { key: ColumnKey; startX: number; startWidth: number } | null = null;
+
+    function startDrag(e: PointerEvent, key: ColumnKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        drag = { key, startX: e.clientX, startWidth: $columnWidths[key] };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
+    function onDrag(e: PointerEvent) {
+        if (!drag) return;
+        setColumnWidth(drag.key, drag.startWidth + (e.clientX - drag.startX));
+    }
+
+    function endDrag(e: PointerEvent) {
+        if (!drag) return;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        drag = null;
+    }
+
+    // --- carrying a column to another place ----------------------------------
+    //
+    // Pointer events rather than the HTML drag-and-drop API: that API insists
+    // on its own ghost image and its own drop semantics, and both fight a
+    // table whose columns are a flex row.
+    //
+    // Nothing happens until the pointer has travelled a few pixels, because
+    // every one of these presses is also a click on the sort button, and a
+    // heading that reordered itself on an imprecise click would be unusable.
+    let reorder: { key: AnyColumn; startX: number; active: boolean; over: AnyColumn | null } | null = null;
+    let suppressClick = false;
+    const DRAG_THRESHOLD = 5;
+
+    function headerDown(e: PointerEvent, key: AnyColumn) {
+        if (e.button !== 0) return;
+        // A fresh press decides for itself. After a drag the browser does not
+        // always follow the release with a click, and a suppression left
+        // standing would then swallow the NEXT heading someone clicks — which
+        // reads as sorting having stopped working.
+        suppressClick = false;
+        reorder = { key, startX: e.clientX, active: false, over: key };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
+    function headerMove(e: PointerEvent) {
+        if (!reorder || drag) return;
+        if (!reorder.active) {
+            if (Math.abs(e.clientX - reorder.startX) < DRAG_THRESHOLD) return;
+            reorder.active = true;
+        }
+        reorder = { ...reorder, over: dropTargetAt(e.clientX) };
+    }
+
+    /** Which column it would land in front of, or null for last. */
+    function dropTargetAt(x: number): AnyColumn | null {
+        const wraps = Array.from(header?.querySelectorAll<HTMLElement>('.col-wrap') ?? []);
+        for (let i = 0; i < wraps.length; i++) {
+            const box = wraps[i].getBoundingClientRect();
+            if (x < box.left + box.width / 2) return $visibleColumns[i] ?? null;
+        }
+        return null;
+    }
+
+    function headerUp(e: PointerEvent) {
+        if (!reorder) return;
+        const done = reorder;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        reorder = null;
+        if (!done.active) return;
+        // The press was a drag, so the click that follows it is not a request
+        // to sort.
+        suppressClick = true;
+        moveColumnBefore(done.key, done.over);
+    }
+
+    function headerClick(sort: SortCol) {
+        if (suppressClick) {
+            suppressClick = false;
+            return;
+        }
+        toggleSort(sort);
+    }
+
+    // --- fitting a column to its content -------------------------------------
+
+    // Enough rows to answer the question without stalling on a full buffer.
+    // A column wide enough for the widest of five thousand lines is wide enough.
+    const FIT_SAMPLE = 5000;
+
+    /** The font a column renders in, read from the table rather than assumed. */
+    function columnFont(key: ColumnKey): string {
+        const cell = header?.parentElement?.querySelector<HTMLElement>(`.log-row .col-${key}`);
+        const el = cell ?? header?.querySelector<HTMLElement>(`.col-${key}`);
+        if (!el) return '12px sans-serif';
+        const style = getComputedStyle(el);
+        return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    }
+
+    function fitColumn(key: ColumnKey) {
+        const rows = $filteredMessages.slice(0, FIT_SAMPLE);
+        const values = rows.map(m => shownValue(key, m, $anonymous, $activeZone));
+
+        // The heading has to fit too, or fitting a column to a file with no
+        // hostnames in it would hide the word "Hostname".
+        const headEl = header?.querySelector<HTMLElement>(`.col-${key}`);
+        const headStyle = headEl ? getComputedStyle(headEl) : null;
+        const headWidth = headEl && headStyle
+            ? measureLongest([headEl.innerText.trim()],
+                `${headStyle.fontStyle} ${headStyle.fontWeight} ${headStyle.fontSize} ${headStyle.fontFamily}`)
+            : 0;
+
+        // The padding a cell already spends, plus room for a sort arrow.
+        const CHROME = 26;
+        setColumnWidth(key, clampWidth(Math.max(measureLongest(values, columnFont(key)), headWidth) + CHROME));
+    }
+
+    function fitAllColumns() {
+        for (const key of RESIZABLE) fitColumn(key);
+    }
+
+    // --- what there is to do with one line -----------------------------------
+    let rowMenu: { msg: SyslogMessage; column: AnyColumn | null; x: number; y: number } | null = null;
+
+    function openRowMenu(e: MouseEvent, msg: SyslogMessage) {
+        e.preventDefault();
+        // Which cell was aimed at, so the menu can offer that value by name.
+        const cell = (e.target as HTMLElement)?.closest?.('[class*="col-"]');
+        const key = cell
+            ? Array.from(cell.classList)
+                .find(c => c.startsWith('col-') && c !== 'col-wrap')?.slice(4)
+            : undefined;
+        rowMenu = { msg, column: (key as AnyColumn) ?? null, x: e.clientX, y: e.clientY };
+    }
+
+    function openMenu(e: MouseEvent, key: AnyColumn) {
+        e.preventDefault();
+        menu = { x: e.clientX, y: e.clientY, key };
+    }
+
+    function closeMenu() {
+        menu = null;
+    }
+
     function toggleSort(col: SortCol) {
         if ($sortColumn === col) {
             if ($sortDirection === 'desc') $sortDirection = 'asc';
@@ -384,30 +724,82 @@
 
 </script>
 
-<div class="log-viewer-wrapper">
-    <div class="log-header">
-        <button class="col-header col-severity" class:sorted={$sortColumn === 'severity'} on:click={() => toggleSort('severity')}>
-            {$_('log.severity')}{#if $sortColumn === 'severity'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-timestamp" class:sorted={$sortColumn === 'timestamp'} on:click={() => toggleSort('timestamp')}>
-            {$_('log.timestamp')} <span class="col-zone">{$zoneAbbreviation}</span>{#if $sortColumn === 'timestamp'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-protocol" class:sorted={$sortColumn === 'protocol'} on:click={() => toggleSort('protocol')}>
-            {$_('log.proto')}{#if $sortColumn === 'protocol'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-source" class:sorted={$sortColumn === 'sourceIP'} on:click={() => toggleSort('sourceIP')}>
-            {$_('log.source')}{#if $sortColumn === 'sourceIP'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-hostname" class:sorted={$sortColumn === 'hostname'} on:click={() => toggleSort('hostname')}>
-            {$_('log.hostname')}{#if $sortColumn === 'hostname'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-app" class:sorted={$sortColumn === 'appName'} on:click={() => toggleSort('appName')}>
-            {$_('log.app')}{#if $sortColumn === 'appName'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
-        <button class="col-header col-message" class:sorted={$sortColumn === 'message'} on:click={() => toggleSort('message')}>
-            {$_('log.message')}{#if $sortColumn === 'message'}<span class="sort-arrow">{$sortDirection === 'asc' ? '▲' : '▼'}</span>{/if}
-        </button>
+<svelte:window on:keydown={onWindowKey} />
+
+<div class="log-viewer-wrapper" style={widthVars($columnWidths)}>
+    {#if $frozen}
+        <div class="frozen-bar" role="status">
+            <span class="frozen-dot"></span>
+            <span>{$_('log.frozen')}</span>
+            <span class="frozen-count">
+                {$newSinceFreeze > 0 ? $_('log.frozenCount', { values: { count: $newSinceFreeze } }) : ''}
+            </span>
+            <button class="frozen-resume" on:click={() => ($frozen = false)}>{$_('log.resume')}</button>
+        </div>
+    {/if}
+
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="log-header" bind:this={header}>
+        {#each $visibleColumns as key, i (key)}
+            {@const col = COLUMN[key]}
+            <div class="col-wrap col-{key}"
+                 class:dragged={reorder?.active && reorder.key === key}
+                 class:drop-before={reorder?.active && reorder.over === key && reorder.key !== key}
+                 class:drop-after={reorder?.active && reorder.over === null
+                                   && i === $visibleColumns.length - 1 && reorder.key !== key}>
+                <button class="col-header" class:sorted={$sortColumn === col.sort}
+                        on:click={() => headerClick(col.sort)}
+                        on:pointerdown={e => headerDown(e, key)}
+                        on:pointermove={headerMove}
+                        on:pointerup={headerUp}
+                        on:pointercancel={headerUp}
+                        on:contextmenu={e => openMenu(e, key)}
+                        title={$_('log.moveHint')}>
+                    {$_(col.label)}{#if key === 'timestamp'}&nbsp;<span class="col-zone">{$zoneAbbreviation}</span>{/if}{#if $sortColumn === col.sort}<span class="sort-arrow">{$sortDirection === 'asc' ? '\u25b2' : '\u25bc'}</span>{/if}
+                </button>
+                {#if key !== 'message'}
+                    {@const resizable = key}
+                    <!-- svelte-ignore a11y-no-static-element-interactions -->
+                    <div class="col-resizer" class:dragging={drag?.key === resizable}
+                         title={$_('log.resizeHint')}
+                         on:pointerdown={e => startDrag(e, resizable)}
+                         on:pointermove={onDrag}
+                         on:pointerup={endDrag}
+                         on:pointercancel={endDrag}
+                         on:dblclick={() => fitColumn(resizable)}></div>
+                {/if}
+            </div>
+        {/each}
     </div>
+
+    {#if menu}
+        {@const target = menu}
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="menu-backdrop" on:click={closeMenu} on:contextmenu|preventDefault={closeMenu}></div>
+        <div class="col-menu" style="left:{target.x}px; top:{target.y}px">
+            {#if target.key !== 'message'}
+                <button on:click={() => { fitColumn(target.key as ColumnKey); closeMenu(); }}>{$_('log.fitColumn')}</button>
+            {/if}
+            <button on:click={() => { fitAllColumns(); closeMenu(); }}>{$_('log.fitAll')}</button>
+            <button on:click={() => { resetColumns(); closeMenu(); }}>{$_('log.resetWidths')}</button>
+
+            <div class="menu-sep"></div>
+            <div class="menu-title">{$_('log.columns')}</div>
+            {#each $columnOrder as key (key)}
+                <label class="menu-check">
+                    <input type="checkbox" checked={!$hiddenColumns.includes(key)}
+                           on:change={() => toggleColumn(key)} />
+                    {$_(COLUMN[key].label)}
+                </label>
+            {/each}
+        </div>
+    {/if}
+
+    {#if rowMenu}
+        <LogRowMenu msg={rowMenu.msg} column={rowMenu.column} x={rowMenu.x} y={rowMenu.y}
+                    onClose={() => (rowMenu = null)} />
+    {/if}
 
     <div class="log-container" bind:this={container} on:scroll={onScroll}
          bind:clientHeight={containerHeight}>
@@ -433,19 +825,41 @@
                          class:indented={isGrouped}
                          style="top: {rowPositions[visibleStart + i]}px; height: {ROW_HEIGHT}px;"
                          role="row" tabindex="0"
-                         on:click={() => selectMessage(msg)}
-                         on:keydown={e => e.key === 'Enter' && selectMessage(msg)}>
-                        <span class="col-severity">
-                            <span class="severity-badge" style="background: {SEVERITY_COLORS[msg.severity]}">
-                                {msg.severityLabel}
-                            </span>
-                        </span>
-                        <span class="col-timestamp">{formatInZone(msg.timestamp, $activeZone)}</span>
-                        <span class="col-protocol">{msg.protocol}</span>
-                        <span class="col-source">{redactIP(msg.sourceIP, $anonymous)}</span>
-                        <span class="col-hostname">{redactHost(msg.hostname, $anonymous)}</span>
-                        <span class="col-app">{msg.appName}</span>
-                        <span class="col-message" title={redactText(msg.message, $anonymous)}>{redactText(msg.message, $anonymous)}</span>
+                         class:picked={$pickedIDs.has(msg.id)}
+                         on:click={e => onRowClick(e, msg)}
+                         on:keydown={e => e.key === 'Enter' && selectMessage(msg)}
+                         on:contextmenu={e => openRowMenu(e, msg)}>
+                        {#each $visibleColumns as key (key)}
+                            {#if key === 'severity'}
+                                <span class="col-severity">
+                                    <span class="severity-badge" style="background: {SEVERITY_COLORS[msg.severity]}">
+                                        {msg.severityLabel}
+                                    </span>
+                                </span>
+                            {:else if key === 'timestamp'}
+                                <span class="col-timestamp">{formatInZone(msg.timestamp, $activeZone)}</span>
+                            {:else if key === 'protocol'}
+                                <span class="col-protocol">{msg.protocol}</span>
+                            {:else if key === 'source'}
+                                <span class="col-source">{redactIP(msg.sourceIP, $anonymous)}</span>
+                            {:else if key === 'hostname'}
+                                <span class="col-hostname">{redactHost(msg.hostname, $anonymous)}</span>
+                            {:else if key === 'app'}
+                                <span class="col-app">{msg.appName}</span>
+                            {:else if key === 'received'}
+                                <span class="col-received">{formatInZone(msg.receivedAt, $activeZone)}</span>
+                            {:else if key === 'procID'}
+                                <span class="col-procID">{msg.procID}</span>
+                            {:else if key === 'facility'}
+                                <span class="col-facility">{msg.facilityLabel}</span>
+                            {:else if key === 'msgID'}
+                                <span class="col-msgID">{msg.msgID}</span>
+                            {:else if key === 'version'}
+                                <span class="col-version">{msg.version || ''}</span>
+                            {:else}
+                                <span class="col-message" title={redactText(msg.message, $anonymous)}>{redactText(msg.message, $anonymous)}</span>
+                            {/if}
+                        {/each}
                     </div>
                 {/if}
             {/each}
@@ -503,6 +917,13 @@
         </div>
 
         <div class="footer-right">
+            {#if $logViewMode === 'live'}
+                <button class="scroll-btn" class:on={$frozen}
+                        title={$frozen ? $_('log.resume') : $_('log.freezeHint')}
+                        on:click={() => ($frozen = !$frozen)}>
+                    {$frozen ? '\u25b6' : '\u23f8'} {$frozen ? $_('log.resume') : $_('log.freeze')}
+                </button>
+            {/if}
             {#if $logViewMode === 'live' && !$autoScroll && !isGrouped}
                 <button class="scroll-btn" on:click={scrollToBottom}>&#8595; {$_('log.autoScroll')}</button>
             {/if}
@@ -552,15 +973,64 @@
 
     .log-header {
         display: flex; align-items: center; padding: 0 8px;
+        user-select: none;
         background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);
-        font-size: 11px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0; gap: 0;
+        font-size: 11px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0;
+        /* The same gap the rows use, so a heading sits over its own column. */
+        gap: 4px;
     }
 
+    /* The width lives on the wrapper now: the button fills it, and the resize
+       handle sits at its edge without taking a share of it. */
+    .col-wrap { position: relative; display: flex; align-items: center; min-width: 0; }
     .col-header {
+        flex: 1; min-width: 0;
         background: transparent; color: var(--text-secondary); border: none; border-right: 1px solid var(--border-subtle);
         font-size: 11px; font-weight: 600; padding: 6px 6px; cursor: pointer; text-align: left;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+
+    /* Wider than it looks: a 5px target is a target you miss. The strip
+       straddles the edge so the cursor changes slightly before it. */
+    .col-resizer {
+        position: absolute; top: 0; bottom: 0; right: -4px; width: 9px;
+        cursor: col-resize; z-index: 2;
+        touch-action: none;
+    }
+    .col-resizer::after {
+        content: ''; position: absolute; top: 3px; bottom: 3px; left: 4px; width: 1px;
+        background: transparent; transition: background 0.1s;
+    }
+    .col-resizer:hover::after, .col-resizer.dragging::after { background: var(--accent); }
+
+    /* Carried, and where it would land. The line is on the wrapper rather than
+       a floating element so it cannot drift out of the header on a fast drag. */
+    .col-wrap.dragged { opacity: 0.4; }
+    .col-wrap.drop-before, .col-wrap.drop-after { position: relative; }
+    .col-wrap.drop-before::before, .col-wrap.drop-after::before {
+        content: ''; position: absolute; top: 2px; bottom: 2px; width: 2px;
+        background: var(--accent); z-index: 3;
+    }
+    .col-wrap.drop-before::before { left: -3px; }
+    .col-wrap.drop-after::before { right: -3px; }
+
+    .menu-backdrop { position: fixed; inset: 0; z-index: 900; }
+    .col-menu {
+        position: fixed; z-index: 901;
+        display: flex; flex-direction: column; min-width: 160px;
+        background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: 4px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+        padding: 4px;
+        /* Twelve columns and three actions is a tall menu, and the heading it
+           hangs from is always at the top of a window that may be short. */
+        max-height: calc(100vh - 72px);
+        overflow-y: auto;
+    }
+    .col-menu button {
+        background: none; border: none; text-align: left; cursor: pointer;
+        padding: 6px 10px; font-size: 12px; color: var(--text-primary); border-radius: 3px;
+    }
+    .col-menu button:hover { background: var(--bg-hover); }
     .col-header:hover { background: var(--bg-hover); color: var(--text-primary); }
     .col-header.sorted { color: var(--accent); }
     .col-header:last-child { border-right: none; }
@@ -576,6 +1046,11 @@
 
     .log-row {
         position: absolute; left: 0; right: 0; display: flex; align-items: center;
+        /* Shift-click means "everything up to here" in a list. Without this it
+           also means "select this text", and the browser's own highlight then
+           covers the one that says which rows are picked. Copying is what the
+           context menu is for. */
+        user-select: none;
         padding: 0 8px; gap: 4px; font-size: 12px; cursor: pointer;
         border-bottom: 1px solid var(--border-subtle);
     }
@@ -596,13 +1071,70 @@
     .group-count { color: var(--text-muted); font-weight: 400; font-size: 11px; flex-shrink: 0; }
     .group-bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0; z-index: -1; transition: width 0.3s; }
 
-    .col-severity { width: 80px; flex-shrink: 0; }
-    .col-timestamp { width: 140px; flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); }
+    .col-severity { width: var(--w-severity, 80px); flex-shrink: 0; }
+    .col-timestamp { width: var(--w-timestamp, 140px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); }
     .col-zone { font-weight: 400; font-size: 10px; opacity: 0.7; }
-    .col-protocol { width: 40px; flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
-    .col-source { width: 110px; flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .col-hostname { width: 110px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .col-app { width: 100px; flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-protocol { width: var(--w-protocol, 40px); flex-shrink: 0; font-size: 11px; color: var(--text-muted); }
+    .col-source { width: var(--w-source, 110px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-hostname { width: var(--w-hostname, 110px); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-app { width: var(--w-app, 100px); flex-shrink: 0; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .frozen-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 5px 12px; flex-shrink: 0;
+        background: var(--accent-bg, rgba(59, 130, 246, 0.12));
+        border-bottom: 1px solid var(--border-color);
+        font-size: 11px; color: var(--text-primary);
+    }
+    .frozen-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--accent); flex-shrink: 0;
+    }
+    .frozen-count { color: var(--text-secondary); }
+    .frozen-resume {
+        margin-left: auto; flex-shrink: 0;
+        padding: 3px 10px; font-size: 11px; cursor: pointer;
+        background: var(--bg-secondary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: 3px;
+    }
+    .frozen-resume:hover { background: var(--bg-hover); }
+
+    /* Picked, as opposed to opened: the detail panel shows one message, and
+       these are the ones something will be done with. */
+    .log-row.picked { background: var(--accent-bg, rgba(59, 130, 246, 0.16)); }
+    /* Held: the button is now the way OUT, so it stops shouting. Outlined
+       rather than filled — the filled version put accent text on an accent
+       background and could not be read at all. The padding drops by a pixel
+       to pay for the border, so the box does not jump when it changes. */
+    .scroll-btn.on {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        padding: 1px 9px;
+    }
+    .scroll-btn.on:hover { background: var(--accent-bg, rgba(59, 130, 246, 0.14)); }
+
+    .col-received { width: var(--w-received, 140px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-muted); }
+    .col-procID { width: var(--w-procID, 70px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-facility { width: var(--w-facility, 90px); flex-shrink: 0; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-msgID { width: var(--w-msgID, 90px); flex-shrink: 0; font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-version { width: var(--w-version, 50px); flex-shrink: 0; font-family: monospace; font-size: 11px; color: var(--text-muted); }
+
+    .menu-sep { height: 1px; background: var(--border-color); margin: 4px 6px; }
+    .menu-title {
+        padding: 4px 10px; font-size: 10px; text-transform: uppercase;
+        letter-spacing: 0.04em; color: var(--text-muted);
+    }
+    .menu-check {
+        display: flex; align-items: center; gap: 8px;
+        padding: 5px 10px; font-size: 12px; color: var(--text-primary);
+        cursor: pointer; border-radius: 3px;
+    }
+    .menu-check:hover { background: var(--bg-hover); }
+    .menu-check input { flex: 0 0 auto; }
+
+    /* A row cell keeps its own font and colour; the heading above it only needs
+       the width, which the wrapper carries. */
+    .col-wrap.col-message { flex: 1; min-width: 0; }
     .col-message { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
     .severity-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #10161d; text-align: center; min-width: 60px; }

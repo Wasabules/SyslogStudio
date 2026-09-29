@@ -24,6 +24,7 @@
     import type { ImportPreview, ImportResult, ImportFormat, ImportMode } from '../lib/api';
     import { SEVERITY_COLORS, SEVERITY_LABELS } from '../lib/constants';
     import { toastError, toastSuccess } from '../lib/toast';
+    import { pendingImportPath, frozen } from '../lib/stores';
 
     // The counts come back keyed by LABEL, while the colours are keyed by
     // severity number. Inverting the label table once is what keeps the two
@@ -163,11 +164,35 @@
         reset();
     }
 
+    // A file dropped on the window arrives here. It opens the dialog on that
+    // file and previews it like any other — a file that arrives by accident
+    // must be as inspectable as one that was chosen on purpose.
+    $: if ($pendingImportPath) takeDroppedFile($pendingImportPath);
+
+    async function takeDroppedFile(dropped: string) {
+        pendingImportPath.set('');
+        open = true;
+        await loadPath(dropped);
+    }
+
     async function choose() {
+        const chosen = await selectLogFile().catch(e => {
+            toastError(e?.message || String(e));
+            return '';
+        });
+        if (!chosen) return;
+        await loadPath(chosen);
+    }
+
+    /**
+     * Opens the dialog on a file, however it was named.
+     *
+     * One path for both ways in — the picker and a file dropped on the window
+     * — so a dropped file cannot end up treated differently from a chosen one.
+     */
+    async function loadPath(chosen: string) {
         busy = true;
         try {
-            const chosen = await selectLogFile();
-            if (!chosen) return;
             path = chosen;
             // Whatever the last import used, because the next file is usually
             // the same kind of file.
@@ -237,6 +262,10 @@
         busy = true;
         try {
             const result = await importLogFile(path, persist, format);
+            // Importing is a request to SEE a file. Held, the list would not
+            // rebuild and the messages would land behind a banner counting
+            // them — which reads as an import that did nothing.
+            frozen.set(false);
             toastSuccess($_('import.done', {
                 values: { count: result.imported, file: result.file },
             }));

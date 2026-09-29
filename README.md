@@ -131,7 +131,27 @@ in a ticket without going through a redaction tool first.
 - **Filter, sort and group** by severity, facility, host, application, source IP or time range
 - **Explicit timezones** — follow the machine, pin to UTC, or name a zone; the column header
   says which one it is showing
-- **Export** as CSV or plain text
+- **Right-click a line** to copy it (message, raw line, JSON, or the cell you aimed at), to
+  narrow the view to that host, application, severity or the five minutes around it, or to turn
+  it into an alert rule. In anonymous mode copying yields what is on screen, and the real value
+  is a separate entry — you cannot paste a real address believing it was masked
+- **Columns you arrange** — drag an edge to resize, double-click it to fit the widest value,
+  drag a heading to move the column, and right-click any heading to add or remove one: facility,
+  process id, message id, RFC version and received time are all there, hidden until wanted.
+  Widths, order and choice are remembered
+- **Keyboard navigation** — arrows, Page Up/Down, Home/End walk the list, Escape closes the
+  detail, `/` jumps to the search box. Shift+arrows extend a selection
+- **Pick several lines** — click, Ctrl-click, Shift-click, then copy them or export exactly
+  those. In anonymous mode you copy what is on screen, not what is behind it
+- **Freeze the stream** while you read it — nothing is dropped, and the list says how many
+  arrived and catches up when you release it
+- **Saved filters** — name the set of criteria you keep retyping and recall it in one click
+- **Drop a log file on the window** to import it, with the same preview as the file picker
+- **A detail panel you can widen** — drag the edge between the list and the message, double-click
+  it to go back to the default
+- **Export** as CSV, plain text, NDJSON, syslog (RFC 5424 or RFC 3164, replayable into any
+  collector — including this one) or a self-contained HTML report for someone who does not have
+  the application. In anonymous mode the export follows the screen by default, and says so
 - **Import a log file** already on disk — `.log`, `.txt` or a rotated `.gz`. A captured
   syslog file is parsed exactly as it would be off the wire; a plain application log has its
   timestamp and level read out of the text, and a preview says how much was read and how much

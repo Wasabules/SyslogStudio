@@ -1,4 +1,5 @@
-import { addMessages, stats as statsStore, serverStatus as statusStore, alertHistory } from './stores';
+import { addMessages, stats as statsStore, serverStatus as statusStore, alertHistory,
+         pendingImportPath, activeView } from './stores';
 import type { SyslogMessage, ServerStats, ServerStatus, AlertEvent } from './stores';
 
 let notificationsReady = false;
@@ -97,7 +98,36 @@ function safeEventsOff(eventName: string) {
     } catch (e) {}
 }
 
+/**
+ * Files dropped on the window.
+ *
+ * This call is what does the work. Enabling file drop on the Go side only
+ * allows it; the runtime installs its dragover and drop listeners here, and
+ * resolves the real paths through them. Without this call nothing is listening
+ * and a dropped file does nothing at all — no event, no error, no sign the
+ * window considered it.
+ *
+ * `true` keeps the runtime's own rule that the drop must land on an element
+ * marked as a target, which style.css sets for the whole window.
+ */
+function setupFileDrop() {
+    try {
+        window.runtime?.OnFileDrop?.((_x, _y, paths) => {
+            const first = Array.isArray(paths) ? paths.find(p => typeof p === 'string' && p !== '') : '';
+            if (!first) return;
+            // A drop is a request to look at something, and the import dialog
+            // is where that happens.
+            activeView.set('logs');
+            pendingImportPath.set(first);
+        }, true);
+    } catch (e) {
+        console.warn('File drop not available:', e);
+    }
+}
+
 export async function initEventListeners() {
+    setupFileDrop();
+
     await initNotifications();
     safeEventsOn('syslog:messages', (batch: SyslogMessage[]) => {
         addMessages(batch);

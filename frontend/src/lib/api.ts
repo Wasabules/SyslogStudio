@@ -328,6 +328,16 @@ export const importLogFile = (p: string, persist: boolean, format: ImportFormat)
     callGo('ImportLogFile', p, persist, format);
 export const getImportFormat = (): Promise<ImportFormat> => callGo('GetImportFormat');
 
+// Exporting the lines that were picked out by hand, rather than everything a
+// filter matched.
+export const exportSelection = (ids: string[], format: string, timezone: string): Promise<string> =>
+    callGo('ExportSelection', ids, format, timezone);
+
+// Writing messages the interface hands over, as it has them — which is how an
+// export can match a screen that is showing stand-ins.
+export const exportMessages = (messages: SyslogMessage[], format: string, timezone: string): Promise<string> =>
+    callGo('ExportMessages', messages, format, timezone);
+
 // --- Window and tray ---
 // What the close button does: 'ask' (the default), 'quit' or 'background'.
 export type CloseAction = 'ask' | 'quit' | 'background';
