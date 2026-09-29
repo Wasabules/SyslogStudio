@@ -121,6 +121,14 @@
         // Replaced wholesale rather than merged: a saved filter is a state to
         // return to, and merging would leave whatever was set before it.
         filter.set({ ...criteria });
+
+        // The search box is not synced from the store — it is debounced, and
+        // following the store would delete keystrokes. So applying a saved
+        // filter has to fill it in itself, or the list comes back narrowed by
+        // a term nothing on screen shows. That is the same trap as a filter
+        // whose box looks empty, one level along.
+        searchText = criteria.search ?? '';
+        searchMode = criteria.searchMode ?? 'text';
         showSaved = false;
     }
 

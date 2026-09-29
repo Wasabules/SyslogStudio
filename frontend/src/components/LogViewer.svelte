@@ -345,6 +345,19 @@
         box?.select();
     }
 
+    /**
+     * True while something is layered over the list.
+     *
+     * A dialog or a menu takes the interaction, and arrow keys that reached
+     * the list behind it would move a selection nobody can see — and Escape
+     * would clear it at the same moment the dialog was closing on the same
+     * keystroke.
+     */
+    function overlayIsOpen(): boolean {
+        return !!document.querySelector(
+            '[role="dialog"], .modal-backdrop, .menu-backdrop, .row-menu-backdrop, .backdrop');
+    }
+
     function onWindowKey(e: KeyboardEvent) {
         const el = e.target as HTMLElement | null;
         const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
@@ -355,7 +368,7 @@
             if (e.key === 'Escape') (el as HTMLInputElement).blur();
             return;
         }
-        if ($activeView !== 'logs') return;
+        if ($activeView !== 'logs' || overlayIsOpen()) return;
 
         const rowsPerPage = Math.max(1, Math.floor(containerHeight / ROW_HEIGHT) - 1);
         switch (e.key) {

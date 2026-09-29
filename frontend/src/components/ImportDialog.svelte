@@ -24,7 +24,7 @@
     import type { ImportPreview, ImportResult, ImportFormat, ImportMode } from '../lib/api';
     import { SEVERITY_COLORS, SEVERITY_LABELS } from '../lib/constants';
     import { toastError, toastSuccess } from '../lib/toast';
-    import { pendingImportPath } from '../lib/stores';
+    import { pendingImportPath, frozen } from '../lib/stores';
 
     // The counts come back keyed by LABEL, while the colours are keyed by
     // severity number. Inverting the label table once is what keeps the two
@@ -145,6 +145,10 @@
         busy = true;
         try {
             const result = await importLogFile(path, persist, format);
+            // Importing is a request to SEE a file. Held, the list would not
+            // rebuild and the messages would land behind a banner counting
+            // them — which reads as an import that did nothing.
+            frozen.set(false);
             toastSuccess($_('import.done', {
                 values: { count: result.imported, file: result.file },
             }));
