@@ -175,5 +175,3 @@ export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
 export function UnlockDatabase(arg1:string):Promise<void>;
 
 export function UpdateAlertRule(arg1:models.AlertRule):Promise<boolean>;
-
-export function WatchFileDrops():Promise<void>;

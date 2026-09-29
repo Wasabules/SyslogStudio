@@ -345,7 +345,3 @@ export function UnlockDatabase(arg1) {
 export function UpdateAlertRule(arg1) {
   return window['go']['main']['App']['UpdateAlertRule'](arg1);
 }
-
-export function WatchFileDrops() {
-  return window['go']['main']['App']['WatchFileDrops']();
-}
