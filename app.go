@@ -895,45 +895,7 @@ func (a *App) SelectCAFile() (string, error) {
 // the screen it was taken from; an empty or unknown name falls back to the
 // machine's zone rather than failing the export.
 func (a *App) ExportLogs(filter models.FilterCriteria, format string, timezone string) (string, error) {
-	var defaultFilename string
-	var filters []wailsRuntime.FileFilter
-
-	if format == "csv" {
-		defaultFilename = "syslog_export.csv"
-		filters = []wailsRuntime.FileFilter{
-			{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"},
-		}
-	} else {
-		defaultFilename = "syslog_export.txt"
-		filters = []wailsRuntime.FileFilter{
-			{DisplayName: "Text Files (*.txt)", Pattern: "*.txt"},
-		}
-	}
-
-	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
-		Title:           "Export Logs",
-		DefaultFilename: defaultFilename,
-		Filters:         filters,
-	})
-	if err != nil {
-		return "", err
-	}
-	if path == "" {
-		return "", nil
-	}
-
-	messages := a.server.GetMessages(filter)
-	loc := resolveLocation(timezone)
-	if format == "csv" {
-		err = writeCSV(path, messages, loc)
-	} else {
-		err = writeText(path, messages, loc)
-	}
-
-	if err != nil {
-		return "", fmt.Errorf("failed to write export: %w", err)
-	}
-	return path, nil
+	return a.writeMessagesTo(a.server.GetMessages(filter), "syslog_export", format, timezone)
 }
 
 // ExportSelection writes only the messages whose ids are given.
@@ -964,16 +926,38 @@ func (a *App) ExportSelection(ids []string, format string, timezone string) (str
 	if len(messages) == 0 {
 		return "", fmt.Errorf("the selected messages are no longer in the buffer")
 	}
+	return a.writeMessagesTo(messages, "syslog_selection", format, timezone)
+}
 
-	defaultFilename := "syslog_selection.txt"
-	filters := []wailsRuntime.FileFilter{{DisplayName: "Text Files (*.txt)", Pattern: "*.txt"}}
-	if format == "csv" {
-		defaultFilename = "syslog_selection.csv"
-		filters = []wailsRuntime.FileFilter{{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"}}
+// ExportMessages writes messages the interface hands over, as it has them.
+//
+// This is how an export can match the screen. Anonymous mode substitutes
+// hostnames and addresses for DISPLAY, and that substitution lives in the
+// interface — so an export written from the server's own copy contains the
+// real values, whatever the screen says. Someone attaching that file to a
+// ticket would be publishing exactly what they thought they had masked.
+//
+// Rather than teaching the backend to redact (a second implementation, whose
+// stand-ins would not even match the ones on screen), the interface sends what
+// it is showing.
+func (a *App) ExportMessages(messages []models.SyslogMessage, format string, timezone string) (string, error) {
+	if len(messages) == 0 {
+		return "", fmt.Errorf("nothing to export")
+	}
+	return a.writeMessagesTo(messages, "syslog_export", format, timezone)
+}
+
+// writeMessagesTo asks where, then writes there. One place that knows how an
+// export is named, filtered and written, for all three ways in.
+func (a *App) writeMessagesTo(messages []models.SyslogMessage, base, format, timezone string) (string, error) {
+	defaultFilename, wanted := exportFile(format, base)
+	filters := make([]wailsRuntime.FileFilter, 0, len(wanted))
+	for _, f := range wanted {
+		filters = append(filters, wailsRuntime.FileFilter{DisplayName: f.Display, Pattern: f.Pattern})
 	}
 
 	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
-		Title:           "Export Selection",
+		Title:           "Export Logs",
 		DefaultFilename: defaultFilename,
 		Filters:         filters,
 	})
@@ -984,13 +968,7 @@ func (a *App) ExportSelection(ids []string, format string, timezone string) (str
 		return "", nil
 	}
 
-	loc := resolveLocation(timezone)
-	if format == "csv" {
-		err = writeCSV(path, messages, loc)
-	} else {
-		err = writeText(path, messages, loc)
-	}
-	if err != nil {
+	if err := writeExport(path, format, messages, resolveLocation(timezone)); err != nil {
 		return "", fmt.Errorf("failed to write export: %w", err)
 	}
 	return path, nil

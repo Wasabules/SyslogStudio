@@ -321,6 +321,11 @@ export const getImportFormat = (): Promise<ImportFormat> => callGo('GetImportFor
 export const exportSelection = (ids: string[], format: string, timezone: string): Promise<string> =>
     callGo('ExportSelection', ids, format, timezone);
 
+// Writing messages the interface hands over, as it has them — which is how an
+// export can match a screen that is showing stand-ins.
+export const exportMessages = (messages: SyslogMessage[], format: string, timezone: string): Promise<string> =>
+    callGo('ExportMessages', messages, format, timezone);
+
 // --- Window and tray ---
 // What the close button does: 'ask' (the default), 'quit' or 'background'.
 export type CloseAction = 'ask' | 'quit' | 'background';

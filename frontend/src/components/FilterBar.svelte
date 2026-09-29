@@ -8,6 +8,10 @@
     import ImportDialog from './ImportDialog.svelte';
     import { toastSuccess, toastError } from '../lib/toast';
     import { savedFilters, saveFilter, deleteFilter, isEmptyFilter } from '../lib/savedFilters';
+    import { EXPORT_FORMATS, asDisplayed } from '../lib/exportFormats';
+    import { anonymous } from '../lib/anonymize';
+    import { filteredMessages } from '../lib/stores';
+    import { exportMessages } from '../lib/api';
 
     // Importing sits beside exporting: it is the same operation the other way
     // round, and that is where someone looks for it.
@@ -98,24 +102,6 @@
         filter.set({ severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', searchMode: 'text', dateFrom: '', dateTo: '' });
     }
 
-    async function exportCSV() {
-        try {
-            const path = await exportLogs($filter, 'csv', $activeZone);
-            if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
-        } catch (e: any) {
-            toastError(e?.message || $_('filter.csvExportFailed'));
-        }
-    }
-
-    async function exportText() {
-        try {
-            const path = await exportLogs($filter, 'text', $activeZone);
-            if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
-        } catch (e: any) {
-            toastError(e?.message || $_('filter.textExportFailed'));
-        }
-    }
-
     function clearAll() {
         clearMessages();
         messages.set([]);
@@ -136,6 +122,23 @@
         // return to, and merging would leave whatever was set before it.
         filter.set({ ...criteria });
         showSaved = false;
+    }
+
+    // In anonymous mode the export follows the screen by default, and says so.
+    // Someone who wants the received values can still have them — from the
+    // same menu, named out loud, never by accident.
+    let exportReal = false;
+
+    async function runExport(format: string) {
+        showExport = false;
+        try {
+            const path = ($anonymous && !exportReal)
+                ? await exportMessages($filteredMessages.map(m => asDisplayed(m, true)), format, $activeZone)
+                : await exportLogs($filter, format, $activeZone);
+            if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
+        } catch (e: any) {
+            toastError(e?.message || String(e));
+        }
     }
 
     function saveCurrent() {
@@ -258,14 +261,19 @@
             </button>
             {#if showExport}
                 <div class="dropdown export-menu">
-                    <button class="dropdown-item as-button"
-                            on:click={() => { showExport = false; exportCSV(); }}>
-                        {$_('filter.exportAsCSV')}
-                    </button>
-                    <button class="dropdown-item as-button"
-                            on:click={() => { showExport = false; exportText(); }}>
-                        {$_('filter.exportAsText')}
-                    </button>
+                    {#if $anonymous}
+                        <div class="export-note">
+                            {exportReal ? $_('filter.exportingReal') : $_('filter.exportingDisplayed')}
+                            <button class="export-switch" on:click|stopPropagation={() => (exportReal = !exportReal)}>
+                                {exportReal ? $_('filter.useDisplayedValues') : $_('filter.useRealValues')}
+                            </button>
+                        </div>
+                    {/if}
+                    {#each EXPORT_FORMATS as fmt (fmt.id)}
+                        <button class="dropdown-item as-button" on:click={() => runExport(fmt.id)}>
+                            {$_('filter.exportAs', { values: { format: $_(fmt.label) } })}
+                        </button>
+                    {/each}
                 </div>
             {/if}
         </div>
@@ -462,7 +470,17 @@
     .export-wrap { position: relative; }
     /* Opens leftwards: this button sits at the right edge of the toolbar, and
        a menu anchored left would hang off the window. */
-    .export-menu { left: auto; right: 0; min-width: 140px; }
+    .export-menu { left: auto; right: 0; min-width: 210px; }
+    .export-note {
+        padding: 6px 10px; font-size: 10px; line-height: 1.5;
+        color: var(--text-secondary); border-bottom: 1px solid var(--border-color);
+        margin-bottom: 4px;
+    }
+    .export-switch {
+        display: block; margin-top: 3px; padding: 0;
+        background: none; border: none; cursor: pointer;
+        color: var(--accent); font-size: 10px; text-decoration: underline;
+    }
     .dropdown-item.as-button {
         width: 100%;
         background: none;

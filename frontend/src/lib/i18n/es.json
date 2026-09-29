@@ -73,7 +73,19 @@
     "nameThisFilter": "Nombra este filtro",
     "saveFilter": "Guardar",
     "filterSaved": "Guardado como «{name}»",
-    "nothingToSave": "Define un filtro primero"
+    "nothingToSave": "Define un filtro primero",
+    "fmt_csv": "CSV",
+    "fmt_txt": "texto",
+    "fmt_ndjson": "NDJSON",
+    "fmt_rfc5424": "syslog (RFC 5424)",
+    "fmt_rfc3164": "syslog (RFC 3164)",
+    "fmt_html": "informe HTML",
+    "exportAs": "Exportar como {format}",
+    "exportingDisplayed": "Modo anónimo: se exportan los valores mostrados.",
+    "exportingReal": "Se exportan los valores tal como se recibieron.",
+    "useRealValues": "Exportar los valores reales",
+    "useDisplayedValues": "Exportar lo que se muestra",
+    "displayedSuffix": "(mostrado)"
   },
   "import": {
     "title": "Importar un archivo de registro",
@@ -184,10 +196,9 @@
     "freezeHint": "Mantener la lista quieta mientras se lee",
     "copyPicked": "Copiar {count} mensajes",
     "copyPickedJson": "Copiar {count} mensajes como JSON",
-    "exportPickedCsv": "Exportar {count} como CSV",
-    "exportPickedTxt": "Exportar {count} como texto",
     "previousMessage": "Mensaje anterior",
-    "nextMessage": "Mensaje siguiente"
+    "nextMessage": "Mensaje siguiente",
+    "exportPickedAs": "Exportar {count} como {format}"
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",

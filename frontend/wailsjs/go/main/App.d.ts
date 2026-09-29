@@ -42,6 +42,8 @@ export function ExportCertificate():Promise<string>;
 
 export function ExportLogs(arg1:models.FilterCriteria,arg2:string,arg3:string):Promise<string>;
 
+export function ExportMessages(arg1:Array<models.SyslogMessage>,arg2:string,arg3:string):Promise<string>;
+
 export function ExportSelection(arg1:Array<string>,arg2:string,arg3:string):Promise<string>;
 
 export function ExportServerCertificate():Promise<string>;

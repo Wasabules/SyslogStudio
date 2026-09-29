@@ -149,7 +149,9 @@ in a ticket without going through a redaction tool first.
 - **Drop a log file on the window** to import it, with the same preview as the file picker
 - **A detail panel you can widen** — drag the edge between the list and the message, double-click
   it to go back to the default
-- **Export** as CSV or plain text
+- **Export** as CSV, plain text, NDJSON, syslog (RFC 5424 or RFC 3164, replayable into any
+  collector — including this one) or a self-contained HTML report for someone who does not have
+  the application. In anonymous mode the export follows the screen by default, and says so
 - **Import a log file** already on disk — `.log`, `.txt` or a rotated `.gz`. A captured
   syslog file is parsed exactly as it would be off the wire; a plain application log has its
   timestamp and level read out of the text, and a preview says how much was read and how much

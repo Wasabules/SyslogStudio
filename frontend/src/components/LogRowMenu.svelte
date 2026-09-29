@@ -21,7 +21,8 @@
     import type { AnyColumn } from '../lib/columns';
     import { shownValue, realValue, messageAsJSON, toLocalInput } from '../lib/cells';
     import { copyText } from '../lib/clipboard';
-    import { exportSelection } from '../lib/api';
+    import { exportSelection, exportMessages } from '../lib/api';
+    import { EXPORT_FORMATS, asDisplayed } from '../lib/exportFormats';
     import { toastSuccess, toastError } from '../lib/toast';
     import { redactText } from '../lib/anonymize';
 
@@ -67,10 +68,14 @@
         await copy(text);
     }
 
-    async function exportPicked(format: 'csv' | 'txt') {
+    async function exportPicked(format: string) {
         onClose();
         try {
-            const path = await exportSelection(picked.map(m => m.id), format, $activeZone);
+            // The same rule the copy entries follow: what is on screen, unless
+            // the screen is showing the real thing anyway.
+            const path = $anonymous
+                ? await exportMessages(picked.map(m => asDisplayed(m, true)), format, $activeZone)
+                : await exportSelection(picked.map(m => m.id), format, $activeZone);
             if (path) toastSuccess($_('filter.exportedTo', { values: { path } }));
         } catch (e: any) {
             toastError(e?.message || String(e));
@@ -139,12 +144,13 @@
         <button on:click={() => copyPicked(true)}>
             {$_('log.copyPickedJson', { values: { count: picked.length } })}
         </button>
-        <button on:click={() => exportPicked('csv')}>
-            {$_('log.exportPickedCsv', { values: { count: picked.length } })}
-        </button>
-        <button on:click={() => exportPicked('txt')}>
-            {$_('log.exportPickedTxt', { values: { count: picked.length } })}
-        </button>
+        {#each EXPORT_FORMATS.filter(f => f.id !== 'html') as fmt (fmt.id)}
+            <button on:click={() => exportPicked(fmt.id)}>
+                {$_('log.exportPickedAs', {
+                    values: { count: picked.length, format: $_(fmt.label) },
+                })}{#if $anonymous}<span class="as-shown"> {$_('filter.displayedSuffix')}</span>{/if}
+            </button>
+        {/each}
     {/if}
 
     <div class="sep"></div>
@@ -179,5 +185,6 @@
     }
     .row-menu button:hover { background: var(--bg-hover); }
     .row-menu button.real { color: var(--severity-warning, #f0c674); }
+    .as-shown { color: var(--text-muted); font-size: 10px; }
     .sep { height: 1px; background: var(--border-color); margin: 4px 6px; }
 </style>
