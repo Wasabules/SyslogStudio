@@ -429,7 +429,7 @@
     "active": "Modalità anonima attiva",
     "disable": "Disattiva modalità anonima",
     "enable": "Attiva modalità anonima",
-    "hint": "Sostituisce nomi host, indirizzi, utenti, domini ed e-mail con segnaposto stabili, per poter condividere uno screenshot. Solo visualizzazione — i dati memorizzati e le esportazioni restano invariati.",
+    "hint": "Sostituisce nomi host, indirizzi, account, domini e indirizzi e-mail con sostituti stabili, così una schermata può essere condivisa. Solo la visualizzazione: i dati salvati non cambiano, e un’esportazione segue ciò che è mostrato salvo richiesta dei valori reali.",
     "reshuffle": "Genera nuovi segnaposto",
     "reshuffled": "Nuovi segnaposto generati",
     "setting": "Modalità anonima"

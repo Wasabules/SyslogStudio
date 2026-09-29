@@ -429,7 +429,7 @@
     "active": "Anonymous mode is on",
     "disable": "Disable anonymous mode",
     "enable": "Enable anonymous mode",
-    "hint": "Replaces hostnames, addresses, usernames, domains and e-mail addresses with stable stand-ins, so a screenshot can be shared. Display only — stored data and exports are unchanged.",
+    "hint": "Replaces hostnames, addresses, usernames, domains and e-mail addresses with stable stand-ins, so a screenshot can be shared. Display only — stored data is unchanged, and an export from here follows what is shown unless you ask for the real values.",
     "reshuffle": "Generate new stand-ins",
     "reshuffled": "New stand-ins generated",
     "setting": "Anonymous mode"

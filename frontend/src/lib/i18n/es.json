@@ -429,7 +429,7 @@
     "active": "Modo anónimo activo",
     "disable": "Desactivar modo anónimo",
     "enable": "Activar modo anónimo",
-    "hint": "Sustituye nombres de host, direcciones, usuarios, dominios y correos por alias estables, para poder compartir una captura. Solo la visualización — los datos almacenados y las exportaciones no cambian.",
+    "hint": "Sustituye nombres de host, direcciones, cuentas, dominios y correos por sustitutos estables, para poder compartir una captura. Solo la visualización: los datos guardados no cambian, y una exportación sigue lo mostrado salvo que pidas los valores reales.",
     "reshuffle": "Generar nuevos alias",
     "reshuffled": "Nuevos alias generados",
     "setting": "Modo anónimo"

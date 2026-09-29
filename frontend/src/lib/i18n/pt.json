@@ -429,7 +429,7 @@
     "active": "Modo anónimo ativo",
     "disable": "Desativar modo anónimo",
     "enable": "Ativar modo anónimo",
-    "hint": "Substitui nomes de host, endereços, utilizadores, domínios e e-mails por substitutos estáveis, para poder partilhar uma captura de ecrã. Apenas a apresentação — os dados guardados e as exportações não mudam.",
+    "hint": "Substitui nomes de anfitrião, endereços, contas, domínios e e-mails por substitutos estáveis, para que uma captura possa ser partilhada. Apenas a apresentação — os dados guardados não mudam, e uma exportação segue o que é apresentado salvo se pedir os valores reais.",
     "reshuffle": "Gerar novos substitutos",
     "reshuffled": "Novos substitutos gerados",
     "setting": "Modo anónimo"
