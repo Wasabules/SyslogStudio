@@ -80,7 +80,7 @@ jobs:
           cp build/bin/SyslogStudio.exe SyslogStudio-windows-amd64.exe
           mv build/bin/*installer*.exe SyslogStudio-windows-amd64-setup.exe
           powershell -Command "Compress-Archive -Path build/bin/SyslogStudio.exe -DestinationPath SyslogStudio-windows-amd64.zip"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-amd64
           path: |
@@ -132,7 +132,7 @@ jobs:
           ln -s /Applications dmg-staging/Applications
           hdiutil create -volname "SyslogStudio" -srcfolder dmg-staging -ov -format UDZO \
             "SyslogStudio-macos-universal.dmg"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos-universal
           path: |
@@ -189,7 +189,7 @@ jobs:
           Depends: libgtk-3-0, libwebkit2gtk-4.1-0
           EOF
           dpkg-deb --build pkg "SyslogStudio-linux-amd64.deb"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-amd64
           path: |
