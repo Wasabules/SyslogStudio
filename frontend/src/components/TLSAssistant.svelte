@@ -93,8 +93,8 @@
             $serverStatus.config.useSelfSigned = true;
             $serverStatus = $serverStatus;
             // Kept across restarts like any other choice. The certificate
-            // itself stays in memory by design — only the decision to use a
-            // generated one is persisted.
+            // itself is persisted by the backend as it is generated, so the
+            // listener presents this same one after a restart.
             try { await saveServerConfig($serverStatus.config); } catch { /* Start will report it */ }
             success = $_('tls.serverCertGenerated');
         } catch (e: any) {

@@ -705,16 +705,17 @@ func TestLoadCertificate_LoadsFromFiles(t *testing.T) {
 	if tlsConfig == nil {
 		t.Fatal("expected non-nil TLS config")
 	}
-	if len(tlsConfig.Certificates) == 0 {
-		t.Error("TLS config should have at least one certificate")
+	if servedCertificate(t, tlsConfig) == nil {
+		t.Error("TLS config should serve a certificate")
 	}
 	if tlsConfig.MinVersion != tls.VersionTLS12 {
 		t.Errorf("expected MinVersion TLS 1.2, got %d", tlsConfig.MinVersion)
 	}
 
-	// Should now be stored in manager
-	if !tm2.HasServerCert() {
-		t.Error("after LoadCertificate, HasServerCert should be true")
+	// A certificate served from files is the operator's, not a generated
+	// identity: it must not take the generated one's place.
+	if tm2.HasServerCert() {
+		t.Error("LoadCertificate must not install the files as the generated identity")
 	}
 }
 
@@ -831,8 +832,8 @@ func TestGetTLSConfig_FromFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTLSConfig failed: %v", err)
 	}
-	if len(tlsConfig.Certificates) == 0 {
-		t.Error("expected at least one certificate")
+	if servedCertificate(t, tlsConfig) == nil {
+		t.Error("expected a certificate to be served")
 	}
 }
 

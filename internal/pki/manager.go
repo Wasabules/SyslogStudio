@@ -11,6 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net"
 	"os"
@@ -29,14 +30,72 @@ type TLSManager struct {
 	caCertPEM []byte
 	caKeyPEM  []byte
 
-	// Server certificate (signed by CA or self-signed)
+	// The server's generated identity: the certificate the assistant made,
+	// signed by the CA or self-signed. Certificates the operator supplies as
+	// files are NOT kept here — they are served straight from their files, so
+	// switching between the two modes never swaps one for the other.
 	serverCertPEM []byte
 	serverKeyPEM  []byte
+
+	// onGenerated is told about every identity this manager creates, so the
+	// caller can persist it. Without that, a restart threw the identity away
+	// and the listener presented a different certificate from the one clients
+	// had been told to trust.
+	onGenerated func(certPEM, keyPEM []byte)
 }
+
+// expiryWarning is how far ahead an expiring certificate is reported. A month
+// is long enough to renew one by hand, which is what the generated ones need.
+const expiryWarning = 30 * 24 * time.Hour
 
 // NewTLSManager creates a new TLSManager.
 func NewTLSManager() *TLSManager {
 	return &TLSManager{}
+}
+
+// SetOnServerCertGenerated registers the function told about each server
+// identity this manager generates. It is called outside the manager's lock.
+func (t *TLSManager) SetOnServerCertGenerated(fn func(certPEM, keyPEM []byte)) {
+	t.mu.Lock()
+	t.onGenerated = fn
+	t.mu.Unlock()
+}
+
+// setServerIdentity installs a freshly generated identity and reports it.
+func (t *TLSManager) setServerIdentity(certPEM, keyPEM []byte) {
+	t.mu.Lock()
+	t.serverCertPEM = certPEM
+	t.serverKeyPEM = keyPEM
+	notify := t.onGenerated
+	t.mu.Unlock()
+	if notify != nil {
+		notify(certPEM, keyPEM)
+	}
+}
+
+// GetServerMaterial returns copies of the generated server identity, for
+// persistence. ok is false when there is none.
+func (t *TLSManager) GetServerMaterial() (certPEM, keyPEM []byte, ok bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.serverCertPEM) == 0 || len(t.serverKeyPEM) == 0 {
+		return nil, nil, false
+	}
+	return append([]byte(nil), t.serverCertPEM...), append([]byte(nil), t.serverKeyPEM...), true
+}
+
+// LoadServerMaterial installs a previously persisted server identity, after
+// checking that the certificate and key belong together. Restoring is not
+// generating, so the persistence hook is not called.
+func (t *TLSManager) LoadServerMaterial(certPEM, keyPEM []byte) error {
+	if _, err := tls.X509KeyPair(certPEM, keyPEM); err != nil {
+		return fmt.Errorf("invalid server certificate: %w", err)
+	}
+	t.mu.Lock()
+	t.serverCertPEM = certPEM
+	t.serverKeyPEM = keyPEM
+	t.mu.Unlock()
+	return nil
 }
 
 // GetTLSConfig returns a tls.Config based on server configuration.
@@ -57,6 +116,7 @@ func (t *TLSManager) GetTLSConfig(config models.ServerConfig) (*tls.Config, erro
 			if cerr != nil {
 				return nil, fmt.Errorf("failed to load generated certificate: %w", cerr)
 			}
+			warnIfExpiring(cert.Leaf, "generated")
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{cert},
 				MinVersion:   tls.VersionTLS12,
@@ -95,31 +155,132 @@ func (t *TLSManager) GetTLSConfig(config models.ServerConfig) (*tls.Config, erro
 	return tlsConfig, nil
 }
 
-// LoadCertificate loads a TLS certificate and key from PEM files.
+// LoadCertificate serves a TLS certificate and key from PEM files, and keeps
+// serving them as they change.
+//
+// The files are read now, so a bad pair fails the start rather than the first
+// handshake, and re-read when they change on disk. A certificate renewed by
+// certbot or a corporate PKI therefore takes effect without restarting the
+// listener — which matters for a receiver meant to run for months.
 func (t *TLSManager) LoadCertificate(certFile, keyFile string) (*tls.Config, error) {
-	certPEM, err := os.ReadFile(certFile)
+	fc, err := newFileCertificate(certFile, keyFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read certificate file: %w", err)
+		return nil, err
 	}
-	keyPEM, err := os.ReadFile(keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read key file: %w", err)
-	}
+	warnIfExpiring(fc.cert.Leaf, certFile)
 
+	// Certificates is left empty on purpose: crypto/tls only consults
+	// GetCertificate when it is, or when the client sends SNI — and syslog
+	// senders mostly connect by address, without SNI, so a populated list
+	// would pin the first certificate for good.
+	return &tls.Config{
+		GetCertificate: fc.GetCertificate,
+		MinVersion:     tls.VersionTLS12,
+	}, nil
+}
+
+// fileCertRecheck bounds how often the files are looked at. A handshake pays
+// for two stat calls at most this often, and a renewal is picked up within it.
+const fileCertRecheck = 30 * time.Second
+
+// fileCertificate is a certificate served from files the operator owns.
+type fileCertificate struct {
+	certPath, keyPath string
+
+	mu      sync.Mutex
+	cert    *tls.Certificate
+	certMod time.Time
+	keyMod  time.Time
+	checked time.Time
+}
+
+func newFileCertificate(certPath, keyPath string) (*fileCertificate, error) {
+	fc := &fileCertificate{certPath: certPath, keyPath: keyPath}
+	if err := fc.load(); err != nil {
+		return nil, err
+	}
+	fc.checked = time.Now()
+	return fc, nil
+}
+
+// load reads both files. On failure nothing is replaced, so a reload that
+// catches a renewal half-written — new certificate, old key — keeps serving the
+// previous pair and tries again later.
+func (fc *fileCertificate) load() error {
+	certStat, err := os.Stat(fc.certPath)
+	if err != nil {
+		return fmt.Errorf("failed to read certificate file: %w", err)
+	}
+	keyStat, err := os.Stat(fc.keyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read key file: %w", err)
+	}
+	certPEM, err := os.ReadFile(fc.certPath)
+	if err != nil {
+		return fmt.Errorf("failed to read certificate file: %w", err)
+	}
+	keyPEM, err := os.ReadFile(fc.keyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read key file: %w", err)
+	}
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load certificate: %w", err)
+		return fmt.Errorf("failed to load certificate: %w", err)
 	}
+	fc.cert = &cert
+	fc.certMod = certStat.ModTime()
+	fc.keyMod = keyStat.ModTime()
+	return nil
+}
 
-	t.mu.Lock()
-	t.serverCertPEM = certPEM
-	t.serverKeyPEM = keyPEM
-	t.mu.Unlock()
+// changed reports whether either file has a different modification time from
+// the pair being served.
+func (fc *fileCertificate) changed() bool {
+	certStat, err := os.Stat(fc.certPath)
+	if err != nil {
+		return false // gone for a moment while being replaced; keep serving
+	}
+	keyStat, err := os.Stat(fc.keyPath)
+	if err != nil {
+		return false
+	}
+	return !certStat.ModTime().Equal(fc.certMod) || !keyStat.ModTime().Equal(fc.keyMod)
+}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-	}, nil
+// GetCertificate is the tls.Config hook.
+func (fc *fileCertificate) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if time.Since(fc.checked) >= fileCertRecheck {
+		fc.checked = time.Now()
+		if fc.changed() {
+			if err := fc.load(); err != nil {
+				slog.Warn("certificate files changed but could not be reloaded; still serving the previous pair",
+					"cert", fc.certPath, "error", err)
+			} else {
+				slog.Info("reloaded the TLS certificate after it changed on disk", "cert", fc.certPath)
+				warnIfExpiring(fc.cert.Leaf, fc.certPath)
+			}
+		}
+	}
+	return fc.cert, nil
+}
+
+// warnIfExpiring logs a certificate that is expired or close to it. The
+// listener still starts — refusing would turn a renewal reminder into an
+// outage — but the operator hears about it while there is time to act.
+func warnIfExpiring(leaf *x509.Certificate, which string) {
+	if leaf == nil {
+		return
+	}
+	switch left := time.Until(leaf.NotAfter); {
+	case left <= 0:
+		slog.Warn("the TLS certificate has expired; clients will refuse it", "certificate", which,
+			"notAfter", leaf.NotAfter.Format(time.RFC3339))
+	case left < expiryWarning:
+		slog.Warn("the TLS certificate expires soon", "certificate", which,
+			"notAfter", leaf.NotAfter.Format(time.RFC3339), "daysLeft", int(left.Hours()/24))
+	}
 }
 
 // --- CA Certificate Operations ---
@@ -294,10 +455,7 @@ func (t *TLSManager) GenerateServerCertSignedByCA(opts models.CertOptions) (mode
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	keyPEM := pem.EncodeToMemory(serverKeyPEMBlock)
 
-	t.mu.Lock()
-	t.serverCertPEM = certPEM
-	t.serverKeyPEM = keyPEM
-	t.mu.Unlock()
+	t.setServerIdentity(certPEM, keyPEM)
 
 	return t.buildCertInfo(certDER, opts.Algorithm), nil
 }
@@ -490,15 +648,11 @@ func (t *TLSManager) GenerateSelfSignedWithOptions(opts models.CertOptions) (*tl
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	keyPEM := pem.EncodeToMemory(keyPEMBlock)
 
-	t.mu.Lock()
-	t.serverCertPEM = certPEM
-	t.serverKeyPEM = keyPEM
-	t.mu.Unlock()
-
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, models.CertInfo{}, fmt.Errorf("failed to create TLS certificate: %w", err)
 	}
+	t.setServerIdentity(certPEM, keyPEM)
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
