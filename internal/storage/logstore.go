@@ -224,6 +224,12 @@ func (ls *LogStore) SetEncryptionPassword(password string) {
 	ls.mu.Unlock()
 }
 
+// DBPathIn is where the database lives inside a data directory, when the
+// configuration does not name a path of its own.
+func DBPathIn(dir string) string {
+	return filepath.Join(dir, dbFileName)
+}
+
 // ResolveDBPath returns the database file path, using the default location if configPath is empty.
 func ResolveDBPath(configPath string) (string, error) {
 	if configPath != "" {
