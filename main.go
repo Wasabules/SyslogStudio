@@ -15,6 +15,7 @@ import (
 	// for a setting that is otherwise broken on the platform most users run.
 	_ "time/tzdata"
 
+	"SyslogStudio/internal/autostart"
 	"SyslogStudio/internal/tray"
 
 	"github.com/wailsapp/wails/v2"
@@ -42,6 +43,15 @@ func trayIcon() []byte {
 var assets embed.FS
 
 func main() {
+	// The service, the headless mode and the service commands are the same
+	// executable started differently; none of them opens a window.
+	if handled, code := runCommandLine(os.Args[1:]); handled {
+		os.Exit(code)
+	}
+	// Started at sign-in by the registration: hidden in the tray, not a window
+	// in the user's face at every login.
+	background := hasArg(os.Args[1:], autostart.BackgroundFlag)
+
 	distFS, err := fs.Sub(assets, "frontend/dist")
 	if err != nil {
 		log.Fatal("Failed to create sub FS:", err)
@@ -56,13 +66,15 @@ func main() {
 	}
 
 	app := NewApp()
+	app.bg.launched = background
 
 	err = wails.Run(&options.App{
-		Title:     "SyslogStudio",
-		Width:     1280,
-		Height:    800,
-		MinWidth:  900,
-		MinHeight: 600,
+		StartHidden: background,
+		Title:       "SyslogStudio",
+		Width:       1280,
+		Height:      800,
+		MinWidth:    900,
+		MinHeight:   600,
 		AssetServer: &assetserver.Options{
 			Assets: distFS,
 		},
@@ -92,6 +104,7 @@ func main() {
 			})
 			setTray(ctrl, ok)
 			app.refreshTrayStatus()
+			app.afterStartup(ok)
 		},
 		OnShutdown: func(ctx context.Context) {
 			// Before the application's own shutdown, so the icon goes away

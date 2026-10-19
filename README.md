@@ -103,6 +103,16 @@ in a ticket without going through a redaction tool first.
   <img src="docs/assets/img/anonymous-light.png" alt="The same log viewer with anonymous mode on: identifying values replaced by stable stand-ins." width="900" />
 </picture>
 
+### Running with no window
+
+In your session, started at sign-in and hidden in the tray — or as a Windows service that
+starts with the computer, before anyone signs in.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/background-dark.png" />
+  <img src="docs/assets/img/background-light.png" alt="Settings, Background tab: the user-session options above, and below them the system service, running and listening on UDP 514, TCP 601 and TLS 6514." width="900" />
+</picture>
+
 ### Built-in traffic generator
 
 <picture>
@@ -192,6 +202,17 @@ in a ticket without going through a redaction tool first.
 - **Rate breaker** — a destination flooded with repeating content is cut off, disabled and
   reported, rather than quietly filling a disk
 
+### Running unattended
+
+- **In your session** — start at sign-in, hidden in the tray, and start receiving on launch
+  with the saved listeners. No administrator needed
+- **As a Windows service** — installed from Settings > Background with one administrator
+  prompt; starts at boot under its own account (`NT SERVICE\SyslogStudio`) with its own
+  configuration and database, credentials and private key protected by DPAPI, a firewall
+  rule for domain and private networks, and automatic restart after a failure
+- **Headless** — `SyslogStudio --headless` runs the engine with no window, for systemd,
+  launchd or a terminal
+
 ### The rest
 
 - **Built-in traffic generator** to prove the chain works before a device is pointed at it
@@ -272,6 +293,63 @@ each of these, and everything except receiving can be tried in the
 > keeps a misconfigured host out of your database; it is not authentication. Where senders
 > must genuinely be authenticated, use TLS with client certificates.
 
+### Running with no window
+
+SyslogStudio keeps receiving without its window in two ways, set up in
+**Settings > Background**. They are for different situations, so they are kept apart.
+
+**In your session.** *Start SyslogStudio when I sign in* registers the application with the
+system's own per-user mechanism (the Run key on Windows, a LaunchAgent on macOS, an XDG
+autostart entry on Linux); it starts hidden in the tray. *Start receiving when SyslogStudio
+opens* starts the listeners as last saved. With an encrypted database the window appears at
+sign-in to ask for the password, then goes back to the tray — nothing is stored until it is
+typed, and the application will not pretend otherwise. This mode runs under your account and
+stops when you sign out.
+
+**As a system service** (Windows). For a machine that must receive with nobody signed in.
+*Install the service* asks for administrator rights once, then:
+
+- creates the `SyslogStudio` service, started automatically at boot under the virtual
+  account `NT SERVICE\SyslogStudio`, restarted after a failure;
+- copies your listeners, alert rules, routes and destinations (credentials included) and your
+  TLS certificate into `%ProgramData%\SyslogStudio`, readable by the service and
+  administrators only — credentials and the private key additionally sealed with DPAPI;
+- adds an inbound firewall rule for the executable on domain and private networks;
+- stops this window's own listeners, since the service takes the ports.
+
+The service's database is **not encrypted**: there is nobody to type the password at boot.
+The installation says so and, when your own database is encrypted, asks you to confirm.
+SyslogStudio must be installed for all users (in Program Files) to install the service: a
+service runs under a system account, and a copy an ordinary user can replace would hand that
+account to whoever replaces it. This window does not show the service's messages yet.
+
+To check on it or find out why it does not start:
+
+```
+SyslogStudio.exe service status     state, listeners, messages received, last error
+```
+
+Its errors also go to the Windows **Application** event log (source `SyslogStudio`), and its
+own log is `%ProgramData%\SyslogStudio\logs\service.log`. `service start`, `stop`,
+`uninstall [--purge]` do what they say, from an administrator prompt. Updating SyslogStudio
+with the installer stops the service for the update and starts it again.
+
+**Headless, anywhere.** `SyslogStudio --headless [--data-dir DIR]` runs the engine in the
+foreground with no window until interrupted — under systemd or launchd, or in a terminal. By
+default it uses the application's own configuration directory, so you can set it up in the
+window first; it refuses an encrypted configuration, and refuses to share a directory with a
+running window. On Linux the binary is linked against GTK and WebKitGTK even when it opens no
+window, so a server needs those libraries installed — the `.deb` pulls them in. A minimal
+systemd unit:
+
+```ini
+[Service]
+ExecStart=/opt/SyslogStudio/SyslogStudio --headless --data-dir /var/lib/syslogstudio
+User=syslogstudio
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+Restart=on-failure
+```
+
 ### Where things are kept
 
 | Platform | Directory |
@@ -279,6 +357,7 @@ each of these, and everything except receiving can be tried in the
 | Windows | `%APPDATA%\SyslogStudio\` |
 | macOS | `~/Library/Application Support/SyslogStudio/` |
 | Linux | `~/.config/SyslogStudio/` |
+| Windows service | `%ProgramData%\SyslogStudio\` |
 
 `config.json` holds settings, rules and destinations; `logs.db` the messages;
 `sinksecrets.json` the destination credentials; `ca.json` and `server-cert.json` the

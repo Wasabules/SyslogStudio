@@ -33,20 +33,43 @@
     import Notify from './components/Notify.svelte';
     import CloseDialog from './components/CloseDialog.svelte';
     import UnlockScreen from './components/UnlockScreen.svelte';
-    import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted } from './lib/api';
+    import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted, getAutoStartError, getDataDirConflict } from './lib/api';
+    import { watchSystemService, unwatchSystemService } from './lib/systemService';
+    import ServiceBanner from './components/ServiceBanner.svelte';
+    import DataDirConflict from './components/DataDirConflict.svelte';
     import { toastError, toastInfo, toastSuccess } from './lib/toast';
     import { updateStore } from './lib/updateStore';
     import UpdateBanner from './components/UpdateBanner.svelte';
 
     let showTLSConfig = false;
     let showSettings = false;
+    let settingsTab: '' | 'background' = '';
     let dbLocked = false;
+    let dataDirConflict = '';
 
     function startApp() {
         initEventListeners();
         updateStore.loadVersion();
         maybeAutoCheck();
         maybeWarnCAPlaintext();
+        maybeReportAutoStart();
+        watchSystemService();
+    }
+
+    function openSettings(tab: '' | 'background' = '') {
+        settingsTab = tab;
+        showSettings = true;
+    }
+
+    // Receiving can be started on launch, before this window has loaded; a
+    // failure then is collected here, once, so it is said rather than lost.
+    async function maybeReportAutoStart() {
+        try {
+            const msg = await getAutoStartError();
+            if (msg) toastError($_('background.autoStartFailed', { values: { error: msg } }));
+        } catch {
+            /* ignore */
+        }
     }
 
     // maybeWarnCAPlaintext alerts the user when a certificate authority private
@@ -85,6 +108,10 @@
 
     onMount(async () => {
         try {
+            dataDirConflict = await getDataDirConflict();
+            if (dataDirConflict) return;
+        } catch {}
+        try {
             const locked = await isEncryptionLocked();
             if (locked) {
                 dbLocked = true;
@@ -96,10 +123,13 @@
 
     onDestroy(() => {
         destroyEventListeners();
+        unwatchSystemService();
     });
 </script>
 
-{#if dbLocked}
+{#if dataDirConflict}
+    <DataDirConflict detail={dataDirConflict} />
+{:else if dbLocked}
     <UnlockScreen onUnlocked={onUnlocked} />
 {:else}
 <div class="app-layout">
@@ -169,7 +199,7 @@
                     <circle cx="15" cy="10" r="1.2" fill="currentColor"/>
                 </svg>
             </button>
-            <button class="nav-btn settings-btn" on:click={() => showSettings = true}
+            <button class="nav-btn settings-btn" on:click={() => openSettings()}
                     title={$_('settings.title')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -221,6 +251,7 @@
         <UpdateBanner />
         <ServerControls onTLSConfig={() => showTLSConfig = true} />
         <AnonymousBanner />
+        <ServiceBanner onOpenSettings={() => openSettings('background')} />
 
         {#if $activeView === 'logs'}
             <FilterBar />
@@ -248,7 +279,8 @@
 
 <Settings
     visible={showSettings}
-    onClose={() => showSettings = false}
+    initialTab={settingsTab}
+    onClose={() => { showSettings = false; settingsTab = ''; }}
 />
 
 <CloseDialog />

@@ -201,6 +201,56 @@ Switch to the **Dashboard** view using the sidebar navigation. The dashboard dis
 
 Statistics are updated every second while the server is running.
 
+## Running in the Background
+
+SyslogStudio can keep receiving with its window closed, in two ways, both set up in
+**Settings > Background**.
+
+### In your session
+
+- **Start SyslogStudio when I sign in** -- the application starts hidden in the system tray when
+  you sign in, under your account and with your settings, and stops when you sign out. No
+  administrator rights are needed.
+- **Start receiving when SyslogStudio opens** -- the listeners start as last saved, without
+  pressing Start. If the database is encrypted, the window appears at sign-in to ask for the
+  password and returns to the tray afterwards.
+
+### As a system service (Windows)
+
+For a machine that must receive with nobody signed in. **Install the service** asks for
+administrator rights once, creates the `SyslogStudio` service (automatic start at boot, account
+`NT SERVICE\SyslogStudio`, restart on failure), copies your listeners, alert rules, routes,
+destinations with their credentials and your TLS certificate to `%ProgramData%\SyslogStudio`,
+and adds an inbound firewall rule on domain and private networks. This window stops its own
+listeners, since the service takes over the ports.
+
+Requirements and limits:
+
+- SyslogStudio must be installed **for all users** (Program Files). A per-user or portable copy
+  cannot be installed as a service.
+- The service's database is not encrypted -- nobody is there to type a password at boot. Its
+  directory is readable by administrators only, and its credentials and private key are sealed
+  with DPAPI.
+- This window does not show the service's messages yet; they are in the service's database.
+
+**Update its configuration** copies the window's current settings to the service again and
+restarts it. **Start**, **Stop** and **Uninstall** each ask for administrator rights.
+
+### Troubleshooting the service
+
+- `SyslogStudio.exe service status` prints the state, the listeners, the number of messages
+  received and the last error. Pipe it through `more` when running it from `cmd`.
+- Start-up errors are written to the Windows **Application** event log, source `SyslogStudio`.
+- The service's own log is `%ProgramData%\SyslogStudio\logs\service.log`.
+- A port already in use at boot makes the service retry after 5 s, 30 s, then every minute.
+
+### Headless
+
+`SyslogStudio --headless [--data-dir DIR]` runs the receiver with no window, in the
+foreground, until interrupted -- for systemd, launchd or a terminal. Without `--data-dir` it uses
+the application's own configuration directory. It refuses an encrypted configuration, and a
+directory another SyslogStudio already has open.
+
 ## Theme
 
 SyslogStudio supports both **light** and **dark** themes. Toggle between them using the theme button in the sidebar. Your preference is saved to the browser's local storage and persists across sessions.

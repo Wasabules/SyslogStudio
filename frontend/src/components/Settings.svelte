@@ -23,12 +23,18 @@
     import { enableEncryption, disableEncryption, isEncryptionEnabled, getUpdateConfig, setUpdateConfig,
              getCloseAction, setCloseAction, type CloseAction } from '../lib/api';
     import { updateStore } from '../lib/updateStore';
+    import BackgroundSettings from './BackgroundSettings.svelte';
 
     export let visible = false;
     export let onClose: () => void = () => {};
+    // Opens Settings on a given tab — the service banner opens Background.
+    export let initialTab: Tab | '' = '';
 
-    type Tab = 'general' | 'storage' | 'about';
+    type Tab = 'general' | 'storage' | 'background' | 'about';
     let activeTab: Tab = 'general';
+    $: if (visible && initialTab) activeTab = initialTab;
+    // A dialog open inside the Background tab takes Escape first.
+    let backgroundOverlayOpen = false;
 
     // --- General ---
     let enableNotifications = false;
@@ -53,6 +59,7 @@
 
     function handleKeydown(e: KeyboardEvent) {
         if (!visible || e.key !== 'Escape') return;
+        if (backgroundOverlayOpen) return;
         // Escape dismisses the confirmation overlay first, if open, rather than
         // closing the whole Settings panel underneath it.
         if (showEncryptionWarning) {
@@ -400,6 +407,10 @@
                         on:click={() => activeTab = 'storage'}>
                     {$_('settings.storage')}
                 </button>
+                <button class="tab" class:active={activeTab === 'background'}
+                        on:click={() => activeTab = 'background'}>
+                    {$_('background.tab')}
+                </button>
                 <button class="tab" class:active={activeTab === 'about'}
                         on:click={() => activeTab = 'about'}>
                     {$_('settings.about')}
@@ -702,6 +713,9 @@
                             {$_('settings.clearAllLogs')}
                         </button>
                     </div>
+
+                {:else if activeTab === 'background'}
+                    <BackgroundSettings bind:overlayOpen={backgroundOverlayOpen} />
 
                 {:else if activeTab === 'about'}
                     <div class="about-section">

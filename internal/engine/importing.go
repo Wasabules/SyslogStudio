@@ -60,6 +60,9 @@ func (e *Engine) ImportLogFile(path string, persist bool, format models.ImportFo
 	if path == "" {
 		return importer.Result{}, fmt.Errorf("no file chosen")
 	}
+	if e.openErr != nil {
+		return importer.Result{}, e.openErr
+	}
 
 	opts := e.importOptions(path, format)
 	// Sized to the ring the viewer reads from: importing more than it can hold

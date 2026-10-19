@@ -32,6 +32,12 @@ type PEMStore struct {
 	dir       string
 	plainName string
 	encName   string
+	sealer    Sealer
+}
+
+// SetSealer makes the store seal what it would otherwise write in plaintext.
+func (s *PEMStore) SetSealer(sealer Sealer) {
+	s.sealer = sealer
 }
 
 // NewCAStore creates the store for the generated CA, in the given directory
@@ -92,7 +98,11 @@ func (s *PEMStore) Save(certPEM, keyPEM []byte, password string) error {
 		return nil
 	}
 
-	if err := writeFileSync(s.plainPath(), data, 0600); err != nil {
+	sealed, err := sealBytes(s.sealer, data)
+	if err != nil {
+		return err
+	}
+	if err := writeFileSync(s.plainPath(), sealed, 0600); err != nil {
 		return fmt.Errorf("write %s: %w", s.plainName, err)
 	}
 	_ = os.Remove(s.encPath())
@@ -118,7 +128,11 @@ func (s *PEMStore) Load(password string) (certPEM, keyPEM []byte, err error) {
 		}
 		raw = dec
 	} else if plain, rerr := os.ReadFile(s.plainPath()); rerr == nil {
-		raw = plain
+		unsealed, uerr := unsealBytes(s.sealer, plain)
+		if uerr != nil {
+			return nil, nil, uerr
+		}
+		raw = unsealed
 	} else {
 		return nil, nil, nil // nothing persisted
 	}

@@ -11,6 +11,7 @@
 package engine
 
 import (
+	"fmt"
 	"log/slog"
 
 	"SyslogStudio/internal/event"
@@ -38,6 +39,12 @@ type Engine struct {
 	secretStore     *storage.SecretStore
 
 	encryptionPassword string // in-memory only for session
+
+	// releaseDir gives the data directory back. openErr is why Open could not
+	// claim it: the engine then runs without its database and refuses to
+	// receive, so a second process never writes into the first one's files.
+	releaseDir func()
+	openErr    error
 }
 
 // New builds an engine whose configuration, database and keys all live in the
@@ -81,7 +88,12 @@ func (e *Engine) withDBPath(cfg models.StorageConfig) models.StorageConfig {
 // Open starts what the engine runs: the receiver (stopped until StartServer),
 // the routing, the database, and the persisted rules and certificates.
 // Events — new messages, statistics, alerts — go to emitter.
-func (e *Engine) Open(emitter event.EventEmitter) {
+//
+// It fails when another process already has the data directory. The engine is
+// still usable as far as reading its configuration goes — every method keeps
+// working — but it opens no database and StartServer returns the same error,
+// so the caller can say what is wrong instead of crashing on it.
+func (e *Engine) Open(emitter event.EventEmitter) error {
 	e.emitter = emitter
 	e.server = syslog.NewSyslogServer(emitter, e.tlsManager)
 	e.simulator = simulator.New(emitter)
@@ -110,6 +122,14 @@ func (e *Engine) Open(emitter event.EventEmitter) {
 	// that caused it, and the operator would be none the wiser.
 	e.dispatcher.SetOnTrip(e.persistTrippedSink)
 	e.reconfigureNotify()
+
+	release, err := storage.LockDir(e.DataDir())
+	if err != nil {
+		e.openErr = fmt.Errorf("%w (%s)", err, e.DataDir())
+		slog.Warn("data directory already in use; running without a database", "dir", e.DataDir(), "error", err)
+		return e.openErr
+	}
+	e.releaseDir = release
 
 	// Initialize log store
 	storageCfg := e.withDBPath(e.configStore.LoadStorage())
@@ -144,6 +164,12 @@ func (e *Engine) Open(emitter event.EventEmitter) {
 			slog.Warn("failed to load the persisted server certificate", "error", err)
 		}
 	}
+	return nil
+}
+
+// OpenError is why Open could not claim the data directory, or nil.
+func (e *Engine) OpenError() error {
+	return e.openErr
 }
 
 // Close stops everything and flushes what is pending: the simulator, the
@@ -162,5 +188,9 @@ func (e *Engine) Close() {
 	}
 	if e.logStore != nil {
 		e.logStore.Close()
+	}
+	if e.releaseDir != nil {
+		e.releaseDir()
+		e.releaseDir = nil
 	}
 }

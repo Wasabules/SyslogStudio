@@ -60,11 +60,17 @@ export function GetAlertRules():Promise<Array<models.AlertRule>>;
 
 export function GetAppVersion():Promise<string>;
 
+export function GetAutoStartError():Promise<string>;
+
+export function GetBackgroundSettings():Promise<models.BackgroundSettings>;
+
 export function GetCACertInfo():Promise<models.CertInfo>;
 
 export function GetCertificateInfo(arg1:models.ServerConfig):Promise<models.CertInfo>;
 
 export function GetCloseAction():Promise<string>;
+
+export function GetDataDirConflict():Promise<string>;
 
 export function GetDefaultCertOptions():Promise<models.CertOptions>;
 
@@ -102,6 +108,8 @@ export function GetStorageConfig():Promise<models.StorageConfig>;
 
 export function GetStorageStats():Promise<models.StorageStats>;
 
+export function GetSystemService():Promise<models.SystemServiceInfo>;
+
 export function GetUnlockAttemptsRemaining():Promise<number>;
 
 export function GetUnlockLockoutSeconds():Promise<number>;
@@ -111,6 +119,8 @@ export function GetUpdateConfig():Promise<models.UpdateConfig>;
 export function HideToBackground():Promise<void>;
 
 export function ImportLogFile(arg1:string,arg2:boolean,arg3:models.ImportFormat):Promise<importer.Result>;
+
+export function InstallSystemService():Promise<void>;
 
 export function IsCAKeyUnencrypted():Promise<boolean>;
 
@@ -152,7 +162,11 @@ export function SelectKeyFile():Promise<string>;
 
 export function SelectLogFile():Promise<string>;
 
+export function SetAutoStartListeners(arg1:boolean):Promise<void>;
+
 export function SetCloseAction(arg1:string):Promise<void>;
+
+export function SetLaunchAtLogin(arg1:boolean):Promise<void>;
 
 export function SetStorageConfig(arg1:models.StorageConfig):Promise<void>;
 
@@ -166,11 +180,17 @@ export function StartServer(arg1:models.ServerConfig):Promise<void>;
 
 export function StartSimulator(arg1:models.SimulatorConfig):Promise<void>;
 
+export function StartSystemService():Promise<void>;
+
 export function StopServer():Promise<void>;
 
 export function StopSimulator():Promise<void>;
 
+export function StopSystemService():Promise<void>;
+
 export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
+
+export function UninstallSystemService(arg1:boolean):Promise<void>;
 
 export function UnlockDatabase(arg1:string):Promise<void>;
 

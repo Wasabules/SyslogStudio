@@ -293,6 +293,40 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
 
   <section class="section">
     <div class="wrap wrap-narrow">
+      <h2 style="margin-top:0">8 · Keep receiving with no window</h2>
+      <p>
+        <strong>Settings › Background</strong> offers two ways, kept apart because they are
+        for different situations.
+      </p>
+      <h3>In your session</h3>
+      <p>
+        <em>Start SyslogStudio when I sign in</em> starts the application hidden in the tray,
+        under your account and with your settings; <em>Start receiving when SyslogStudio
+        opens</em> starts the listeners as last saved. No administrator is needed. With an
+        encrypted database the window asks for the password at sign-in, then returns to the
+        tray.
+      </p>
+      <h3>As a Windows service</h3>
+      <p>
+        For a machine that must receive with nobody signed in. One administrator prompt
+        installs a service that starts at boot under its own account
+        (<code>NT SERVICE\SyslogStudio</code>), with your listeners, rules, destinations and
+        TLS certificate copied to <code>%ProgramData%\SyslogStudio</code>, a firewall rule for
+        domain and private networks, and a restart after any failure. Its database is not
+        encrypted — nobody is there to type a password at boot — and its directory is readable
+        by administrators only. SyslogStudio has to be installed for all users to install it.
+      </p>
+      <p>
+        <code>SyslogStudio.exe service status</code> shows its state, listeners and last error;
+        start-up errors also go to the Application event log. On Linux and macOS,
+        <code>SyslogStudio --headless</code> runs the receiver with no window under systemd or
+        launchd.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap wrap-narrow">
       <h2 style="margin-top:0">Where things are kept</h2>
       <table>
         <thead><tr><th>Platform</th><th>Configuration and database</th></tr></thead>
@@ -300,6 +334,7 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
           <tr><td>Windows</td><td><code>%APPDATA%\SyslogStudio\</code></td></tr>
           <tr><td>macOS</td><td><code>~/Library/Application Support/SyslogStudio/</code></td></tr>
           <tr><td>Linux</td><td><code>~/.config/SyslogStudio/</code></td></tr>
+          <tr><td>Windows service</td><td><code>%ProgramData%\SyslogStudio\</code></td></tr>
         </tbody>
       </table>
       <p class="muted small">

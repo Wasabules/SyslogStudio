@@ -11,6 +11,9 @@ import (
 )
 
 func (e *Engine) StartServer(config models.ServerConfig) error {
+	if e.openErr != nil {
+		return e.openErr
+	}
 	// A saved identity that is not loaded — still encrypted, or unreadable —
 	// must stop the start rather than be replaced. Generating a fresh one here
 	// would hand clients a certificate they were never told to trust, and

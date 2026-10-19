@@ -27,6 +27,17 @@ Unicode true
 !include "wails_tools.nsh"
 !include "MUI2.nsh"
 !include "nsDialogs.nsh"
+!include "StrFunc.nsh"
+
+; StrFunc functions must be declared once per side before use.
+${StrStr}
+${UnStrStr}
+
+; The Windows service SyslogStudio can install (Settings > Background). It
+; runs this very executable, so an update has to stop it to replace the file
+; and start it again afterwards, and an uninstall has to remove it first.
+!define SERVICE_NAME "SyslogStudio"
+Var ServiceWasRunning
 
 ; ====================================================================
 ;  Version information
@@ -242,9 +253,48 @@ Section "${INFO_PRODUCTNAME}" SecMain
     ; Install WebView2 runtime if missing
     !insertmacro wails.webview2runtime
 
+    ; A running service holds the executable open, and Windows refuses to
+    ; replace a file in use. Only an all-users install can host the service.
+    StrCpy $ServiceWasRunning "0"
+    ${If} $InstMode == "allusers"
+        nsExec::ExecToStack 'sc.exe query ${SERVICE_NAME}'
+        Pop $0
+        Pop $1
+        ${If} $0 == 0
+            ${StrStr} $2 $1 "RUNNING"
+            ${If} $2 != ""
+                StrCpy $ServiceWasRunning "1"
+                DetailPrint "Stopping the SyslogStudio service for the update"
+                nsExec::ExecToLog 'sc.exe stop ${SERVICE_NAME}'
+                Pop $0
+                StrCpy $3 0
+                ${Do}
+                    Sleep 500
+                    nsExec::ExecToStack 'sc.exe query ${SERVICE_NAME}'
+                    Pop $0
+                    Pop $1
+                    ${StrStr} $2 $1 "STOPPED"
+                    ${If} $2 != ""
+                        ${ExitDo}
+                    ${EndIf}
+                    IntOp $3 $3 + 1
+                ${LoopUntil} $3 >= 60
+            ${EndIf}
+        ${EndIf}
+    ${EndIf}
+
     ; Copy application binary
     SetOutPath $INSTDIR
     !insertmacro wails.files
+
+    ; Start it again: an update must not leave the machine without the
+    ; receiver it relies on. A service the administrator had stopped stays
+    ; stopped.
+    ${If} $ServiceWasRunning == "1"
+        DetailPrint "Starting the SyslogStudio service again"
+        nsExec::ExecToLog 'sc.exe start ${SERVICE_NAME}'
+        Pop $0
+    ${EndIf}
 
     ; File & protocol associations (no-op when none are defined in wails.json)
     !insertmacro wails.associateFiles
@@ -323,6 +373,20 @@ Function un.onInit
 FunctionEnd
 
 Section "Uninstall"
+    ; ---- Remove the service, while the executable that knows how is still
+    ; here: it stops the service and removes it with its firewall rule and its
+    ; event log source. Its data goes only if the user asks, below.
+    ${If} $InstMode == "allusers"
+        nsExec::ExecToStack 'sc.exe query ${SERVICE_NAME}'
+        Pop $0
+        Pop $1
+        ${If} $0 == 0
+            DetailPrint "Removing the SyslogStudio service"
+            nsExec::ExecToLog '"$INSTDIR\${PRODUCT_EXECUTABLE}" service uninstall'
+            Pop $0
+        ${EndIf}
+    ${EndIf}
+
     ; ---- Remove application files ----
     Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
     Delete "$INSTDIR\uninstall.exe"
@@ -361,5 +425,12 @@ Section "Uninstall"
     removeData:
         ; Config and database in %AppData%\SyslogStudio
         RMDir /r "$AppData\SyslogStudio"
+        ; And the service's, when this was an all-users install.
+        ${If} $InstMode == "allusers"
+            ReadEnvStr $0 PROGRAMDATA
+            ${If} $0 != ""
+                RMDir /r "$0\SyslogStudio"
+            ${EndIf}
+        ${EndIf}
     done:
 SectionEnd

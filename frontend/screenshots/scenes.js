@@ -17,6 +17,8 @@
  * order of the buttons in App.svelte.
  */
 
+import { SYSTEM_SERVICE_RUNNING } from './fixtures.js';
+
 const THEMES = ['dark', 'light'];
 
 export const NAV = {
@@ -133,6 +135,20 @@ const BASE = [
     bindings: { SelectLogFile: '/var/log/collector/nightly-archive.log' },
     settle: 900,
     expect: { selector: '.modal .format input.mono', atLeast: 1 },
+  },
+  {
+    name: 'background',
+    title: 'Receiving with no window: in the session, or as a service',
+    nav: NAV.logs,
+    // The gear at the bottom of the sidebar, then the Background tab — the
+    // third, after General and Storage.
+    click: [
+      { selector: '.settings-btn' },
+      { selector: '.tab', nth: 2 },
+    ],
+    bindings: { GetSystemService: SYSTEM_SERVICE_RUNNING },
+    settle: 700,
+    expect: { selector: '.card', atLeast: 2 },
   },
   {
     name: 'anonymous',

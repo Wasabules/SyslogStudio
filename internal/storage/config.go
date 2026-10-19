@@ -382,6 +382,22 @@ func (cs *ConfigStore) SaveImportFormat(f models.ImportFormat) {
 	cs.saveAll(all)
 }
 
+// LoadBackground reads the desktop application's start-up choices.
+func (cs *ConfigStore) LoadBackground() models.BackgroundPrefs {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.loadAll().Background
+}
+
+// SaveBackground writes them.
+func (cs *ConfigStore) SaveBackground(p models.BackgroundPrefs) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.Background = p
+	cs.saveAll(all)
+}
+
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
 	cs.mu.Lock()
