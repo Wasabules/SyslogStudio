@@ -48,6 +48,7 @@ func main() {
 	if handled, code := runCommandLine(os.Args[1:]); handled {
 		os.Exit(code)
 	}
+	waitAfterUpdate(os.Args[1:])
 	// Started at sign-in by the registration: hidden in the tray, not a window
 	// in the user's face at every login.
 	background := hasArg(os.Args[1:], autostart.BackgroundFlag)

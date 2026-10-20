@@ -106,3 +106,25 @@ func TestDataDirConflict(t *testing.T) {
 		t.Error("the first engine reports a conflict it does not have")
 	}
 }
+
+// An updated copy is relaunched with the process it replaces, and waits for it.
+func TestAfterUpdatePID(t *testing.T) {
+	tests := []struct {
+		args []string
+		pid  int
+		ok   bool
+	}{
+		{[]string{"--after-update", "4242"}, 4242, true},
+		{[]string{"--background", "--after-update", "7"}, 7, true},
+		{[]string{"--after-update"}, 0, false},
+		{[]string{"--after-update", "x"}, 0, false},
+		{[]string{"--after-update", "-3"}, -3, false},
+		{nil, 0, false},
+	}
+	for _, tt := range tests {
+		pid, ok := afterUpdatePID(tt.args)
+		if ok != tt.ok || (ok && pid != tt.pid) {
+			t.Errorf("afterUpdatePID(%q) = %d, %v; want %d, %v", tt.args, pid, ok, tt.pid, tt.ok)
+		}
+	}
+}

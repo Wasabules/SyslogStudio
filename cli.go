@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"SyslogStudio/internal/autostart"
 	"SyslogStudio/internal/headless"
@@ -72,6 +74,26 @@ func runCommandLine(args []string) (handled bool, code int) {
 		return true, 0
 	}
 	return false, 0
+}
+
+// waitAfterUpdate holds a copy started by an update until the copy it
+// replaces has exited: that one keeps the single-instance lock until then,
+// and a second instance that finds the lock held exits at once.
+func waitAfterUpdate(args []string) {
+	if pid, ok := afterUpdatePID(args); ok {
+		updater.WaitForExit(pid, 30*time.Second)
+	}
+}
+
+// afterUpdatePID returns the process given with --after-update.
+func afterUpdatePID(args []string) (int, bool) {
+	for i, a := range args {
+		if a == updater.AfterUpdateFlag && i+1 < len(args) {
+			pid, err := strconv.Atoi(args[i+1])
+			return pid, err == nil && pid > 0
+		}
+	}
+	return 0, false
 }
 
 // hasArg reports whether a flag was given, for the ones the desktop
