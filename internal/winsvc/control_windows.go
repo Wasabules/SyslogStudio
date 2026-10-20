@@ -85,11 +85,18 @@ func addOperator(dir, sid string) (added bool, err error) {
 }
 
 // controlSDDL is the pipe's security descriptor: the system, administrators
-// (elevated: a filtered token holds the group for denying only), and the
-// operators, who may read and write — talk to it — and nothing more.
-func controlSDDL(ops []Operator) string {
+// (elevated: a filtered token holds the group for denying only), the account
+// serving it, and the operators, who may read and write — talk to it — and
+// nothing more.
+//
+// The serving account is not a formality. Each connection is accepted on a
+// new instance of the pipe, which the server opens like any other caller,
+// against this very descriptor: leave its account out and the service creates
+// the pipe, then is refused every instance it needs to answer on.
+func controlSDDL(self string, ops []Operator) string {
 	var b strings.Builder
 	b.WriteString("D:P(A;;GA;;;SY)(A;;GA;;;BA)")
+	fmt.Fprintf(&b, "(A;;GA;;;%s)", self)
 	for _, op := range ops {
 		fmt.Fprintf(&b, "(A;;GRGW;;;%s)", op.SID)
 	}
@@ -108,12 +115,16 @@ func ListenControl() (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return listenControl(ControlPipe, ops)
+	self, err := CurrentUserSID()
+	if err != nil {
+		return nil, err
+	}
+	return listenControl(ControlPipe, self, ops)
 }
 
-func listenControl(path string, ops []Operator) (net.Listener, error) {
+func listenControl(path, self string, ops []Operator) (net.Listener, error) {
 	return winio.ListenPipe(path, &winio.PipeConfig{
-		SecurityDescriptor: controlSDDL(ops),
+		SecurityDescriptor: controlSDDL(self, ops),
 		InputBufferSize:    64 << 10,
 		OutputBufferSize:   64 << 10,
 	})

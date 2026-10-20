@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"sync"
+	"time"
 )
 
 // eventQueue is how many frames a window may fall behind by before it is
@@ -34,6 +35,8 @@ type Server struct {
 	conns     map[*serverConn]struct{}
 	listeners map[net.Listener]struct{}
 	closed    bool
+	// done is closed by Close, to wake Serve from its wait between retries.
+	done chan struct{}
 }
 
 // NewServer serves host's methods — those of the Host interface, and no
@@ -48,6 +51,7 @@ func NewServer(host Host, version string, log *slog.Logger) *Server {
 		log:       log,
 		conns:     map[*serverConn]struct{}{},
 		listeners: map[net.Listener]struct{}{},
+		done:      make(chan struct{}),
 	}
 	v := reflect.ValueOf(host)
 	t := reflect.TypeOf((*Host)(nil)).Elem()
@@ -74,22 +78,44 @@ func (s *Server) Serve(l net.Listener) error {
 		s.mu.Unlock()
 	}()
 
+	// A failed accept is not the end of the listener — a named pipe reports
+	// an instance it could not open, and carries on. Giving up would leave the
+	// service receiving with no window able to reach it until it restarts, so
+	// it says why and tries again, less and less often.
+	delay := acceptRetryMin
 	for {
 		c, err := l.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil
-			}
-			s.mu.Lock()
-			closed := s.closed
-			s.mu.Unlock()
-			if closed {
-				return nil
-			}
-			return err
+		if err == nil {
+			delay = acceptRetryMin
+			go s.ServeConn(c)
+			continue
 		}
-		go s.ServeConn(c)
+		if errors.Is(err, net.ErrClosed) || s.isClosed() {
+			return nil
+		}
+		s.log.Warn("could not accept a window; retrying", "error", err, "in", delay)
+		select {
+		case <-time.After(delay):
+		case <-s.done:
+			return nil
+		}
+		if delay *= 2; delay > acceptRetryMax {
+			delay = acceptRetryMax
+		}
 	}
+}
+
+// How long Serve waits after a failed accept, doubling from the first to the
+// second.
+const (
+	acceptRetryMin = 100 * time.Millisecond
+	acceptRetryMax = 30 * time.Second
+)
+
+func (s *Server) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
 }
 
 // ServeConn talks to one window until it disconnects.
@@ -229,6 +255,9 @@ func (s *Server) Windows() int {
 // Close stops accepting and disconnects every window.
 func (s *Server) Close() {
 	s.mu.Lock()
+	if !s.closed {
+		close(s.done)
+	}
 	s.closed = true
 	listeners := s.listeners
 	conns := s.conns

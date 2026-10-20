@@ -291,3 +291,56 @@ func TestSwitch_ForwardsToTheCurrentBackend(t *testing.T) {
 		t.Fatalf("after Set: port %d", got)
 	}
 }
+
+// flakyListener fails its first accepts, as a named pipe does when it cannot
+// open an instance, then hands out one connection.
+type flakyListener struct {
+	fails int
+	conn  net.Conn
+	once  sync.Once
+	block chan struct{}
+}
+
+func (l *flakyListener) Accept() (net.Conn, error) {
+	if l.fails > 0 {
+		l.fails--
+		return nil, errors.New("access is denied")
+	}
+	var c net.Conn
+	l.once.Do(func() { c = l.conn })
+	if c != nil {
+		return c, nil
+	}
+	<-l.block
+	return nil, net.ErrClosed
+}
+func (l *flakyListener) Close() error   { return nil }
+func (l *flakyListener) Addr() net.Addr { return nil }
+
+// A failed accept does not end the serving: windows must still reach a
+// service that met one, without it restarting.
+func TestServer_KeepsServingAfterAFailedAccept(t *testing.T) {
+	eng := engine.New(storage.NewConfigStoreAt(t.TempDir()))
+	srv := NewServer(eng, "", nil)
+	window, service := net.Pipe()
+	l := &flakyListener{fails: 2, conn: service, block: make(chan struct{})}
+	served := make(chan error, 1)
+	go func() { served <- srv.Serve(l) }()
+
+	c, err := NewClient(window, "", nil)
+	if err != nil {
+		t.Fatalf("no window got through after the failed accepts: %v", err)
+	}
+	c.Close()
+
+	srv.Close()
+	close(l.block)
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("Serve: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after Close")
+	}
+}
