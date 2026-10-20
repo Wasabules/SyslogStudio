@@ -38,6 +38,10 @@ type App struct {
 	// opened twice on the same file.
 	prefs   *storage.ConfigStore
 	updater *updater.Service
+
+	// bg is how this run started and what that still owes: listeners to
+	// start, a window to hide again.
+	bg backgroundState
 }
 
 // NewApp creates a new App application struct.
@@ -49,20 +53,30 @@ func NewApp() *App {
 // root one in a temporary directory.
 func newAppIn(cs *storage.ConfigStore) *App {
 	eng := engine.New(cs)
-	return &App{
+	a := &App{
 		Backend: eng,
 		keys:    eng,
 		engine:  eng,
 		prefs:   eng.ConfigStore(),
 		updater: updater.NewService("Wasabules", "SyslogStudio"),
 	}
+	// An update quits for real: closing to the tray, or asking, would leave
+	// the executable running and locked against the installer.
+	a.updater.SetQuit(a.QuitApplication)
+	return a
 }
 
 // startup is called when the app starts.
+//
+// An engine that cannot claim its data directory — another SyslogStudio has
+// it — still opens far enough to answer questions; the window asks
+// GetDataDirConflict and explains instead of receiving.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.updater.SetContext(ctx)
-	a.engine.Open(event.NewWailsEventEmitter(ctx))
+	if err := a.engine.Open(event.NewWailsEventEmitter(ctx)); err != nil {
+		slog.Warn("the engine could not claim its data directory", "error", err)
+	}
 }
 
 // shutdown is called when the app is closing.

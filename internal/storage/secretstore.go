@@ -36,8 +36,19 @@ type SecretStore struct {
 
 	mu       sync.Mutex
 	password string
+	sealer   Sealer
 	cache    map[string]storedSecret
 	loaded   bool
+}
+
+// SetSealer makes the store seal what it would otherwise write in plaintext.
+// Called once, before the store is used.
+func (s *SecretStore) SetSealer(sealer Sealer) {
+	s.mu.Lock()
+	s.sealer = sealer
+	s.loaded = false
+	s.cache = make(map[string]storedSecret)
+	s.mu.Unlock()
 }
 
 // NewSecretStore creates a store in the given directory. An empty dir disables
@@ -112,7 +123,11 @@ func (s *SecretStore) load() error {
 		}
 		raw = dec
 	} else if plain, err := os.ReadFile(s.plainPath()); err == nil {
-		raw = plain
+		unsealed, uerr := unsealBytes(s.sealer, plain)
+		if uerr != nil {
+			return uerr
+		}
+		raw = unsealed
 	} else {
 		s.loaded = true
 		return nil // nothing stored yet
@@ -158,7 +173,11 @@ func (s *SecretStore) save() error {
 		return nil
 	}
 
-	if err := os.WriteFile(s.plainPath(), data, 0600); err != nil {
+	sealed, err := sealBytes(s.sealer, data)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(s.plainPath(), sealed, 0600); err != nil {
 		return err
 	}
 	_ = os.Remove(s.encPath())

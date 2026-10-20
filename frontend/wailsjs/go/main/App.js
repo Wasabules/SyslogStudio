@@ -114,6 +114,14 @@ export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
 }
 
+export function GetAutoStartError() {
+  return window['go']['main']['App']['GetAutoStartError']();
+}
+
+export function GetBackgroundSettings() {
+  return window['go']['main']['App']['GetBackgroundSettings']();
+}
+
 export function GetCACertInfo() {
   return window['go']['main']['App']['GetCACertInfo']();
 }
@@ -124,6 +132,10 @@ export function GetCertificateInfo(arg1) {
 
 export function GetCloseAction() {
   return window['go']['main']['App']['GetCloseAction']();
+}
+
+export function GetDataDirConflict() {
+  return window['go']['main']['App']['GetDataDirConflict']();
 }
 
 export function GetDefaultCertOptions() {
@@ -198,6 +210,10 @@ export function GetStorageStats() {
   return window['go']['main']['App']['GetStorageStats']();
 }
 
+export function GetSystemService() {
+  return window['go']['main']['App']['GetSystemService']();
+}
+
 export function GetUnlockAttemptsRemaining() {
   return window['go']['main']['App']['GetUnlockAttemptsRemaining']();
 }
@@ -216,6 +232,10 @@ export function HideToBackground() {
 
 export function ImportLogFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ImportLogFile'](arg1, arg2, arg3);
+}
+
+export function InstallSystemService() {
+  return window['go']['main']['App']['InstallSystemService']();
 }
 
 export function IsCAKeyUnencrypted() {
@@ -298,8 +318,16 @@ export function SelectLogFile() {
   return window['go']['main']['App']['SelectLogFile']();
 }
 
+export function SetAutoStartListeners(arg1) {
+  return window['go']['main']['App']['SetAutoStartListeners'](arg1);
+}
+
 export function SetCloseAction(arg1) {
   return window['go']['main']['App']['SetCloseAction'](arg1);
+}
+
+export function SetLaunchAtLogin(arg1) {
+  return window['go']['main']['App']['SetLaunchAtLogin'](arg1);
 }
 
 export function SetStorageConfig(arg1) {
@@ -326,6 +354,10 @@ export function StartSimulator(arg1) {
   return window['go']['main']['App']['StartSimulator'](arg1);
 }
 
+export function StartSystemService() {
+  return window['go']['main']['App']['StartSystemService']();
+}
+
 export function StopServer() {
   return window['go']['main']['App']['StopServer']();
 }
@@ -334,8 +366,16 @@ export function StopSimulator() {
   return window['go']['main']['App']['StopSimulator']();
 }
 
+export function StopSystemService() {
+  return window['go']['main']['App']['StopSystemService']();
+}
+
 export function TestNotifySink(arg1) {
   return window['go']['main']['App']['TestNotifySink'](arg1);
+}
+
+export function UninstallSystemService(arg1) {
+  return window['go']['main']['App']['UninstallSystemService'](arg1);
 }
 
 export function UnlockDatabase(arg1) {

@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -90,5 +91,18 @@ func TestVerifyManifestSignature(t *testing.T) {
 func TestSignatureEnforcedWithEmbeddedKey(t *testing.T) {
 	if !signatureEnforced() {
 		t.Error("signature should be enforced: an embedded public key is set")
+	}
+}
+
+// The quit an update ends with goes through SetQuit's function: the window's
+// own close can be intercepted, and an update that leaves the application
+// running cannot replace it.
+func TestQuitApp_UsesTheQuitItWasGiven(t *testing.T) {
+	s := NewService("o", "r")
+	called := false
+	s.SetQuit(func() { called = true })
+	s.quitApp(context.Background())
+	if !called {
+		t.Fatal("quitApp did not use the quit set with SetQuit")
 	}
 }

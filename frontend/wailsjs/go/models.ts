@@ -150,6 +150,28 @@ export namespace models {
 	        this.cooldown = source["cooldown"];
 	    }
 	}
+	export class BackgroundSettings {
+	    launchAtLogin: boolean;
+	    launchAtLoginSupported: boolean;
+	    registeredElsewhere: string;
+	    autoStartListeners: boolean;
+	    launchedInBackground: boolean;
+	    trayAvailable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackgroundSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.launchAtLogin = source["launchAtLogin"];
+	        this.launchAtLoginSupported = source["launchAtLoginSupported"];
+	        this.registeredElsewhere = source["registeredElsewhere"];
+	        this.autoStartListeners = source["autoStartListeners"];
+	        this.launchedInBackground = source["launchedInBackground"];
+	        this.trayAvailable = source["trayAvailable"];
+	    }
+	}
 	export class CertInfo {
 	    subject: string;
 	    issuer: string;
@@ -249,6 +271,70 @@ export namespace models {
 	        this.key = source["key"];
 	        this.count = source["count"];
 	    }
+	}
+	export class HostListener {
+	    protocol: string;
+	    port: number;
+	    running: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostListener(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.protocol = source["protocol"];
+	        this.port = source["port"];
+	        this.running = source["running"];
+	    }
+	}
+	export class HostStatus {
+	    state: string;
+	    version: string;
+	    pid: number;
+	    dataDir: string;
+	    // Go type: time
+	    startedAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    listeners: HostListener[];
+	    messages: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.version = source["version"];
+	        this.pid = source["pid"];
+	        this.dataDir = source["dataDir"];
+	        this.startedAt = this.convertValues(source["startedAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.listeners = this.convertValues(source["listeners"], HostListener);
+	        this.messages = source["messages"];
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ImportFormat {
 	    mode: string;
@@ -773,6 +859,54 @@ export namespace models {
 	    }
 	}
 	
+	export class SystemServiceInfo {
+	    supported: boolean;
+	    installed: boolean;
+	    state: string;
+	    canInstall: boolean;
+	    cannotInstallReason: string;
+	    executableMatches: boolean;
+	    executable: string;
+	    account: string;
+	    dataDir: string;
+	    host?: HostStatus;
+	
+	    static createFrom(source: any = {}) {
+	        return new SystemServiceInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.supported = source["supported"];
+	        this.installed = source["installed"];
+	        this.state = source["state"];
+	        this.canInstall = source["canInstall"];
+	        this.cannotInstallReason = source["cannotInstallReason"];
+	        this.executableMatches = source["executableMatches"];
+	        this.executable = source["executable"];
+	        this.account = source["account"];
+	        this.dataDir = source["dataDir"];
+	        this.host = this.convertValues(source["host"], HostStatus);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class UpdateConfig {
 	    autoCheck: boolean;
 	    intervalHours: number;

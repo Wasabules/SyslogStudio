@@ -276,6 +276,8 @@ type AppConfig struct {
 	// the same kind of file tends to be imported again, and describing it twice
 	// is a chore the application can remember instead.
 	Import ImportFormat `json:"import"`
+	// Background holds the desktop application's start-up choices.
+	Background BackgroundPrefs `json:"background"`
 }
 
 // CloseAction is what closing the window means.

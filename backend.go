@@ -97,11 +97,13 @@ type Backend interface {
 
 // keyMaterial is what the window needs from the engine and must never hand to
 // the frontend. Wails binds every exported method of App, promoted ones
-// included, so these private keys stay off the embedded interface: the window
-// writes them to the files its user picks, and no script can read them.
+// included, so private keys and credentials stay off the embedded interface:
+// the window writes them to the files its user picks, or to the service it
+// installs, and no script can read them.
 type keyMaterial interface {
 	CACertificatePEM() ([]byte, error)
 	ServerCertificatePEM() (certPEM, keyPEM []byte, err error)
+	ExportBundle() (engine.Bundle, error)
 }
 
 // The in-process engine is a complete backend.

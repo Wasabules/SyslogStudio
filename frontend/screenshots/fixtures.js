@@ -502,3 +502,55 @@ export const IMPORT_PREVIEW = {
   },
   messages: IMPORT_MESSAGES,
 };
+
+// Running in the background (#68). By default no service is installed, so the
+// banner it brings stays out of every other picture; the background scene
+// installs one through its own bindings.
+export const BACKGROUND_SETTINGS = {
+  launchAtLogin: true,
+  launchAtLoginSupported: true,
+  registeredElsewhere: '',
+  autoStartListeners: true,
+  launchedInBackground: false,
+  trayAvailable: true,
+};
+
+export const SYSTEM_SERVICE = {
+  supported: true,
+  installed: false,
+  state: '',
+  canInstall: true,
+  cannotInstallReason: '',
+  executableMatches: false,
+  executable: '',
+  account: '',
+  dataDir: 'C:\\ProgramData\\SyslogStudio',
+  host: null,
+};
+
+/** The same, installed and receiving: what the background scene shows. */
+export const SYSTEM_SERVICE_RUNNING = {
+  supported: true,
+  installed: true,
+  state: 'running',
+  canInstall: true,
+  cannotInstallReason: '',
+  executableMatches: true,
+  executable: 'C:\\Program Files\\SyslogStudio\\SyslogStudio.exe',
+  account: 'NT SERVICE\\SyslogStudio',
+  dataDir: 'C:\\ProgramData\\SyslogStudio',
+  host: {
+    state: 'running',
+    version: 'v1.7.0',
+    pid: 4120,
+    dataDir: 'C:\\ProgramData\\SyslogStudio',
+    startedAt: new Date(NOW.getTime() - 3 * 86400_000).toISOString(),
+    updatedAt: new Date(NOW.getTime() - 12_000).toISOString(),
+    listeners: [
+      { protocol: 'udp', port: 514, running: true },
+      { protocol: 'tcp', port: 601, running: true },
+      { protocol: 'tls', port: 6514, running: true },
+    ],
+    messages: 1843206,
+  },
+};

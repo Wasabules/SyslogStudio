@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -257,16 +258,37 @@ func (s *Service) runInstaller(ctx context.Context, path string) error {
 		}
 		return fmt.Errorf("launch installer: %w", err)
 	}
-	wruntime.Quit(ctx)
+	s.quitApp(ctx)
 	return nil
 }
 
+// AfterUpdateFlag, followed by a process ID, tells a relaunched copy to wait
+// for that process to exit before it opens its window.
+const AfterUpdateFlag = "--after-update"
+
 // relaunch starts a fresh copy of the (now updated) executable and quits.
+//
+// The fresh copy is told to wait for this one. The single-instance lock is
+// held until this process exits, and a second instance that finds it held
+// hands its arguments over and exits: started without waiting, the updated
+// copy would vanish at once, and once this one had quit nothing would be
+// running.
 func (s *Service) relaunch(ctx context.Context) {
 	if exe, err := os.Executable(); err == nil {
-		_ = exec.Command(exe).Start()
+		_ = exec.Command(exe, AfterUpdateFlag, strconv.Itoa(os.Getpid())).Start()
 	}
-	time.Sleep(300 * time.Millisecond)
+	s.quitApp(ctx)
+}
+
+// quitApp exits through the quit set by SetQuit, or the runtime's otherwise.
+func (s *Service) quitApp(ctx context.Context) {
+	s.mu.Lock()
+	quit := s.quit
+	s.mu.Unlock()
+	if quit != nil {
+		quit()
+		return
+	}
 	wruntime.Quit(ctx)
 }
 

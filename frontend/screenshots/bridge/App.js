@@ -32,6 +32,7 @@ import {
   IMPORT_PREVIEW,
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
+  BACKGROUND_SETTINGS, SYSTEM_SERVICE,
 } from '../fixtures.js';
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -51,6 +52,11 @@ const DEMO_ONLY = {
   CompactDatabase: 'There is no database behind the demo — this one runs entirely in your browser.',
   ClearDatabase: 'There is no database behind the demo — this one runs entirely in your browser.',
   StartSimulator: 'The simulator opens a network socket, which a web page cannot open.',
+  SetLaunchAtLogin: 'Starting at sign-in is registered with your operating system, which a web page cannot touch.',
+  InstallSystemService: 'Installing a Windows service needs administrator rights on a real machine.',
+  UninstallSystemService: 'There is no service behind the demo to remove.',
+  StartSystemService: 'There is no service behind the demo to start.',
+  StopSystemService: 'There is no service behind the demo to stop.',
 };
 
 // --- mutable demo state ----------------------------------------------------
@@ -266,6 +272,18 @@ const HANDLERS = {
   StopSimulator: () => Promise.resolve(null),
   GetScenarioDurationSeconds: () => Promise.resolve(180),
 
+  // running in the background
+  GetBackgroundSettings: () => Promise.resolve(clone(BACKGROUND_SETTINGS)),
+  SetLaunchAtLogin: () => Promise.resolve(null),
+  SetAutoStartListeners: () => Promise.resolve(null),
+  GetAutoStartError: () => Promise.resolve(''),
+  GetDataDirConflict: () => Promise.resolve(''),
+  GetSystemService: () => Promise.resolve(clone(SYSTEM_SERVICE)),
+  InstallSystemService: () => delayed('InstallSystemService', null),
+  UninstallSystemService: () => delayed('UninstallSystemService', null),
+  StartSystemService: () => delayed('StartSystemService', null),
+  StopSystemService: () => delayed('StopSystemService', null),
+
   // updates and shell
   GetAppVersion: () => Promise.resolve('v1.4.0'),
   CheckForUpdate: () => Promise.resolve({
@@ -325,4 +343,6 @@ export const {
   GetScenarioDurationSeconds,
   GetAppVersion, CheckForUpdate, GetUpdateConfig, SetUpdateConfig, SkipUpdateVersion,
   DownloadAndApplyUpdate, OpenURL,
+  GetBackgroundSettings, SetLaunchAtLogin, SetAutoStartListeners, GetAutoStartError, GetDataDirConflict,
+  GetSystemService, InstallSystemService, UninstallSystemService, StartSystemService, StopSystemService,
 } = API;

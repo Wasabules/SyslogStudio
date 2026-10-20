@@ -350,3 +350,52 @@ export const getCloseAction = (): Promise<CloseAction> => callGo('GetCloseAction
 export const setCloseAction = (a: CloseAction): Promise<void> => callGo('SetCloseAction', a);
 export const setTrayLabels = (show: string, quit: string): Promise<void> =>
     callGo('SetTrayLabels', show, quit);
+
+// --- Running in the background (#68) ---
+// Two modes, kept apart: the desktop application started at sign-in, in the
+// user's session; and a separate system service started at boot, Windows only.
+export interface BackgroundSettings {
+    launchAtLogin: boolean;
+    launchAtLoginSupported: boolean;
+    registeredElsewhere: string;
+    autoStartListeners: boolean;
+    launchedInBackground: boolean;
+    trayAvailable: boolean;
+}
+export interface HostListener { protocol: string; port: number; running: boolean; }
+export interface HostStatus {
+    state: string;
+    version: string;
+    pid: number;
+    dataDir: string;
+    startedAt: string;
+    updatedAt: string;
+    listeners: HostListener[] | null;
+    messages: number;
+    error?: string;
+}
+export interface SystemServiceInfo {
+    supported: boolean;
+    installed: boolean;
+    state: string;
+    canInstall: boolean;
+    cannotInstallReason: string;
+    executableMatches: boolean;
+    executable: string;
+    account: string;
+    dataDir: string;
+    host?: HostStatus | null;
+}
+export const getBackgroundSettings = (): Promise<BackgroundSettings> => callGo('GetBackgroundSettings');
+export const setLaunchAtLogin = (enabled: boolean): Promise<void> => callGo('SetLaunchAtLogin', enabled);
+export const setAutoStartListeners = (enabled: boolean): Promise<void> => callGo('SetAutoStartListeners', enabled);
+// Why receiving could not start on launch, once; empty when it did.
+export const getAutoStartError = (): Promise<string> => callGo('GetAutoStartError');
+// Why this window cannot use its data directory, or empty.
+export const getDataDirConflict = (): Promise<string> => callGo('GetDataDirConflict');
+export const getSystemService = (): Promise<SystemServiceInfo> => callGo('GetSystemService');
+// These four ask for administrator rights through the Windows prompt.
+export const installSystemService = (): Promise<void> => callGo('InstallSystemService');
+export const uninstallSystemService = (purge: boolean): Promise<void> => callGo('UninstallSystemService', purge);
+export const startSystemService = (): Promise<void> => callGo('StartSystemService');
+export const stopSystemService = (): Promise<void> => callGo('StopSystemService');
