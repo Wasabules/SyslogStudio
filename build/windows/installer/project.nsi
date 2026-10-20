@@ -8,7 +8,9 @@
 ## SyslogStudio Installer
 ##
 ## Features:
-##   - Dual install mode: per-user (no admin) or all-users (admin via UAC)
+##   - Dual install mode: per-user (no admin) or all-users (admin via UAC);
+##     only an all-users install can run as a Windows service, and the
+##     installer says so where the choice is made
 ##   - MUI2 modern interface with language selection (English / French)
 ##   - Optional desktop shortcut on finish page
 ##   - Launch after install option
@@ -33,9 +35,8 @@
 !include "nsDialogs.nsh"
 !include "StrFunc.nsh"
 
-; StrFunc functions must be declared once per side before use.
+; StrFunc functions must be declared before use (the uninstaller needs none).
 ${StrStr}
-${UnStrStr}
 
 ; The Windows service SyslogStudio can install (Settings > Background). It
 ; runs this very executable, so an update has to stop it to replace the file
@@ -72,6 +73,8 @@ ShowUninstDetails nevershow
 Var InstMode      ; "user" or "allusers"
 Var RadioUser
 Var RadioAdmin
+Var BoldFont
+Var FinishText
 
 ; ====================================================================
 ;  MUI2 appearance
@@ -92,14 +95,20 @@ Var RadioAdmin
 !define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateDesktopShortcut
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 
+; Finish page: the next step depends on the install mode (FinishPre)
+!define MUI_FINISHPAGE_TEXT "$FinishText"
+!define MUI_FINISHPAGE_TEXT_LARGE
+
 ; ====================================================================
 ;  Pages
 ; ====================================================================
 !insertmacro MUI_PAGE_WELCOME
 Page custom InstModeCreate InstModeLeave
 !insertmacro MUI_PAGE_LICENSE "..\..\..\LICENSE"
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirLeave
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_PAGE_CUSTOMFUNCTION_PRE FinishPre
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -116,23 +125,35 @@ Page custom InstModeCreate InstModeLeave
 LangString scope_title       ${LANG_ENGLISH} "Installation Type"
 LangString scope_title       ${LANG_FRENCH}  "Type d'installation"
 
-LangString scope_subtitle    ${LANG_ENGLISH} "Choose how to install ${INFO_PRODUCTNAME}."
-LangString scope_subtitle    ${LANG_FRENCH}  "Choisissez comment installer ${INFO_PRODUCTNAME}."
-
-LangString scope_group       ${LANG_ENGLISH} "Installation Scope"
-LangString scope_group       ${LANG_FRENCH}  "Portée de l'installation"
+LangString scope_subtitle    ${LANG_ENGLISH} "This choice decides whether ${INFO_PRODUCTNAME} can run as a Windows service."
+LangString scope_subtitle    ${LANG_FRENCH}  "Ce choix décide si ${INFO_PRODUCTNAME} pourra fonctionner comme service Windows."
 
 LangString scope_user        ${LANG_ENGLISH} "Install just for me"
 LangString scope_user        ${LANG_FRENCH}  "Installer uniquement pour moi"
 
-LangString scope_user_desc   ${LANG_ENGLISH} "No administrator rights required."
-LangString scope_user_desc   ${LANG_FRENCH}  "Aucun droit administrateur requis."
+; The two descriptions line up point by point, so the differences stand out.
+LangString scope_user_desc   ${LANG_ENGLISH} "•  In your profile, no administrator rights needed.$\r$\n•  Receives during your session, with its window open or in the background.$\r$\n•  Cannot run as a Windows service."
+LangString scope_user_desc   ${LANG_FRENCH}  "•  Dans votre profil, sans droits administrateur.$\r$\n•  Reçoit pendant votre session, fenêtre ouverte ou en arrière-plan.$\r$\n•  Ne peut pas fonctionner comme service Windows."
 
 LangString scope_admin       ${LANG_ENGLISH} "Install for all users"
 LangString scope_admin       ${LANG_FRENCH}  "Installer pour tous les utilisateurs"
 
-LangString scope_admin_desc  ${LANG_ENGLISH} "Requires administrator rights."
-LangString scope_admin_desc  ${LANG_FRENCH}  "Nécessite des droits administrateur."
+LangString scope_admin_desc  ${LANG_ENGLISH} "•  In Program Files, with administrator rights (Windows will ask for them).$\r$\n•  Receives during your session, with its window open or in the background.$\r$\n•  Can also run as a Windows service."
+LangString scope_admin_desc  ${LANG_FRENCH}  "•  Dans Program Files, avec les droits administrateur (Windows les demandera).$\r$\n•  Reçoit pendant votre session, fenêtre ouverte ou en arrière-plan.$\r$\n•  Peut aussi fonctionner comme service Windows."
+
+LangString scope_service     ${LANG_ENGLISH} "Windows service: ${INFO_PRODUCTNAME} receives from the moment the PC starts, even when nobody is signed in. It is set up after installing, in Settings > Background."
+LangString scope_service     ${LANG_FRENCH}  "Service Windows : ${INFO_PRODUCTNAME} reçoit dès le démarrage du PC, même si personne n'est connecté. Il se met en place après l'installation, dans Paramètres › Arrière-plan."
+
+LangString dir_no_service    ${LANG_ENGLISH} "The Windows service can only be installed from Program Files, which ordinary users cannot modify. Installed here, ${INFO_PRODUCTNAME} will only receive while someone is signed in.$\r$\n$\r$\nInstall here anyway?"
+LangString dir_no_service    ${LANG_FRENCH}  "Le service Windows ne peut être installé que depuis Program Files, que les utilisateurs ordinaires ne peuvent pas modifier. Installé ici, ${INFO_PRODUCTNAME} ne recevra que pendant une session ouverte.$\r$\n$\r$\nInstaller ici quand même ?"
+
+; The finish page's text box holds six lines with the two options below it:
+; measured with its own font, these take five at most.
+LangString finish_user       ${LANG_ENGLISH} "Installed for your account only.$\r$\n$\r$\nTo receive in the background from the moment you sign in: Settings > Background."
+LangString finish_user       ${LANG_FRENCH}  "Installé pour votre compte uniquement.$\r$\n$\r$\nPour recevoir en arrière-plan dès l'ouverture de votre session : Paramètres › Arrière-plan."
+
+LangString finish_allusers   ${LANG_ENGLISH} "Installed for all users.$\r$\n$\r$\nTo receive from the moment the PC starts, even when nobody is signed in, install the Windows service: Settings > Background."
+LangString finish_allusers   ${LANG_FRENCH}  "Installé pour tous les utilisateurs.$\r$\n$\r$\nPour recevoir dès le démarrage du PC, même sans session ouverte, installez le service Windows : Paramètres › Arrière-plan."
 
 LangString launch_app        ${LANG_ENGLISH} "Launch ${INFO_PRODUCTNAME}"
 LangString launch_app        ${LANG_FRENCH}  "Lancer ${INFO_PRODUCTNAME}"
@@ -140,8 +161,8 @@ LangString launch_app        ${LANG_FRENCH}  "Lancer ${INFO_PRODUCTNAME}"
 LangString desktop_shortcut  ${LANG_ENGLISH} "Create desktop shortcut"
 LangString desktop_shortcut  ${LANG_FRENCH}  "Créer un raccourci sur le bureau"
 
-LangString elevation_failed  ${LANG_ENGLISH} "Could not obtain administrator rights.$\r$\nThe application will be installed for the current user only."
-LangString elevation_failed  ${LANG_FRENCH}  "Impossible d'obtenir les droits administrateur.$\r$\nL'application sera installée pour l'utilisateur courant uniquement."
+LangString elevation_failed  ${LANG_ENGLISH} "Administrator rights were not granted, so ${INFO_PRODUCTNAME} cannot be installed for all users.$\r$\n$\r$\nTry again, or choose to install it just for you."
+LangString elevation_failed  ${LANG_FRENCH}  "Les droits administrateur n'ont pas été accordés : ${INFO_PRODUCTNAME} ne peut pas être installé pour tous les utilisateurs.$\r$\n$\r$\nRéessayez, ou choisissez de l'installer uniquement pour vous."
 
 LangString remove_data       ${LANG_ENGLISH} "Do you also want to remove application data (settings, log database)?"
 LangString remove_data       ${LANG_FRENCH}  "Voulez-vous aussi supprimer les données de l'application (paramètres, base de logs) ?"
@@ -191,20 +212,31 @@ Function InstModeCreate
 
     !insertmacro MUI_HEADER_TEXT "$(scope_title)" "$(scope_subtitle)"
 
-    ${NSD_CreateGroupBox} 5u 5u 290u 105u "$(scope_group)"
-    Pop $0
+    ; Each choice says what it allows, not only what it costs: the Windows
+    ; service is the difference that matters, and it is decided here.
+    ${If} $BoldFont == ""
+        CreateFont $BoldFont "$(^Font)" "$(^FontSize)" "700"
+    ${EndIf}
 
-    ${NSD_CreateRadioButton} 20u 28u 260u 15u "$(scope_user)"
+    ${NSD_CreateRadioButton} 0u 0u 100% 12u "$(scope_user)"
     Pop $RadioUser
+    SendMessage $RadioUser ${WM_SETFONT} $BoldFont 0
     ${NSD_Check} $RadioUser
 
-    ${NSD_CreateLabel} 35u 46u 250u 10u "$(scope_user_desc)"
+    ${NSD_CreateLabel} 12u 13u 288u 32u "$(scope_user_desc)"
     Pop $0
 
-    ${NSD_CreateRadioButton} 20u 68u 260u 15u "$(scope_admin)"
+    ${NSD_CreateRadioButton} 0u 50u 100% 12u "$(scope_admin)"
     Pop $RadioAdmin
+    SendMessage $RadioAdmin ${WM_SETFONT} $BoldFont 0
 
-    ${NSD_CreateLabel} 35u 86u 250u 10u "$(scope_admin_desc)"
+    ${NSD_CreateLabel} 12u 63u 288u 32u "$(scope_admin_desc)"
+    Pop $0
+
+    ${NSD_CreateHLine} 0u 101u 100% 1u ""
+    Pop $0
+
+    ${NSD_CreateLabel} 0u 106u 100% 24u "$(scope_service)"
     Pop $0
 
     nsDialogs::Show
@@ -214,14 +246,14 @@ Function InstModeLeave
     ${NSD_GetState} $RadioAdmin $0
     ${If} $0 == ${BST_CHECKED}
         ; Relaunch with admin via UAC prompt
+        ClearErrors
         ExecShell "runas" "$EXEPATH" "/allusers" SW_SHOWNORMAL
         ${If} ${Errors}
-            ; UAC denied or unavailable - fall back to user install
+            ; UAC declined or unavailable: stay on this page rather than
+            ; switching to a per-user install the user did not choose — it
+            ; could never host the service.
             MessageBox MB_OK|MB_ICONINFORMATION "$(elevation_failed)"
-            StrCpy $InstMode "user"
-            SetShellVarContext current
-            StrCpy $INSTDIR "$LOCALAPPDATA\${INFO_PRODUCTNAME}"
-            Return
+            Abort
         ${EndIf}
         ; Elevated instance is running - close this one
         Quit
@@ -231,6 +263,52 @@ Function InstModeLeave
     StrCpy $InstMode "user"
     SetShellVarContext current
     StrCpy $INSTDIR "$LOCALAPPDATA\${INFO_PRODUCTNAME}"
+FunctionEnd
+
+; ---- Directory page ----
+
+; Sets $0 to 1 when $INSTDIR is below DIR (a comparison that ignores case,
+; like the file system).
+!macro _InstDirUnder DIR
+    StrLen $2 "${DIR}\"
+    StrCpy $1 $INSTDIR $2
+    ${If} $1 == "${DIR}\"
+        StrCpy $0 1
+    ${EndIf}
+!macroend
+
+; Sets $0 to 1 when $INSTDIR is inside Program Files, 0 otherwise. The
+; service refuses to be installed from anywhere else (winsvc.CheckLocation):
+; it runs this executable under a service account, so a folder ordinary users
+; can write to would hand that account to them.
+Function InstDirInProgramFiles
+    StrCpy $0 0
+    !insertmacro _InstDirUnder "$PROGRAMFILES64"
+    !insertmacro _InstDirUnder "$PROGRAMFILES32"
+FunctionEnd
+
+; An all-users install exists to make the service possible; moving it out of
+; Program Files would quietly rule the service out.
+Function DirLeave
+    ${If} $InstMode != "allusers"
+        Return
+    ${EndIf}
+    Call InstDirInProgramFiles
+    ${If} $0 == 0
+        MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(dir_no_service)" /SD IDYES IDYES keepDir
+        Abort
+        keepDir:
+    ${EndIf}
+FunctionEnd
+
+; ---- Finish page ----
+
+Function FinishPre
+    ${If} $InstMode == "allusers"
+        StrCpy $FinishText "$(finish_allusers)"
+    ${Else}
+        StrCpy $FinishText "$(finish_user)"
+    ${EndIf}
 FunctionEnd
 
 ; ---- Desktop shortcut callback (Finish page checkbox) ----

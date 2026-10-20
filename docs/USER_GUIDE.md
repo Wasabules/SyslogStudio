@@ -19,10 +19,19 @@ Key capabilities:
 
 **Pre-built binaries:** Download the latest release for your platform from the GitHub Releases page. The application is a single executable file:
 
-- **Windows:** `SyslogStudio.exe`
+- **Windows:** `SyslogStudio.exe`, or the installer
 - **macOS:** `SyslogStudio.app`
 
 No installation is required. Place the executable wherever you like and run it.
+
+The Windows installer offers two kinds of installation:
+
+- **Just for me** -- in your profile, with no administrator rights. SyslogStudio receives during
+  your session, with its window open or in the background.
+- **For all users** -- in Program Files, with administrator rights. The same, and SyslogStudio
+  can also run as a Windows service that receives from boot, with nobody signed in (see
+  [Running in the Background](#running-in-the-background)). A portable copy or a per-user
+  installation cannot.
 
 **Build from source:** If you prefer to build from source, you need Go 1.23+, Node.js 18+, and the Wails CLI v2:
 

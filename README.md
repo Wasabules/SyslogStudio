@@ -251,6 +251,12 @@ no runtime to install.
 | macOS | universal `.dmg` or `.zip` (Apple Silicon and Intel) |
 | Linux | `.deb`, or portable `.tar.gz` — needs GTK 3 and WebKit2GTK |
 
+The Windows installer asks whether to install just for you (in your profile, no administrator
+rights) or for all users (in Program Files, with administrator rights). Either can keep
+receiving in the background during your session; only an all-users install can also run as a
+Windows service, receiving from boot with nobody signed in (see *Running with no window* under
+Usage).
+
 Verify what you downloaded:
 
 ```bash
