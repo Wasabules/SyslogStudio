@@ -20,6 +20,7 @@ const (
 	eventStarted = 1
 	eventStopped = 2
 	eventFailed  = 3
+	eventWarning = 4
 )
 
 // IsService reports whether this process was started by the service manager.
@@ -83,6 +84,11 @@ func (h *handler) Execute(_ []string, requests <-chan svc.ChangeRequest, status 
 		Version:   h.version,
 		Logger:    logger,
 		Control:   control,
+		Warn: func(msg string) {
+			if elog != nil {
+				_ = elog.Warning(eventWarning, msg)
+			}
+		},
 	})
 	if err != nil {
 		// The service manager restarts us after a failure; the event log and
@@ -109,6 +115,14 @@ func (h *handler) Execute(_ []string, requests <-chan svc.ChangeRequest, status 
 }
 
 func describe(h *headless.Host) string {
+	s := describeListeners(h)
+	if ib := h.Status().Inbox; ib != nil && ib.Sealed {
+		s += " What it receives is sealed for the window that installed it, and stored nowhere in the clear."
+	}
+	return s
+}
+
+func describeListeners(h *headless.Host) string {
 	var parts []string
 	for _, l := range h.Status().Listeners {
 		if l.Running {

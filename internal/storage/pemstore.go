@@ -55,6 +55,13 @@ func NewServerCertStore(dir string) *PEMStore {
 	return &PEMStore{dir: dir, plainName: "server-cert.json", encName: "server-cert.json.enc"}
 }
 
+// NewInboxKeyStore creates the store for the sealed inbox's key pair: the
+// public key where a certificate would go, the private key as the key. It is
+// kept like the CA's, encrypted by the database password.
+func NewInboxKeyStore(dir string) *PEMStore {
+	return &PEMStore{dir: dir, plainName: "inbox-key.json", encName: "inbox-key.json.enc"}
+}
+
 func (s *PEMStore) plainPath() string { return filepath.Join(s.dir, s.plainName) }
 func (s *PEMStore) encPath() string   { return filepath.Join(s.dir, s.encName) }
 

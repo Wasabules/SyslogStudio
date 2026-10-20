@@ -1,5 +1,5 @@
 import { addMessages, stats as statsStore, serverStatus as statusStore, alertHistory,
-         pendingImportPath, activeView } from './stores';
+         pendingImportPath, activeView, dbStatsVersion } from './stores';
 import type { SyslogMessage, ServerStats, ServerStatus, AlertEvent } from './stores';
 
 let notificationsReady = false;
@@ -145,6 +145,11 @@ export async function initEventListeners() {
         statusStore.set(newStatus);
     });
 
+    // The window collected what a sealing service received into its database.
+    safeEventsOn('inbox:collected', () => {
+        dbStatsVersion.update(v => v + 1);
+    });
+
     safeEventsOn('syslog:alerts', (events: AlertEvent[]) => {
         alertHistory.update(h => [...h, ...events].slice(-500));
         for (const event of events) {
@@ -159,4 +164,5 @@ export function destroyEventListeners() {
     safeEventsOff('syslog:stats');
     safeEventsOff('syslog:status');
     safeEventsOff('syslog:alerts');
+    safeEventsOff('inbox:collected');
 }

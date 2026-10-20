@@ -610,7 +610,7 @@
 
                     <div class="encryption-section">
                         <h4>{$_('encryption.title')}</h4>
-                        {#if $serviceLink?.mode === 'service'}
+                        {#if $serviceLink?.mode === 'service' && !$serviceLink.sealed}
                             <span class="hint encryption-hint">{$_('encryption.serviceUnavailable')}</span>
                         {:else}
                         <div class="form-group checkbox-group">

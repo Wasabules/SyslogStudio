@@ -110,7 +110,7 @@ starts with the computer, before anyone signs in, and that the window then drive
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/background-dark.png" />
-  <img src="docs/assets/img/background-light.png" alt="Settings, Background tab: the user-session options above, and below them the system service, running and listening on UDP 514, TCP 601 and TLS 6514. A banner says the window drives the service." width="900" />
+  <img src="docs/assets/img/background-light.png" alt="Settings, Background tab: the user-session options above, and below them the system service, running and listening on UDP 514, TCP 601 and TLS 6514, with three sealed batches waiting for the window to collect them. A banner says the window drives the service." width="900" />
 </picture>
 
 ### Built-in traffic generator
@@ -209,7 +209,8 @@ starts with the computer, before anyone signs in, and that the window then drive
 - **As a Windows service** — installed from Settings > Background with one administrator
   prompt; starts at boot under its own account (`NT SERVICE\SyslogStudio`) with its own
   configuration and database, credentials and private key protected by DPAPI, a firewall
-  rule for domain and private networks, and automatic restart after a failure
+  rule for domain and private networks, and automatic restart after a failure. An encrypted
+  database stays encrypted: the service seals what it receives for your window to collect
 - **Headless** — `SyslogStudio --headless` runs the engine with no window, for systemd,
   launchd or a terminal
 
@@ -338,17 +339,27 @@ running. At its next start, the service listens again as last saved, unless *Sta
 when the service starts* is turned off. In that case it starts with the computer but waits for
 someone to press Start.
 
-The service's database is **not encrypted**: there is nobody to type the password at boot.
-The installation says so and, when your own database is encrypted, asks you to confirm.
+**An encrypted database stays encrypted.** By default, the service then keeps no database. It
+seals each batch of messages with a public key (HPKE, hybrid post-quantum ML-KEM-768 +
+X25519), and it cannot read back what it stored.
+
+Only your window can open those batches, once its database is unlocked. It moves the messages
+into your encrypted history, and the service deletes them. Up to 1 GB waits on the service in
+the meantime, with a warning as the inbox fills.
+
+You can instead let the service store in the clear, in a database readable by administrators
+only. The installation asks you to confirm that choice.
+
 SyslogStudio must be installed for all users (in Program Files) to install the service: a
 service runs under a system account, and a copy an ordinary user can replace would hand that
-account to whoever replaces it. At-rest encryption is not available for the service either.
+account to whoever replaces it.
 
 To check on it or find out why it does not start:
 
 ```
-SyslogStudio.exe service status     state, listeners, whether they start with it, messages
-                                    received, connected windows, allowed accounts, last error
+SyslogStudio.exe service status     state, listeners, whether they start with it, sealed inbox,
+                                    messages received, connected windows, allowed accounts,
+                                    last error
 SyslogStudio.exe service allow --operator SID
                                     let another account drive it (as an administrator)
 ```

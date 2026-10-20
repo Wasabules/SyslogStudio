@@ -129,4 +129,12 @@ type Host interface {
 	ImportCapacity() int
 	ImportMessages(msgs []models.SyslogMessage, persist bool) error
 	RememberImportFormat(format models.ImportFormat)
+
+	// GetInboxStatus, InboxBatches, InboxBatch and InboxAck are the
+	// service's end of the sealed inbox: what waits, and handing it over to
+	// the window holding the key, which acknowledges each batch once stored.
+	GetInboxStatus() models.InboxStatus
+	InboxBatches() ([]models.InboxBatch, error)
+	InboxBatch(id string) ([]byte, error)
+	InboxAck(id string) error
 }

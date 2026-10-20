@@ -288,6 +288,30 @@ export namespace models {
 	        this.running = source["running"];
 	    }
 	}
+	export class InboxStatus {
+	    sealed: boolean;
+	    keyId?: string;
+	    batches: number;
+	    bytes: number;
+	    quota: number;
+	    dropped: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new InboxStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sealed = source["sealed"];
+	        this.keyId = source["keyId"];
+	        this.batches = source["batches"];
+	        this.bytes = source["bytes"];
+	        this.quota = source["quota"];
+	        this.dropped = source["dropped"];
+	        this.error = source["error"];
+	    }
+	}
 	export class HostStatus {
 	    state: string;
 	    version: string;
@@ -301,6 +325,7 @@ export namespace models {
 	    messages: number;
 	    windows: number;
 	    listenOnStart: boolean;
+	    inbox?: InboxStatus;
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -319,6 +344,7 @@ export namespace models {
 	        this.messages = source["messages"];
 	        this.windows = source["windows"];
 	        this.listenOnStart = source["listenOnStart"];
+	        this.inbox = this.convertValues(source["inbox"], InboxStatus);
 	        this.error = source["error"];
 	    }
 	
@@ -374,6 +400,7 @@ export namespace models {
 	        this.skipUnmatched = source["skipUnmatched"];
 	    }
 	}
+	
 	export class NetworkInterface {
 	    name: string;
 	    ip: string;
@@ -689,6 +716,8 @@ export namespace models {
 	    reason?: string;
 	    detail?: string;
 	    serviceVersion?: string;
+	    sealed?: boolean;
+	    collectError?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ServiceLink(source);
@@ -702,6 +731,8 @@ export namespace models {
 	        this.reason = source["reason"];
 	        this.detail = source["detail"];
 	        this.serviceVersion = source["serviceVersion"];
+	        this.sealed = source["sealed"];
+	        this.collectError = source["collectError"];
 	    }
 	}
 	export class SimulatorDestination {

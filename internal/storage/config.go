@@ -416,6 +416,23 @@ func (cs *ConfigStore) SaveListenOnStart(enabled bool) {
 	cs.saveAll(all)
 }
 
+// LoadInbox reads the sealed inbox configuration: nil when what is received
+// is stored in the clear.
+func (cs *ConfigStore) LoadInbox() *models.InboxConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.loadAll().Inbox
+}
+
+// SaveInbox writes it; nil turns sealing off.
+func (cs *ConfigStore) SaveInbox(c *models.InboxConfig) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.Inbox = c
+	cs.saveAll(all)
+}
+
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
 	cs.mu.Lock()

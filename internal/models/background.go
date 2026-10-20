@@ -80,6 +80,9 @@ type HostStatus struct {
 	// ListenOnStart is whether it starts its listeners when it starts, or
 	// leaves them for a window to start.
 	ListenOnStart bool `json:"listenOnStart"`
+	// Inbox is the sealed inbox, when the host seals what it receives or
+	// batches still wait in it.
+	Inbox *InboxStatus `json:"inbox,omitempty"`
 	// Error is why the host failed or stopped, or why its listeners did not
 	// start, in words an operator can act on.
 	Error string `json:"error,omitempty"`
@@ -109,4 +112,9 @@ type ServiceLink struct {
 	Detail string `json:"detail,omitempty"`
 	// ServiceVersion is the version of the service driven.
 	ServiceVersion string `json:"serviceVersion,omitempty"`
+	// Sealed is whether the driven service seals what it receives for this
+	// window, whose own database then holds the history; CollectError is
+	// why collecting the sealed messages fails, if it does.
+	Sealed       bool   `json:"sealed,omitempty"`
+	CollectError string `json:"collectError,omitempty"`
 }

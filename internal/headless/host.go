@@ -52,6 +52,10 @@ type Options struct {
 	// Who may connect is the listener's business. The host serves it until
 	// it stops, and closes it.
 	Control net.Listener
+	// Warn receives what an operator should hear about without anything
+	// having failed — the sealed inbox filling up — besides the log. The
+	// Windows service sends it to the event log.
+	Warn func(msg string)
 }
 
 // Host is a running headless engine.
@@ -71,6 +75,10 @@ type Host struct {
 	// windows can reach keeps running so they can fix the settings, and
 	// tries again meanwhile in case what held a port lets go of it.
 	retry bool
+	// warnedFilling and warnedDropped keep a warning about the inbox from
+	// repeating at every refresh.
+	warnedFilling bool
+	warnedDropped int64
 }
 
 // ErrEncrypted means the configuration has at-rest encryption on. A headless
@@ -264,8 +272,41 @@ func (h *Host) refresh() {
 		h.status.Windows = h.server.Windows()
 		h.status.ListenOnStart = h.eng.GetListenOnStart()
 	}
+	ib := h.eng.GetInboxStatus()
+	h.status.Inbox = nil
+	if ib.Sealed || ib.Batches > 0 {
+		h.status.Inbox = &ib
+	}
+	warnings := h.inboxWarnings(ib)
 	h.mu.Unlock()
 	h.publish()
+	for _, w := range warnings {
+		h.log.Warn(w)
+		if h.opts.Warn != nil {
+			h.opts.Warn(w)
+		}
+	}
+}
+
+// inboxWarnings is what to say about the sealed inbox, once per change: it
+// filling up, and messages dropped. Called with h.mu held.
+func (h *Host) inboxWarnings(ib models.InboxStatus) []string {
+	var out []string
+	switch {
+	case ib.Filling() && !h.warnedFilling:
+		h.warnedFilling = true
+		out = append(out, fmt.Sprintf("The sealed inbox is %d%% full (%d of %d MB): "+
+			"open SyslogStudio and unlock its database to collect what the service received.",
+			ib.Bytes*100/max(ib.Quota, 1), ib.Bytes>>20, ib.Quota>>20))
+	case !ib.Filling():
+		h.warnedFilling = false
+	}
+	if ib.Dropped > h.warnedDropped {
+		out = append(out, fmt.Sprintf("The sealed inbox dropped %d messages since the service started (%s).",
+			ib.Dropped, ib.Error))
+		h.warnedDropped = ib.Dropped
+	}
+	return out
 }
 
 // Stop stops receiving, flushes the database and returns once it is closed.

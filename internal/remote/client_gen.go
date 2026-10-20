@@ -368,3 +368,26 @@ func (c *Client) ImportMessages(msgs []models.SyslogMessage, persist bool) error
 func (c *Client) RememberImportFormat(format models.ImportFormat) {
 	c.logLost("RememberImportFormat", c.call("RememberImportFormat", []any{format}))
 }
+
+func (c *Client) GetInboxStatus() models.InboxStatus {
+	var r0 models.InboxStatus
+	c.logLost("GetInboxStatus", c.call("GetInboxStatus", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) InboxBatches() ([]models.InboxBatch, error) {
+	var r0 []models.InboxBatch
+	err := c.call("InboxBatches", []any{}, &r0)
+	return r0, err
+}
+
+func (c *Client) InboxBatch(id string) ([]byte, error) {
+	var r0 []byte
+	err := c.call("InboxBatch", []any{id}, &r0)
+	return r0, err
+}
+
+func (c *Client) InboxAck(id string) error {
+	err := c.call("InboxAck", []any{id})
+	return err
+}

@@ -246,8 +246,8 @@ export function ImportLogFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ImportLogFile'](arg1, arg2, arg3);
 }
 
-export function InstallSystemService() {
-  return window['go']['main']['App']['InstallSystemService']();
+export function InstallSystemService(arg1) {
+  return window['go']['main']['App']['InstallSystemService'](arg1);
 }
 
 export function IsCAKeyUnencrypted() {

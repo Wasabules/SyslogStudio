@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/storage"
@@ -42,6 +43,11 @@ type Bundle struct {
 	// ClientCAPEM is the trust anchor for mutual TLS. Public, but copied for
 	// the same reason.
 	ClientCAPEM []byte `json:"clientCaPem,omitempty"`
+
+	// InboxPublicKey, when set, makes the receiving engine seal what it
+	// receives for the holder of the matching private key, and keep no
+	// database. Unset, it stores in a database in the clear.
+	InboxPublicKey []byte `json:"inboxPublicKey,omitempty"`
 }
 
 // ExportBundle describes this engine for another one to adopt.
@@ -175,6 +181,19 @@ func (e *Engine) ImportBundle(b Bundle) error {
 		return fmt.Errorf("drop credentials of removed destinations: %w", err)
 	}
 
+	if len(b.InboxPublicKey) > 0 {
+		if err := inbox.CheckPublicKey(b.InboxPublicKey); err != nil {
+			return err
+		}
+		cfg := models.InboxConfig{PublicKey: b.InboxPublicKey}
+		if prev := e.configStore.LoadInbox(); prev != nil {
+			cfg.QuotaBytes = prev.QuotaBytes
+		}
+		e.configStore.SaveInbox(&cfg)
+	} else {
+		e.configStore.SaveInbox(nil)
+	}
+
 	e.configStore.Save(server)
 	e.configStore.SaveStorage(storageCfg)
 	e.configStore.SaveAlertRules(b.Alerts)
@@ -190,6 +209,7 @@ func (e *Engine) SetSealer(s storage.Sealer) {
 	e.secretStore.SetSealer(s)
 	e.caStore.SetSealer(s)
 	e.serverCertStore.SetSealer(s)
+	e.inboxKeyStore.SetSealer(s)
 }
 
 // StartSaved starts the listeners with the saved configuration. A host that
