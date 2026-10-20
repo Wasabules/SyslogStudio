@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,8 +17,8 @@ import (
 	"SyslogStudio/internal/autostart"
 	"SyslogStudio/internal/headless"
 	"SyslogStudio/internal/storage"
+	"SyslogStudio/internal/sysvc"
 	"SyslogStudio/internal/updater"
-	"SyslogStudio/internal/winsvc"
 )
 
 // The executable is three programs, chosen by how it is started:
@@ -25,7 +26,7 @@ import (
 //	SyslogStudio                       the desktop application
 //	SyslogStudio --background          the same, starting hidden in the tray
 //	SyslogStudio --headless            the engine alone, in the foreground
-//	SyslogStudio service <command>     the Windows service, and managing it
+//	SyslogStudio service <command>     the system service, and managing it
 //
 // One binary rather than three because they must always be the same version:
 // the service reads the configuration the window wrote.
@@ -40,13 +41,15 @@ Usage:
                                      until interrupted (for systemd, launchd,
                                      or a terminal); DIR defaults to the
                                      desktop application's own directory
-  SyslogStudio service status        show the Windows service's state
-  SyslogStudio service install --bundle FILE [--operator SID]
-  SyslogStudio service allow --operator SID
+  SyslogStudio service status        show the system service's state (a
+                                     Windows service, or a systemd unit)
+  SyslogStudio service install --bundle FILE [--operator ID]
+  SyslogStudio service allow --operator ID
                                      let an account drive the service from
-                                     its window
+                                     its window; ID is its SID on Windows,
+                                     its uid on Linux
   SyslogStudio service uninstall [--purge]
-  SyslogStudio service start | stop  manage it (as an administrator)
+  SyslogStudio service start | stop  manage it (as an administrator, or root)
 
 The service is normally installed from Settings > Background, which prepares
 the bundle and asks for administrator rights itself. Once it runs, the window
@@ -58,8 +61,8 @@ of an allowed account drives it: its settings, its messages, its rules.
 // start.
 func runCommandLine(args []string) (handled bool, code int) {
 	// Started by the service manager: nothing else applies.
-	if winsvc.IsService() {
-		if err := winsvc.Run(updater.GetAppVersion()); err != nil {
+	if sysvc.IsService() {
+		if err := sysvc.Run(updater.GetAppVersion()); err != nil {
 			return true, 1
 		}
 		return true, 0
@@ -73,7 +76,7 @@ func runCommandLine(args []string) (handled bool, code int) {
 	case "--headless", "headless":
 		return true, headlessCommand(args[1:])
 	case "--help", "-h", "help", "/?":
-		winsvc.AttachConsole()
+		sysvc.AttachConsole()
 		fmt.Fprintf(os.Stdout, usageText, updater.GetAppVersion())
 		return true, 0
 	}
@@ -113,7 +116,7 @@ func hasArg(args []string, want string) bool {
 
 func serviceCommand(args []string) int {
 	if len(args) == 0 {
-		winsvc.AttachConsole()
+		sysvc.AttachConsole()
 		fmt.Fprintf(os.Stderr, usageText, updater.GetAppVersion())
 		return 2
 	}
@@ -123,9 +126,9 @@ func serviceCommand(args []string) int {
 	bundle := fs.String("bundle", "", "configuration bundle to install")
 	result := fs.String("result", "", "where to record the outcome")
 	purge := fs.Bool("purge", false, "also delete the service's data")
-	operator := fs.String("operator", "", "SID of an account allowed to drive the service")
+	operator := fs.String("operator", "", "account allowed to drive the service: SID on Windows, uid on Linux")
 	if err := fs.Parse(args[1:]); err != nil {
-		winsvc.AttachConsole()
+		sysvc.AttachConsole()
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
@@ -133,9 +136,9 @@ func serviceCommand(args []string) int {
 	// An elevated helper started by the window reports through --result; one
 	// typed in a terminal reports on the terminal.
 	finish := func(err error) int {
-		winsvc.WriteResult(*result, err)
+		sysvc.WriteResult(*result, err)
 		if *result == "" {
-			winsvc.AttachConsole()
+			sysvc.AttachConsole()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Error:", err)
 			} else {
@@ -150,8 +153,16 @@ func serviceCommand(args []string) int {
 
 	switch cmd {
 	case "run":
-		// Only meaningful under the service manager, which was handled above.
-		winsvc.AttachConsole()
+		// systemd starts the Linux service this way. Windows' service manager
+		// was handled above, and anywhere else this is a mistake.
+		if runtime.GOOS == "linux" {
+			if err := sysvc.Run(updater.GetAppVersion()); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return 1
+			}
+			return 0
+		}
+		sysvc.AttachConsole()
 		fmt.Fprintln(os.Stderr, "`service run` is what the service manager starts; to receive in a terminal, use --headless.")
 		return 2
 	case "install":
@@ -162,35 +173,35 @@ func serviceCommand(args []string) int {
 		if err != nil {
 			return finish(err)
 		}
-		return finish(winsvc.Install(exe, *bundle, *operator))
+		return finish(sysvc.Install(exe, *bundle, *operator))
 	case "allow":
 		if *operator == "" {
-			return finish(fmt.Errorf("--operator is required: the SID of the account to allow"))
+			return finish(fmt.Errorf("--operator is required: the account to allow (its SID on Windows, its uid on Linux)"))
 		}
-		return finish(winsvc.Allow(*operator))
+		return finish(sysvc.Allow(*operator))
 	case "uninstall":
-		return finish(winsvc.Uninstall(*purge))
+		return finish(sysvc.Uninstall(*purge))
 	case "start":
-		return finish(winsvc.Start())
+		return finish(sysvc.Start())
 	case "stop":
-		return finish(winsvc.Stop())
+		return finish(sysvc.Stop())
 	case "status":
-		winsvc.AttachConsole()
+		sysvc.AttachConsole()
 		printServiceStatus(os.Stdout)
 		return 0
 	}
-	winsvc.AttachConsole()
+	sysvc.AttachConsole()
 	fmt.Fprintf(os.Stderr, "unknown service command %q\n\n", cmd)
 	fmt.Fprintf(os.Stderr, usageText, updater.GetAppVersion())
 	return 2
 }
 
 func printServiceStatus(w io.Writer) {
-	if !winsvc.Supported() {
-		fmt.Fprintln(w, winsvc.ErrUnsupported)
+	if !sysvc.Supported() {
+		fmt.Fprintln(w, sysvc.ErrUnsupported)
 		return
 	}
-	info, err := winsvc.Query()
+	info, err := sysvc.Query()
 	if err != nil {
 		fmt.Fprintln(w, "Cannot query the service manager:", err)
 		return
@@ -199,13 +210,13 @@ func printServiceStatus(w io.Writer) {
 		fmt.Fprintln(w, "The SyslogStudio service is not installed.")
 		return
 	}
-	fmt.Fprintf(w, "Service:     %s (%s)\n", winsvc.Name, info.State)
+	fmt.Fprintf(w, "Service:     %s (%s)\n", sysvc.Name, info.State)
 	fmt.Fprintf(w, "Executable:  %s\n", info.Executable)
 	fmt.Fprintf(w, "Account:     %s\n", info.Account)
-	if dir, err := winsvc.DataDir(); err == nil {
+	if dir, err := sysvc.DataDir(); err == nil {
 		fmt.Fprintf(w, "Data:        %s\n", dir)
 	}
-	dir, _ := winsvc.StatusDir()
+	dir, _ := sysvc.StatusDir()
 	st, ok := headless.ReadStatus(dir)
 	if !ok {
 		fmt.Fprintln(w, "The service has not published a status yet.")
@@ -237,7 +248,7 @@ func printServiceStatus(w io.Writer) {
 	}
 	fmt.Fprintf(w, "Received:    %d messages since start\n", st.Messages)
 	fmt.Fprintf(w, "Windows:     %d connected\n", st.Windows)
-	if ops, err := winsvc.Operators(); err == nil {
+	if ops, err := sysvc.Operators(); err == nil {
 		names := make([]string, 0, len(ops))
 		for _, op := range ops {
 			if op.Name != "" {
@@ -256,7 +267,7 @@ func printServiceStatus(w io.Writer) {
 }
 
 func headlessCommand(args []string) int {
-	winsvc.AttachConsole()
+	sysvc.AttachConsole()
 	fs := flag.NewFlagSet("headless", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	dataDir := fs.String("data-dir", "", "configuration and database directory")

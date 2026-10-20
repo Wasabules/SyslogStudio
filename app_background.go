@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ import (
 	"SyslogStudio/internal/headless"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/portowner"
-	"SyslogStudio/internal/winsvc"
+	"SyslogStudio/internal/sysvc"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -214,8 +215,8 @@ func (a *App) heldPorts(config models.ServerConfig) string {
 	self, service := uint32(os.Getpid()), uint32(0)
 	if c := a.serviceClient(); c != nil {
 		self = uint32(c.Hello().PID)
-	} else if winsvc.Supported() {
-		if info, err := winsvc.Query(); err == nil && info.State == "running" {
+	} else if sysvc.Supported() {
+		if info, err := sysvc.Query(); err == nil && info.State == "running" {
 			service = info.PID
 		}
 	}
@@ -254,19 +255,19 @@ func (a *App) heldPorts(config models.ServerConfig) string {
 
 // GetSystemService reports the system service.
 func (a *App) GetSystemService() models.SystemServiceInfo {
-	info := models.SystemServiceInfo{Supported: winsvc.Supported()}
+	info := models.SystemServiceInfo{Supported: sysvc.Supported(), Platform: runtime.GOOS}
 	if !info.Supported {
 		return info
 	}
 	exe, _ := autostart.Executable()
-	if err := winsvc.CheckLocation(exe); err != nil {
+	if err := sysvc.CheckLocation(exe); err != nil {
 		info.CannotInstallReason = err.Error()
 	} else {
 		info.CanInstall = true
 	}
-	info.DataDir, _ = winsvc.DataDir()
+	info.DataDir, _ = sysvc.DataDir()
 
-	q, err := winsvc.Query()
+	q, err := sysvc.Query()
 	if err != nil {
 		info.State = "unknown"
 		return info
@@ -277,7 +278,7 @@ func (a *App) GetSystemService() models.SystemServiceInfo {
 	info.Account = q.Account
 	info.ExecutableMatches = q.Installed && strings.EqualFold(filepath.Clean(q.Executable), filepath.Clean(exe))
 	if q.Installed {
-		if dir, err := winsvc.StatusDir(); err == nil {
+		if dir, err := sysvc.StatusDir(); err == nil {
 			if hs, ok := headless.ReadStatus(dir); ok {
 				info.Host = &hs
 			}
@@ -305,14 +306,14 @@ func (a *App) GetSystemService() models.SystemServiceInfo {
 // unlocked. Unset, the service stores what it receives in its own database,
 // in the clear.
 func (a *App) InstallSystemService(sealed bool) error {
-	if !winsvc.Supported() {
-		return winsvc.ErrUnsupported
+	if !sysvc.Supported() {
+		return sysvc.ErrUnsupported
 	}
 	exe, err := autostart.Executable()
 	if err != nil {
 		return err
 	}
-	if err := winsvc.CheckLocation(exe); err != nil {
+	if err := sysvc.CheckLocation(exe); err != nil {
 		return err
 	}
 	eng := a.local()
@@ -357,7 +358,7 @@ func (a *App) InstallSystemService(sealed bool) error {
 
 	// This account may then drive the service from this window.
 	args := []string{"install", "--bundle", bundlePath}
-	if sid, serr := winsvc.CurrentUserSID(); serr == nil {
+	if sid, serr := sysvc.CurrentUserSID(); serr == nil {
 		args = append(args, "--operator", sid)
 	}
 	err = a.runElevated(exe, dir, args...)
@@ -400,8 +401,8 @@ func (a *App) StopSystemService() error {
 }
 
 func (a *App) runServiceCommand(args ...string) error {
-	if !winsvc.Supported() {
-		return winsvc.ErrUnsupported
+	if !sysvc.Supported() {
+		return sysvc.ErrUnsupported
 	}
 	exe, err := autostart.Executable()
 	if err != nil {
@@ -422,14 +423,14 @@ func (a *App) runElevated(exe, dir string, args ...string) error {
 	full := append([]string{"service"}, args...)
 	full = append(full, "--result", resultPath)
 
-	code, err := winsvc.RunElevated(exe, full, elevatedTimeout)
+	code, err := sysvc.RunElevated(exe, full, elevatedTimeout)
 	if err != nil {
-		if errors.Is(err, winsvc.ErrCancelled) {
+		if errors.Is(err, sysvc.ErrCancelled) {
 			return fmt.Errorf("cancelled: administrator rights are needed for this")
 		}
 		return err
 	}
-	if r, rerr := winsvc.ReadResult(resultPath); rerr == nil {
+	if r, rerr := sysvc.ReadResult(resultPath); rerr == nil {
 		if !r.OK {
 			return errors.New(r.Error)
 		}

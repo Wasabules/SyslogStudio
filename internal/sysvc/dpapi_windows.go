@@ -1,6 +1,6 @@
 //go:build windows
 
-package winsvc
+package sysvc
 
 import (
 	"unsafe"

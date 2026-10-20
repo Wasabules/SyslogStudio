@@ -517,6 +517,7 @@ export const BACKGROUND_SETTINGS = {
 
 export const SYSTEM_SERVICE = {
   supported: true,
+  platform: 'windows',
   installed: false,
   state: '',
   canInstall: true,
@@ -539,6 +540,7 @@ export const SERVICE_LINK_DRIVING = {
 /** The same, installed and receiving: what the background scene shows. */
 export const SYSTEM_SERVICE_RUNNING = {
   supported: true,
+  platform: 'windows',
   installed: true,
   state: 'running',
   canInstall: true,

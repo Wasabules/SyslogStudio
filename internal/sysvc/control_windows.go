@@ -1,14 +1,11 @@
 //go:build windows
 
-package winsvc
+package sysvc
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,34 +17,6 @@ import (
 // ControlPipe is where windows connect to drive the service. Remote clients
 // are refused by the pipe itself: this is for the machine's own users.
 const ControlPipe = `\\.\pipe\SyslogStudio`
-
-// operatorsFile lists the accounts allowed to drive the service from a
-// window, in the service's own directory.
-const operatorsFile = "operators.json"
-
-// Operators lists the accounts allowed to drive the service.
-func Operators() ([]Operator, error) {
-	dir, err := DataDir()
-	if err != nil {
-		return nil, err
-	}
-	return loadOperators(dir)
-}
-
-func loadOperators(dir string) ([]Operator, error) {
-	data, err := os.ReadFile(filepath.Join(dir, operatorsFile))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var ops []Operator
-	if err := json.Unmarshal(data, &ops); err != nil {
-		return nil, fmt.Errorf("read %s: %w", operatorsFile, err)
-	}
-	return ops, nil
-}
 
 // addOperator allows an account, given by SID, to drive the service. added
 // is false when it was allowed already.
@@ -73,13 +42,8 @@ func addOperator(dir, sid string) (added bool, err error) {
 			op.Name = domain + `\` + account
 		}
 	}
-	ops = append(ops, op)
-	data, err := json.MarshalIndent(ops, "", "  ")
-	if err != nil {
+	if err := saveOperators(dir, append(ops, op)); err != nil {
 		return false, err
-	}
-	if err := os.WriteFile(filepath.Join(dir, operatorsFile), data, 0600); err != nil {
-		return false, fmt.Errorf("write %s: %w", operatorsFile, err)
 	}
 	return true, nil
 }

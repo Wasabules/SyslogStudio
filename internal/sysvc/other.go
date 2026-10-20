@@ -1,14 +1,14 @@
-//go:build !windows
+//go:build !windows && !linux
 
-package winsvc
+package sysvc
 
 import (
 	"net"
 	"time"
 )
 
-// Outside Windows there is no service to install: the headless mode runs under
-// systemd or launchd instead. These keep the callers free of build tags.
+// Elsewhere — macOS — there is no service to install: the headless mode runs
+// under launchd instead. These keep the callers free of build tags.
 
 func Supported() bool                      { return false }
 func IsService() bool                      { return false }
@@ -20,7 +20,6 @@ func CheckLocation(string) error           { return ErrUnsupported }
 func Query() (Info, error)                 { return Info{}, nil }
 func Install(string, string, string) error { return ErrUnsupported }
 func Allow(string) error                   { return ErrUnsupported }
-func Operators() ([]Operator, error)       { return nil, ErrUnsupported }
 func CurrentUserSID() (string, error)      { return "", ErrUnsupported }
 func ListenControl() (net.Listener, error) { return nil, ErrUnsupported }
 func DialControl(time.Duration) (net.Conn, error) {
@@ -34,3 +33,4 @@ func Run(string) error     { return ErrUnsupported }
 func RunElevated(string, []string, time.Duration) (uint32, error) {
 	return 0, ErrUnsupported
 }
+func ownLikeDir(string) {}

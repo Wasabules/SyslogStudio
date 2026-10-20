@@ -187,7 +187,27 @@ jobs:
            Multi-protocol syslog server (UDP, TCP, TLS) with real-time log viewing,
            filtering, alerts, and statistics dashboard.
           Depends: libgtk-3-0, libwebkit2gtk-4.1-0
+          Recommends: pkexec | policykit-1
           EOF
+          # An upgrade replaces the executable the system service runs:
+          # restart it, so the service and the window are the same version.
+          cat > pkg/DEBIAN/postinst << 'EOF'
+          #!/bin/sh
+          set -e
+          if [ -d /run/systemd/system ] && systemctl is-active --quiet syslogstudio.service; then
+            systemctl restart syslogstudio.service || true
+          fi
+          EOF
+          # Removing the package removes what the service runs: remove the
+          # service too, keeping its data. An upgrade leaves it be.
+          cat > pkg/DEBIAN/prerm << 'EOF'
+          #!/bin/sh
+          set -e
+          if [ "$1" = remove ] && [ -f /etc/systemd/system/syslogstudio.service ]; then
+            /usr/bin/syslogstudio service uninstall || true
+          fi
+          EOF
+          chmod 755 pkg/DEBIAN/postinst pkg/DEBIAN/prerm
           dpkg-deb --build pkg "SyslogStudio-linux-amd64.deb"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

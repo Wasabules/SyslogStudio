@@ -228,7 +228,7 @@ SyslogStudio can keep receiving with its window closed, in two ways, both set up
   pressing Start. If the database is encrypted, the window appears at sign-in to ask for the
   password and returns to the tray afterwards.
 
-### As a system service (Windows)
+### As a system service (Windows, Linux)
 
 For a machine that must receive with nobody signed in. **Install the service** asks for
 administrator rights once, creates the `SyslogStudio` service (automatic start at boot, account
@@ -273,6 +273,27 @@ switches back as soon as the service runs. The banner offers what to do:
 
 The window and the service connect over a local named pipe that only administrators and the
 allowed accounts may open, and the window checks that what answers is the service itself.
+
+#### On Linux
+
+On a Linux system that runs systemd, the same button installs a systemd unit instead:
+
+- The unit runs SyslogStudio as a `syslogstudio` system account. That account may listen on
+  ports below 1024 and can do little else: the system is read-only to it, and home directories
+  are out of its reach.
+- The service keeps its configuration and data in `/var/lib/syslogstudio`, readable by root
+  only. Its status and the socket windows connect to are in `/run/syslogstudio`.
+- Administrator rights come from polkit (`pkexec`). Without polkit, run the commands with
+  `sudo`.
+- SyslogStudio must be installed from its package, or copied under `/usr/local` as root. A copy
+  unpacked in a home directory cannot be installed as a service.
+- No firewall rule is added. If a firewall filters what comes in, open the ports in it.
+- The window connects over a Unix socket. The service checks who connects against the allowed
+  accounts, and an account allowed later gets in without a restart.
+- Credentials and private keys are protected by the directory's permissions: Linux has no
+  DPAPI.
+- Removing the package removes the service and keeps its data. Upgrading the package restarts
+  the service on the new version.
 
 #### With an encrypted database
 
@@ -327,8 +348,9 @@ rights.
   - the number of messages received and the connected windows;
   - the allowed accounts and the last error. Pipe it through
   `more` when running it from `cmd`.
-- Start-up errors are written to the Windows **Application** event log, source `SyslogStudio`.
-- The service's own log is `%ProgramData%\SyslogStudio\logs\service.log`.
+- On Windows, start-up errors are written to the **Application** event log, source
+  `SyslogStudio`, and the service's own log is `%ProgramData%\SyslogStudio\logs\service.log`.
+- On Linux, everything the service says is in the journal: `journalctl -u syslogstudio`.
 - A port already in use at boot does not stop the service: it reports the error, retries every
   30 seconds, and a window can change the ports meanwhile.
 

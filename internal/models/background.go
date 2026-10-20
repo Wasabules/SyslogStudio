@@ -41,10 +41,14 @@ type BackgroundSettings struct {
 
 // SystemServiceInfo is what the settings page shows about the system service.
 type SystemServiceInfo struct {
-	// Supported is false outside Windows, where the headless mode is run by
-	// the platform's own service manager instead.
+	// Supported is false where there is no service to install — macOS, or a
+	// Linux without systemd — and the headless mode is run by the platform's
+	// own service manager instead.
 	Supported bool `json:"supported"`
-	Installed bool `json:"installed"`
+	// Platform is the system the service is for, "windows" or "linux": what
+	// installing it involves differs, and so does how the window says it.
+	Platform  string `json:"platform"`
+	Installed bool   `json:"installed"`
 	// State is the service manager's view: stopped, starting, running,
 	// stopping, or unknown.
 	State string `json:"state"`
