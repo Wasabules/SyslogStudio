@@ -54,6 +54,13 @@
         .join(', ');
     $: inbox = svc?.host?.inbox ?? null;
 
+    // What installing involves differs on Linux — systemd, polkit, no
+    // firewall rule — and these say so there.
+    const linuxVariants = new Set(['serviceText', 'mustBePerMachine', 'installStep1', 'installStep2',
+        'installStep4', 'installPlaintext']);
+    $: platformKey = (key: string): string =>
+        `background.${key}${svc?.platform === 'linux' && linuxVariants.has(key) ? 'Linux' : ''}`;
+
     function megabytes(bytes: number): string {
         return (bytes / 1048576).toLocaleString($locale ?? undefined, { maximumFractionDigits: 1 });
     }
@@ -211,7 +218,7 @@
     {#if svc && !svc.supported}
         <p class="text">{$_('background.serviceUnsupported')}</p>
     {:else if svc}
-        <p class="text">{$_('background.serviceText', { values: { dir: svc.dataDir } })}</p>
+        <p class="text">{$_(platformKey('serviceText'), { values: { dir: svc.dataDir } })}</p>
 
         <div class="status-line" role="status">
             <span class="dot" class:running class:stopped={installed && !running}></span>
@@ -240,7 +247,7 @@
             <span class="note warn">{$_('background.otherCopy', { values: { path: svc.executable } })}</span>
         {/if}
         {#if !svc.canInstall}
-            <span class="note warn">{$_('background.mustBePerMachine')}</span>
+            <span class="note warn">{$_(platformKey('mustBePerMachine'))}</span>
         {/if}
 
         {#if driving}
@@ -305,10 +312,10 @@
             <h3>{installed ? $_('background.update') : $_('background.installTitle')}</h3>
             <p class="text">{$_('background.installWill')}</p>
             <ol>
-                <li>{$_('background.installStep1')}</li>
-                <li>{$_('background.installStep2')}</li>
+                <li>{$_(platformKey('installStep1'))}</li>
+                <li>{$_(platformKey('installStep2'))}</li>
                 <li>{$_('background.installStep3')}</li>
-                <li>{$_('background.installStep4')}</li>
+                <li>{$_(platformKey('installStep4'))}</li>
                 <li>{$_('background.installStep5')}</li>
                 <li>{$_('background.installStep6')}</li>
             </ol>
@@ -328,7 +335,7 @@
                 </fieldset>
             {/if}
             {#if !encryptionOn || !keepEncryption}
-                <p class="note warn">{$_('background.installPlaintext', { values: { dir: svc.dataDir } })}</p>
+                <p class="note warn">{$_(platformKey('installPlaintext'), { values: { dir: svc.dataDir } })}</p>
             {/if}
             {#if encryptionOn && !keepEncryption}
                 <label class="check">

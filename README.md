@@ -206,8 +206,9 @@ starts with the computer, before anyone signs in, and that the window then drive
 
 - **In your session** — start at sign-in, hidden in the tray, and start receiving on launch
   with the saved listeners. No administrator needed
-- **As a Windows service** — installed from Settings > Background with one administrator
-  prompt; starts at boot under its own account (`NT SERVICE\SyslogStudio`) with its own
+- **As a system service**, on Windows or on Linux with systemd — installed from Settings >
+  Background with one administrator prompt; starts at boot under its own account
+  (`NT SERVICE\SyslogStudio`, or a `syslogstudio` system user on Linux) with its own
   configuration and database, credentials and private key protected by DPAPI, a firewall
   rule for domain and private networks, and automatic restart after a failure. An encrypted
   database stays encrypted: the service seals what it receives for your window to collect
@@ -315,7 +316,7 @@ sign-in to ask for the password, then goes back to the tray — nothing is store
 typed, and the application will not pretend otherwise. This mode runs under your account and
 stops when you sign out.
 
-**As a system service** (Windows). For a machine that must receive with nobody signed in.
+**As a system service** (Windows, Linux). For a machine that must receive with nobody signed in.
 *Install the service* asks for administrator rights once, then:
 
 - creates the `SyslogStudio` service, started automatically at boot under the virtual
@@ -371,6 +372,20 @@ with the installer stops the service for the update and starts it again. A copy 
 application still running, in the tray or in another user's session, has to be quit first:
 the installer and the uninstaller wait and say so.
 
+**On Linux with systemd**, the same button installs a hardened systemd unit:
+- It runs SyslogStudio as a `syslogstudio` system user, allowed to listen on ports below 1024
+  and little else.
+- Its data are in `/var/lib/syslogstudio`, readable by root only.
+- It is reached over a Unix socket that only root and the allowed accounts may use.
+- It logs to the journal: `journalctl -u syslogstudio`.
+
+Administrator rights come from polkit (`pkexec`). From a terminal, `sudo syslogstudio service
+…` does the same.
+
+The service needs the copy the package installed, which only root can change. Removing the
+package removes the service and keeps its data. Upgrading it restarts the service on the new
+version.
+
 **Headless, anywhere.** `SyslogStudio --headless [--data-dir DIR]` runs the engine in the
 foreground with no window until interrupted — under systemd or launchd, or in a terminal. By
 default it uses the application's own configuration directory, so you can set it up in the
@@ -395,6 +410,7 @@ Restart=on-failure
 | macOS | `~/Library/Application Support/SyslogStudio/` |
 | Linux | `~/.config/SyslogStudio/` |
 | Windows service | `%ProgramData%\SyslogStudio\` |
+| Linux service | `/var/lib/syslogstudio/` |
 
 `config.json` holds settings, rules and destinations; `logs.db` the messages;
 `sinksecrets.json` the destination credentials; `ca.json` and `server-cert.json` the

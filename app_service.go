@@ -11,8 +11,8 @@ import (
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/remote"
+	"SyslogStudio/internal/sysvc"
 	"SyslogStudio/internal/updater"
-	"SyslogStudio/internal/winsvc"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -139,8 +139,8 @@ func (a *App) GetServiceLink() models.ServiceLink {
 		link.Reason = reason
 		link.Detail = detail
 	}
-	if winsvc.Supported() {
-		if info, err := winsvc.Query(); err == nil {
+	if sysvc.Supported() {
+		if info, err := sysvc.Query(); err == nil {
 			link.Installed = info.Installed
 			link.State = info.State
 		}
@@ -155,7 +155,7 @@ func (a *App) GetServiceLink() models.ServiceLink {
 // an administrator; the service restarts so its pipe lets the account in, and
 // the window connects as soon as it is back.
 func (a *App) AllowServiceAccess() error {
-	sid, err := winsvc.CurrentUserSID()
+	sid, err := sysvc.CurrentUserSID()
 	if err != nil {
 		return err
 	}
@@ -320,21 +320,21 @@ func (a *App) reconnect(lost *remote.Client) {
 // dialService connects to the service and introduces this window, or says
 // why it cannot.
 func (a *App) dialService() (c *remote.Client, reason, detail string) {
-	if !winsvc.Supported() {
+	if !sysvc.Supported() {
 		return nil, "", ""
 	}
-	info, err := winsvc.Query()
+	info, err := sysvc.Query()
 	if err != nil || !info.Installed {
 		return nil, "", ""
 	}
 	if info.State != "running" {
 		return nil, reasonStopped, ""
 	}
-	conn, err := winsvc.DialControl(dialTimeout)
+	conn, err := sysvc.DialControl(dialTimeout)
 	switch {
-	case errors.Is(err, winsvc.ErrAccessDenied):
+	case errors.Is(err, sysvc.ErrAccessDenied):
 		return nil, reasonDenied, ""
-	case errors.Is(err, winsvc.ErrNotService):
+	case errors.Is(err, sysvc.ErrNotService):
 		return nil, reasonNotService, err.Error()
 	case err != nil:
 		return nil, reasonUnreachable, err.Error()

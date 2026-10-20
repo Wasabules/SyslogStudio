@@ -390,6 +390,8 @@ export interface InboxStatus {
 }
 export interface SystemServiceInfo {
     supported: boolean;
+    // "windows" or "linux": what installing involves, and how it is said.
+    platform: string;
     installed: boolean;
     state: string;
     canInstall: boolean;

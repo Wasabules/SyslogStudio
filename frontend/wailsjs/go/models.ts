@@ -918,6 +918,7 @@ export namespace models {
 	
 	export class SystemServiceInfo {
 	    supported: boolean;
+	    platform: string;
 	    installed: boolean;
 	    state: string;
 	    canInstall: boolean;
@@ -935,6 +936,7 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.supported = source["supported"];
+	        this.platform = source["platform"];
 	        this.installed = source["installed"];
 	        this.state = source["state"];
 	        this.canInstall = source["canInstall"];

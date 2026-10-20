@@ -1,6 +1,6 @@
 //go:build windows
 
-package winsvc
+package sysvc
 
 import (
 	"errors"
@@ -68,3 +68,7 @@ func isUnder(path, dir string) bool {
 	}
 	return rel != "." && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)
 }
+
+// ownLikeDir has nothing to do on Windows: a file written by an elevated
+// administrator in someone's directory stays readable by them.
+func ownLikeDir(string) {}

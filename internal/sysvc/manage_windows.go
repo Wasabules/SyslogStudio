@@ -1,9 +1,8 @@
 //go:build windows
 
-package winsvc
+package sysvc
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -207,19 +206,6 @@ func applyConfig(cfg *mgr.Config, exe string) {
 	cfg.Password = ""
 	cfg.SidType = windows.SERVICE_SID_TYPE_UNRESTRICTED
 	cfg.BinaryPathName = windows.EscapeArg(exe) + " service run"
-}
-
-func readBundle(path string) (engine.Bundle, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return engine.Bundle{}, fmt.Errorf("read the configuration to install: %w", err)
-	}
-	_ = os.Remove(path)
-	var b engine.Bundle
-	if err := json.Unmarshal(data, &b); err != nil {
-		return engine.Bundle{}, fmt.Errorf("read the configuration to install: %w", err)
-	}
-	return b, nil
 }
 
 // Uninstall stops and removes the service, its firewall rule and its event
