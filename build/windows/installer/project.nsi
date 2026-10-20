@@ -1,4 +1,8 @@
-Unicode true
+﻿Unicode true
+
+; This file must stay UTF-8 *with* a byte order mark. Without one, makensis
+; reads it in the system's ANSI code page and every accented string comes out
+; garbled ("PortÃ©e"). installer_test.go checks it.
 
 ####
 ## SyslogStudio Installer
