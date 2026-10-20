@@ -53,13 +53,17 @@ func NewApp() *App {
 // root one in a temporary directory.
 func newAppIn(cs *storage.ConfigStore) *App {
 	eng := engine.New(cs)
-	return &App{
+	a := &App{
 		Backend: eng,
 		keys:    eng,
 		engine:  eng,
 		prefs:   eng.ConfigStore(),
 		updater: updater.NewService("Wasabules", "SyslogStudio"),
 	}
+	// An update quits for real: closing to the tray, or asking, would leave
+	// the executable running and locked against the installer.
+	a.updater.SetQuit(a.QuitApplication)
+	return a
 }
 
 // startup is called when the app starts.

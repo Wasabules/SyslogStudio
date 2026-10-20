@@ -55,6 +55,7 @@ type Service struct {
 
 	mu      sync.Mutex
 	ctx     context.Context
+	quit    func()
 	pending *pending
 	applyMu sync.Mutex // serializes DownloadAndApply; rejects concurrent applies
 }
@@ -106,6 +107,16 @@ func (s *Service) SetContext(ctx context.Context) {
 	s.ctx = ctx
 	s.mu.Unlock()
 	cleanupLeftoverOld()
+}
+
+// SetQuit sets how the application exits so an update can replace it. The
+// window's own close can be intercepted — hidden to the tray, or a question to
+// the user — and a plain runtime Quit goes through that interception, leaving
+// the application running and its executable locked against the installer.
+func (s *Service) SetQuit(quit func()) {
+	s.mu.Lock()
+	s.quit = quit
+	s.mu.Unlock()
 }
 
 func (s *Service) context() context.Context {

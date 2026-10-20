@@ -257,7 +257,7 @@ func (s *Service) runInstaller(ctx context.Context, path string) error {
 		}
 		return fmt.Errorf("launch installer: %w", err)
 	}
-	wruntime.Quit(ctx)
+	s.quitApp(ctx)
 	return nil
 }
 
@@ -267,6 +267,18 @@ func (s *Service) relaunch(ctx context.Context) {
 		_ = exec.Command(exe).Start()
 	}
 	time.Sleep(300 * time.Millisecond)
+	s.quitApp(ctx)
+}
+
+// quitApp exits through the quit set by SetQuit, or the runtime's otherwise.
+func (s *Service) quitApp(ctx context.Context) {
+	s.mu.Lock()
+	quit := s.quit
+	s.mu.Unlock()
+	if quit != nil {
+		quit()
+		return
+	}
 	wruntime.Quit(ctx)
 }
 
