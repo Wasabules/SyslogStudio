@@ -372,6 +372,7 @@ export interface HostStatus {
     updatedAt: string;
     listeners: HostListener[] | null;
     messages: number;
+    windows: number;
     error?: string;
 }
 export interface SystemServiceInfo {
@@ -399,3 +400,19 @@ export const installSystemService = (): Promise<void> => callGo('InstallSystemSe
 export const uninstallSystemService = (purge: boolean): Promise<void> => callGo('UninstallSystemService', purge);
 export const startSystemService = (): Promise<void> => callGo('StartSystemService');
 export const stopSystemService = (): Promise<void> => callGo('StopSystemService');
+
+// Which engine this window drives: its own, or the system service's while it
+// runs. reason says why it drives its own although the service is installed:
+// stopped, denied, version (detail names the service's), notService, or
+// unreachable.
+export interface ServiceLink {
+    mode: 'local' | 'service';
+    installed: boolean;
+    state: string;
+    reason?: '' | 'stopped' | 'denied' | 'version' | 'notService' | 'unreachable';
+    detail?: string;
+    serviceVersion?: string;
+}
+export const getServiceLink = (): Promise<ServiceLink> => callGo('GetServiceLink');
+// Lets this window's account drive the service; asks for administrator rights.
+export const allowServiceAccess = (): Promise<void> => callGo('AllowServiceAccess');

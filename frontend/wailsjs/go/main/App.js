@@ -6,6 +6,10 @@ export function AddAlertRule(arg1) {
   return window['go']['main']['App']['AddAlertRule'](arg1);
 }
 
+export function AllowServiceAccess() {
+  return window['go']['main']['App']['AllowServiceAccess']();
+}
+
 export function AreSinkCredentialsUnencrypted() {
   return window['go']['main']['App']['AreSinkCredentialsUnencrypted']();
 }
@@ -188,6 +192,10 @@ export function GetServerCertInfo() {
 
 export function GetServerStatus() {
   return window['go']['main']['App']['GetServerStatus']();
+}
+
+export function GetServiceLink() {
+  return window['go']['main']['App']['GetServiceLink']();
 }
 
 export function GetSimulatorConfig() {

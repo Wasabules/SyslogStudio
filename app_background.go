@@ -105,17 +105,20 @@ func (a *App) GetAutoStartError() string {
 // GetDataDirConflict explains why this window cannot use its data directory —
 // another SyslogStudio process has it — or returns empty.
 func (a *App) GetDataDirConflict() string {
-	if a.engine == nil || a.engine.OpenError() == nil {
+	eng := a.local()
+	if eng == nil || eng.OpenError() == nil {
 		return ""
 	}
-	return a.engine.OpenError().Error()
+	return eng.OpenError().Error()
 }
 
 // autoStart starts the listeners if the user asked for that on launch, as soon
 // as the engine can: at startup, or right after the unlock when the database
-// is encrypted. It runs once per launch.
+// is encrypted. It runs once per launch, and only for the window's own
+// engine: the service starts its listeners itself.
 func (a *App) autoStart() {
-	if !a.prefs.LoadBackground().AutoStartListeners || a.engine.OpenError() != nil || a.IsEncryptionLocked() {
+	eng := a.local()
+	if eng == nil || !a.prefs.LoadBackground().AutoStartListeners || eng.OpenError() != nil || a.IsEncryptionLocked() {
 		return
 	}
 	a.bg.mu.Lock()
@@ -189,7 +192,7 @@ func (a *App) UnlockDatabase(password string) error {
 // for some other program.
 func (a *App) StartServer(config models.ServerConfig) error {
 	err := a.Backend.StartServer(config)
-	if err == nil || !winsvc.Supported() {
+	if err == nil || !winsvc.Supported() || a.drivingService() {
 		return err
 	}
 	msg := strings.ToLower(err.Error())
@@ -262,7 +265,11 @@ func (a *App) InstallSystemService() error {
 	if err := winsvc.CheckLocation(exe); err != nil {
 		return err
 	}
-	bundle, err := a.keys.ExportBundle()
+	eng := a.local()
+	if eng == nil {
+		return errors.New("this window is driving the service: its settings are the service's already")
+	}
+	bundle, err := eng.ExportBundle()
 	if err != nil {
 		return err
 	}
@@ -291,7 +298,13 @@ func (a *App) InstallSystemService() error {
 	a.SetAutoStartListeners(false)
 	a.refreshTrayStatus()
 
-	err = a.runElevated(exe, dir, "install", "--bundle", bundlePath)
+	// This account may then drive the service from this window.
+	args := []string{"install", "--bundle", bundlePath}
+	if sid, serr := winsvc.CurrentUserSID(); serr == nil {
+		args = append(args, "--operator", sid)
+	}
+	err = a.runElevated(exe, dir, args...)
+	a.pokeLink()
 	if err != nil {
 		// Declined or failed: nothing took the ports over, so this window goes
 		// back to receiving the way it was rather than leaving the machine
@@ -314,14 +327,20 @@ func (a *App) UninstallSystemService(purge bool) error {
 	if purge {
 		args = append(args, "--purge")
 	}
-	return a.runServiceCommand(args...)
+	return a.lettingGoOfService(func() error { return a.runServiceCommand(args...) })
 }
 
-// StartSystemService starts the installed service.
-func (a *App) StartSystemService() error { return a.runServiceCommand("start") }
+// StartSystemService starts the installed service; the window then drives it.
+func (a *App) StartSystemService() error {
+	err := a.runServiceCommand("start")
+	a.pokeLink()
+	return err
+}
 
-// StopSystemService stops it.
-func (a *App) StopSystemService() error { return a.runServiceCommand("stop") }
+// StopSystemService stops it; the window then drives its own engine.
+func (a *App) StopSystemService() error {
+	return a.lettingGoOfService(func() error { return a.runServiceCommand("stop") })
+}
 
 func (a *App) runServiceCommand(args ...string) error {
 	if !winsvc.Supported() {

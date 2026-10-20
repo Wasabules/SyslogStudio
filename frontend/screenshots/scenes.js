@@ -17,7 +17,7 @@
  * order of the buttons in App.svelte.
  */
 
-import { SYSTEM_SERVICE_RUNNING } from './fixtures.js';
+import { SYSTEM_SERVICE_RUNNING, SERVICE_LINK_DRIVING } from './fixtures.js';
 
 const THEMES = ['dark', 'light'];
 
@@ -146,7 +146,9 @@ const BASE = [
       { selector: '.settings-btn' },
       { selector: '.tab', nth: 2 },
     ],
-    bindings: { GetSystemService: SYSTEM_SERVICE_RUNNING },
+    // Installed, running, and driven from this window: its settings and
+    // messages are the service's.
+    bindings: { GetSystemService: SYSTEM_SERVICE_RUNNING, GetServiceLink: SERVICE_LINK_DRIVING },
     settle: 700,
     expect: { selector: '.card', atLeast: 2 },
   },

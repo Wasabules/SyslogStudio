@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"SyslogStudio/internal/engine"
-	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/remote"
 	"SyslogStudio/internal/storage"
 	"SyslogStudio/internal/updater"
 
@@ -22,16 +22,19 @@ import (
 // App is the Wails binding facade: the window's side of the application.
 //
 // What the receiver does lives in the engine, and reaches the frontend through
-// the embedded Backend. What stays here needs the window: file dialogs, the
-// updater, the close button, the tray, and the user's own preferences.
+// the embedded Backend: the window's own engine, or the system service's when
+// it runs (app_service.go). What stays here needs the window: file dialogs,
+// the updater, the close button, the tray, and the user's own preferences.
 type App struct {
 	Backend
 
 	ctx context.Context
-	// keys is the engine's private key material, kept off the embedded
-	// interface so it is never bound to the frontend.
-	keys keyMaterial
-	// engine is the in-process engine this window hosts.
+	// sw is the embedded Backend: it forwards to the engine driven now.
+	sw *remote.Switch
+	// link is which engine that is, and why.
+	link serviceLink
+	// engine is the window's own engine, nil while it drives the service.
+	// Read it through local(), under link's lock.
 	engine *engine.Engine
 	// prefs holds this window's preferences — the close action, update
 	// checks. In-process it is the engine's own store, shared rather than
@@ -53,9 +56,10 @@ func NewApp() *App {
 // root one in a temporary directory.
 func newAppIn(cs *storage.ConfigStore) *App {
 	eng := engine.New(cs)
+	sw := remote.NewSwitch(eng)
 	a := &App{
-		Backend: eng,
-		keys:    eng,
+		Backend: sw,
+		sw:      sw,
 		engine:  eng,
 		prefs:   eng.ConfigStore(),
 		updater: updater.NewService("Wasabules", "SyslogStudio"),
@@ -66,7 +70,8 @@ func newAppIn(cs *storage.ConfigStore) *App {
 	return a
 }
 
-// startup is called when the app starts.
+// startup is called when the app starts. It drives the system service when it
+// runs, and its own engine otherwise.
 //
 // An engine that cannot claim its data directory — another SyslogStudio has
 // it — still opens far enough to answer questions; the window asks
@@ -74,14 +79,12 @@ func newAppIn(cs *storage.ConfigStore) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.updater.SetContext(ctx)
-	if err := a.engine.Open(event.NewWailsEventEmitter(ctx)); err != nil {
-		slog.Warn("the engine could not claim its data directory", "error", err)
-	}
+	a.startLink()
 }
 
 // shutdown is called when the app is closing.
 func (a *App) shutdown(ctx context.Context) {
-	a.engine.Close()
+	a.stopLink()
 }
 
 // --- Certificate export ---
@@ -91,7 +94,7 @@ func (a *App) shutdown(ctx context.Context) {
 // running as a service would otherwise create it under the service's account.
 
 func (a *App) ExportCACertificate() (string, error) {
-	certPEM, err := a.keys.CACertificatePEM()
+	certPEM, err := a.keyMaterial().CACertificatePEM()
 	if err != nil {
 		return "", err
 	}
@@ -117,7 +120,7 @@ func (a *App) ExportCACertificate() (string, error) {
 }
 
 func (a *App) ExportServerCertificate() (string, error) {
-	certPEM, keyPEM, err := a.keys.ServerCertificatePEM()
+	certPEM, keyPEM, err := a.keyMaterial().ServerCertificatePEM()
 	if err != nil {
 		return "", err
 	}

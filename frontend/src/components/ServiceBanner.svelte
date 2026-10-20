@@ -1,30 +1,48 @@
 <script lang="ts">
     /**
-     * Says, while the system service is running, that something else is
-     * receiving on this machine — and that this window does not show it yet.
+     * Says which engine this window drives, whenever the system service is
+     * installed: the service's — so nobody mistakes its settings and messages
+     * for their own — or the window's own, and why the service is not the one
+     * shown, with the one thing to do about it.
      *
-     * Without it, someone who installed the service and then opened the window
-     * would find an empty log, a Start button that fails with "address already
-     * in use", and no clue that the messages are arriving fine elsewhere.
-     * Dismissed for the session only: the situation it describes does not go
-     * away by being dismissed.
+     * The second kind cannot be dismissed while it lasts: the window is
+     * showing something other than what is receiving on this machine.
      */
     import { _ } from 'svelte-i18n';
-    import { systemService } from '../lib/systemService';
+    import { serviceLink, refreshServiceLink } from '../lib/serviceLink';
+    import { systemService, refreshSystemService } from '../lib/systemService';
+    import { allowServiceAccess, startSystemService } from '../lib/api';
+    import { toastError, toastSuccess } from '../lib/toast';
 
     export let onOpenSettings: () => void = () => {};
 
     let dismissed = false;
+    let busy = false;
 
-    $: svc = $systemService;
-    $: show = !dismissed && !!svc?.installed && svc?.state === 'running';
-    $: ports = (svc?.host?.listeners ?? [])
+    $: link = $serviceLink;
+    $: driving = link?.mode === 'service';
+    $: reason = link && link.installed && !driving ? link.reason ?? '' : '';
+    $: ports = (($systemService?.host?.listeners) ?? [])
         .filter(l => l.running)
         .map(l => `${l.protocol.toUpperCase()} ${l.port}`)
         .join(', ');
+
+    async function act(action: () => Promise<void>, done: string) {
+        busy = true;
+        try {
+            await action();
+            toastSuccess(done);
+        } catch (err) {
+            toastError((err as any)?.message ?? String(err));
+        } finally {
+            busy = false;
+            await refreshServiceLink();
+            await refreshSystemService();
+        }
+    }
 </script>
 
-{#if show}
+{#if driving && !dismissed}
     <div class="svc-banner" role="status">
         <svg class="svc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -35,11 +53,50 @@
             <line x1="6" y1="17" x2="6.01" y2="17"/>
         </svg>
         <span class="svc-title">
-            {$_('background.bannerRunning', { values: { ports: ports ? ` (${ports})` : '' } })}
+            {$_('background.bannerDriving', { values: { ports: ports ? ` (${ports})` : '' } })}
         </span>
-        <span class="svc-text">{$_('background.bannerNote')}</span>
+        <span class="svc-text">{$_('background.bannerDrivingNote')}</span>
         <button class="svc-btn" on:click={onOpenSettings}>{$_('background.bannerSettings')}</button>
         <button class="svc-close" on:click={() => dismissed = true} aria-label={$_('common.close')}>&times;</button>
+    </div>
+{:else if reason}
+    <div class="svc-banner warn" role="alert">
+        <svg class="svc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span class="svc-title">
+            {#if reason === 'stopped'}
+                {$_('background.bannerStopped')}
+            {:else if reason === 'denied'}
+                {$_('background.bannerDenied')}
+            {:else if reason === 'version'}
+                {$_('background.bannerVersion', { values: { version: link?.detail || '?' } })}
+            {:else if reason === 'notService'}
+                {$_('background.bannerNotService')}
+            {:else}
+                {$_('background.bannerUnreachable')}
+            {/if}
+        </span>
+        {#if reason === 'unreachable' && link?.detail}
+            <span class="svc-text" title={link.detail}>{link.detail}</span>
+        {/if}
+        {#if reason === 'stopped'}
+            <button class="svc-btn" disabled={busy}
+                    on:click={() => act(startSystemService, $_('background.started'))}>
+                {$_('background.bannerStart')}
+            </button>
+        {:else if reason === 'denied'}
+            <button class="svc-btn" disabled={busy}
+                    on:click={() => act(allowServiceAccess, $_('background.allowed'))}>
+                {$_('background.allow')}
+            </button>
+        {:else}
+            <button class="svc-btn" on:click={onOpenSettings}>{$_('background.bannerSettings')}</button>
+        {/if}
     </div>
 {/if}
 
@@ -55,11 +112,14 @@
         font-size: 11px;
         color: var(--text-primary);
     }
+    .svc-banner.warn { background: var(--warning-bg); }
     .svc-icon { flex-shrink: 0; color: var(--success); }
-    .svc-title { font-weight: 600; flex-shrink: 0; }
+    .warn .svc-icon { color: var(--warning); }
+    .svc-title { font-weight: 600; flex-shrink: 1; min-width: 0; }
     .svc-text {
         color: var(--text-secondary);
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        min-width: 0;
     }
     .svc-btn {
         margin-left: auto;
@@ -72,7 +132,8 @@
         border: 1px solid var(--border-color);
         border-radius: 3px;
     }
-    .svc-btn:hover { background: var(--bg-hover); }
+    .svc-btn:hover:not(:disabled) { background: var(--bg-hover); }
+    .svc-btn:disabled { opacity: 0.6; cursor: default; }
     .svc-close {
         flex-shrink: 0;
         background: transparent;

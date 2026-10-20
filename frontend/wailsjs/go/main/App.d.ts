@@ -6,6 +6,8 @@ import {importer} from '../models';
 
 export function AddAlertRule(arg1:models.AlertRule):Promise<models.AlertRule>;
 
+export function AllowServiceAccess():Promise<void>;
+
 export function AreSinkCredentialsUnencrypted():Promise<boolean>;
 
 export function CancelClose():Promise<void>;
@@ -97,6 +99,8 @@ export function GetScenarioDurationSeconds():Promise<number>;
 export function GetServerCertInfo():Promise<models.CertInfo>;
 
 export function GetServerStatus():Promise<models.ServerStatus>;
+
+export function GetServiceLink():Promise<models.ServiceLink>;
 
 export function GetSimulatorConfig():Promise<models.SimulatorConfig>;
 

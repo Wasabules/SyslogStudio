@@ -24,6 +24,7 @@
              getCloseAction, setCloseAction, type CloseAction } from '../lib/api';
     import { updateStore } from '../lib/updateStore';
     import BackgroundSettings from './BackgroundSettings.svelte';
+    import { serviceLink } from '../lib/serviceLink';
 
     export let visible = false;
     export let onClose: () => void = () => {};
@@ -609,6 +610,9 @@
 
                     <div class="encryption-section">
                         <h4>{$_('encryption.title')}</h4>
+                        {#if $serviceLink?.mode === 'service'}
+                            <span class="hint encryption-hint">{$_('encryption.serviceUnavailable')}</span>
+                        {:else}
                         <div class="form-group checkbox-group">
                             <label>
                                 <input type="checkbox" bind:checked={encryptionToggle}
@@ -650,6 +654,7 @@
                                     {$_('encryption.disable')}
                                 </button>
                             </div>
+                        {/if}
                         {/if}
                     </div>
 
