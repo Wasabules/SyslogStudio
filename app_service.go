@@ -100,9 +100,15 @@ func (a *App) keyMaterial() keyMaterial {
 
 // drivingService reports whether the window drives the service.
 func (a *App) drivingService() bool {
+	return a.serviceClient() != nil
+}
+
+// serviceClient is the connection to the service while the window drives
+// it, nil otherwise.
+func (a *App) serviceClient() *remote.Client {
 	a.link.mu.Lock()
 	defer a.link.mu.Unlock()
-	return a.link.client != nil
+	return a.link.client
 }
 
 // GetServiceLink says which engine the window drives, and when it drives its

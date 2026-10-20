@@ -832,6 +832,68 @@ func TestStop_ClosesIdleTCPConnection(t *testing.T) {
 	}
 }
 
+// A start on a port another program holds opens nothing. The server must say
+// so and stay stopped: "running" on no listener refused the next start, the
+// one made after fixing the port, as already running.
+func TestStart_NothingListeningStaysStopped(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	cfg := models.DefaultServerConfig()
+	cfg.UDPEnabled, cfg.TCPEnabled = false, true
+	cfg.BindAddress = "127.0.0.1"
+	cfg.TCPPort = held.Addr().(*net.TCPAddr).Port
+	if err := s.Start(cfg); err == nil {
+		t.Fatal("started on a taken port")
+	}
+	if st := s.GetStatus(); st.Running {
+		t.Fatalf("running with nothing listening: %+v", st)
+	}
+
+	cfg.TCPPort = freeTCPPort(t)
+	if err := s.Start(cfg); err != nil {
+		t.Fatalf("start once the port is fixed: %v", err)
+	}
+	defer s.Stop()
+	if st := s.GetStatus(); !st.Running || !st.TCPRunning {
+		t.Fatalf("after the second start: %+v", st)
+	}
+}
+
+// One taken port among several leaves the others receiving: a service at boot
+// is better off receiving on what it can, and the error says what it cannot.
+func TestStart_KeepsTheListenersThatOpened(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	udp, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	udpPort := udp.LocalAddr().(*net.UDPAddr).Port
+	udp.Close()
+
+	s := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	cfg := models.DefaultServerConfig()
+	cfg.UDPEnabled, cfg.TCPEnabled = true, true
+	cfg.BindAddress = "127.0.0.1"
+	cfg.UDPPort = udpPort
+	cfg.TCPPort = held.Addr().(*net.TCPAddr).Port
+	if err := s.Start(cfg); err == nil {
+		t.Fatal("no error for the taken TCP port")
+	}
+	defer s.Stop()
+	if st := s.GetStatus(); !st.Running || !st.UDPRunning || st.TCPRunning {
+		t.Fatalf("partial start: %+v", st)
+	}
+}
+
 // freeTCPPort asks the OS for an unused TCP port on loopback and releases
 // it immediately, returning the port number so a listener can rebind it.
 func freeTCPPort(t *testing.T) int {
