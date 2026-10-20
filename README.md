@@ -256,7 +256,8 @@ rights) or for all users (in Program Files, with administrator rights). Either c
 receiving in the background during your session; only an all-users install can also run as a
 Windows service, receiving from boot with nobody signed in (see *Running with no window* under
 Usage). Over an existing installation — which is what the in-app update does — the installer
-updates that copy where it is, in the same mode, instead of asking again.
+preselects that copy's mode and updates it where it is. Choosing all users over a per-user copy
+replaces it with one in Program Files, keeping your settings and logs.
 
 Verify what you downloaded:
 

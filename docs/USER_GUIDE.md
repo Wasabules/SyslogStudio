@@ -33,6 +33,10 @@ The Windows installer offers two kinds of installation:
   [Running in the Background](#running-in-the-background)). A portable copy or a per-user
   installation cannot.
 
+Run over an existing installation, the installer preselects it and updates it where it is.
+Choosing **For all users** over a **Just for me** copy replaces it with one in Program Files;
+your settings and logs are kept.
+
 **Build from source:** If you prefer to build from source, you need Go 1.23+, Node.js 18+, and the Wails CLI v2:
 
 ```bash

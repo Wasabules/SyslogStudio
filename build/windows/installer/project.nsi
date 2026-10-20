@@ -12,7 +12,8 @@
 ##     only an all-users install can run as a Windows service, and the
 ##     installer says so where the choice is made
 ##   - Over an existing install (the in-app update), updates that copy in
-##     place, same mode and folder, instead of asking again
+##     place, in its folder; a per-user copy can instead be replaced by an
+##     all-users one, keeping the user's settings and logs
 ##   - Waits for running copies (tray, other sessions) and the service to
 ##     stop before replacing or removing the executable
 ##   - MUI2 modern interface with language selection (English / French)
@@ -87,6 +88,7 @@ Var FinishText
 Var ExistingAll   ; install folder of an existing all-users copy, or ""
 Var ExistingUser  ; install folder of an existing per-user copy, or ""
 Var Relaunched    ; "1" in the elevated copy this installer starts
+Var ReplaceUser   ; the per-user copy this all-users install replaces, or ""
 
 ; ====================================================================
 ;  MUI2 appearance
@@ -184,6 +186,9 @@ LangString elevation_failed  ${LANG_FRENCH}  "Les droits administrateur n'ont pa
 LangString scope_both        ${LANG_ENGLISH} "${INFO_PRODUCTNAME} is installed both ways on this PC: each choice updates its own copy, where it is."
 LangString scope_both        ${LANG_FRENCH}  "${INFO_PRODUCTNAME} est installé des deux façons sur ce PC : chaque choix met à jour sa propre copie, là où elle est."
 
+LangString scope_has_user    ${LANG_ENGLISH} "Already installed for your account. Just for you, that copy is updated where it is; for all users, it is replaced by a copy in Program Files. Your settings and logs are kept."
+LangString scope_has_user    ${LANG_FRENCH}  "Déjà installé pour votre compte. Pour vous seul, cette copie est mise à jour là où elle est ; pour tous les utilisateurs, elle est remplacée par une copie dans Program Files. Vos paramètres et vos logs sont conservés."
+
 LangString update_title      ${LANG_ENGLISH} "Update"
 LangString update_title      ${LANG_FRENCH}  "Mise à jour"
 
@@ -251,6 +256,17 @@ Function .onInit
         ${Else}
             StrCpy $INSTDIR "$PROGRAMFILES64\${INFO_PRODUCTNAME}"
         ${EndIf}
+        ; The per-user copy the user chose to replace, when this elevated
+        ; copy runs in the same account. An administrator who elevated for
+        ; someone else sees another HKCU, and their own copy is not the one
+        ; that was meant.
+        ClearErrors
+        ${GetOptions} $0 "/replaceuser=" $1
+        ${IfNot} ${Errors}
+        ${AndIf} $1 != ""
+        ${AndIf} $1 == $ExistingUser
+            StrCpy $ReplaceUser $1
+        ${EndIf}
     ${Else}
         Call UseUserMode
     ${EndIf}
@@ -288,16 +304,13 @@ FunctionEnd
 
 ; ---- Install Mode Selection Page ----
 
-; Skipped when the mode is already settled: by the elevated relaunch, or by
-; an update of the only copy there is when it is a per-user one. Updating
-; the only copy when it is an all-users one shows a notice instead: Windows
-; is about to ask for administrator rights, and this says why.
+; Skipped by the elevated relaunch, which has its mode already. Updating the
+; only copy when it is an all-users one shows a notice instead: Windows is
+; about to ask for administrator rights, and this says why. A per-user copy
+; still gets the choice, its own mode preselected: someone who installed it
+; for themselves may now want the service.
 Function InstModeCreate
     ${If} $InstMode == "allusers"
-        Abort
-    ${EndIf}
-    ${If} $ExistingUser != ""
-    ${AndIf} $ExistingAll == ""
         Abort
     ${EndIf}
 
@@ -342,11 +355,13 @@ Function InstModeCreate
     ${NSD_CreateHLine} 0u 101u 100% 1u ""
     Pop $0
 
-    ; Both installed: say that each choice updates its own copy.
+    ; What happens to the copies already there, or else what the service is.
     ${If} $ExistingAll != ""
-        ${NSD_CreateLabel} 0u 106u 100% 24u "$(scope_both)"
+        ${NSD_CreateLabel} 0u 106u 100% 32u "$(scope_both)"
+    ${ElseIf} $ExistingUser != ""
+        ${NSD_CreateLabel} 0u 106u 100% 32u "$(scope_has_user)"
     ${Else}
-        ${NSD_CreateLabel} 0u 106u 100% 24u "$(scope_service)"
+        ${NSD_CreateLabel} 0u 106u 100% 32u "$(scope_service)"
     ${EndIf}
     Pop $0
 
@@ -363,10 +378,16 @@ Function InstModeLeave
         ${NSD_GetState} $RadioAdmin $0
         StrCpy $1 "$(elevation_failed)"
     ${EndIf}
+    ; Moving the only copy, a per-user one, to all users replaces it
+    StrCpy $2 ""
+    ${If} $ExistingUser != ""
+    ${AndIf} $ExistingAll == ""
+        StrCpy $2 ' /replaceuser="$ExistingUser"'
+    ${EndIf}
     ${If} $0 == ${BST_CHECKED}
         ; Relaunch with admin via UAC prompt
         ClearErrors
-        ExecShell "runas" "$EXEPATH" "/allusers /relaunched /lang=$LANGUAGE" SW_SHOWNORMAL
+        ExecShell "runas" "$EXEPATH" "/allusers /relaunched /lang=$LANGUAGE$2" SW_SHOWNORMAL
         ${If} ${Errors}
             ; UAC declined or unavailable: stay on this page rather than
             ; switching to a per-user install the user did not choose — it
@@ -496,23 +517,24 @@ Function ${UN}RestartService
     ${EndIf}
 FunctionEnd
 
-; Waits until nothing runs $INSTDIR\${PRODUCT_EXECUTABLE}. Windows neither
-; replaces nor deletes a running executable, and the copy running may be
-; hidden in the notification area, or in another user's session. Opening the
-; file for writing is the test: it fails exactly while some process runs the
-; file, whoever and wherever, and a copy elsewhere does not count. A few quiet
-; retries first let a copy that is already quitting finish — the one that
-; just launched this update. Sets $0 to "ok", or "cancel" when the user gives
-; up.
+; Waits until nothing runs ${PRODUCT_EXECUTABLE} in the folder on top of the
+; stack. Windows neither replaces nor deletes a running executable, and the
+; copy running may be hidden in the notification area, or in another user's
+; session. Opening the file for writing is the test: it fails exactly while
+; some process runs the file, whoever and wherever, and a copy elsewhere does
+; not count. A few quiet retries first let a copy that is already quitting
+; finish — the one that just launched this update. Sets $0 to "ok", or
+; "cancel" when the user gives up.
 Function ${UN}WaitForAppClosed
+    Pop $3
     StrCpy $0 "ok"
-    ${IfNot} ${FileExists} "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    ${IfNot} ${FileExists} "$3\${PRODUCT_EXECUTABLE}"
         Return
     ${EndIf}
     StrCpy $2 0
     ${Do}
         ClearErrors
-        FileOpen $1 "$INSTDIR\${PRODUCT_EXECUTABLE}" a
+        FileOpen $1 "$3\${PRODUCT_EXECUTABLE}" a
         ${IfNot} ${Errors}
             FileClose $1
             ${ExitDo}
@@ -533,6 +555,39 @@ FunctionEnd
 
 !insertmacro DefineRunningChecks ""
 !insertmacro DefineRunningChecks "un."
+
+; ---- The per-user copy an all-users install replaces ----
+
+; Removes what the per-user copy's own uninstaller would, except what the new
+; copy shares with it: the user's settings, logs and WebView2 data live per
+; user, whichever copy runs, and the latter sits in the per-user folder, which
+; therefore stays. The user's start-at-sign-in entry and desktop shortcut
+; start the new copy instead.
+Function ReplaceUserCopy
+    SetShellVarContext current
+    ${If} $ReplaceUser != $INSTDIR
+        Delete "$ReplaceUser\${PRODUCT_EXECUTABLE}"
+        Delete "$ReplaceUser\uninstall.exe"
+        RMDir "$ReplaceUser"
+    ${EndIf}
+    Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}\${INFO_PRODUCTNAME}.lnk"
+    Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}\Uninstall ${INFO_PRODUCTNAME}.lnk"
+    RMDir "$SMPROGRAMS\${INFO_PRODUCTNAME}"
+    ${If} ${FileExists} "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
+        CreateShortcut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    ${EndIf}
+    ReadRegStr $0 HKCU "${AUTOSTART_KEY}" "${AUTOSTART_VALUE}"
+    StrCpy $1 '"$ReplaceUser\${PRODUCT_EXECUTABLE}"'
+    StrLen $2 $1
+    StrCpy $3 $0 $2
+    ${If} $3 == $1
+        ; Same arguments, new program
+        StrCpy $3 $0 "" $2
+        WriteRegStr HKCU "${AUTOSTART_KEY}" "${AUTOSTART_VALUE}" '"$INSTDIR\${PRODUCT_EXECUTABLE}"$3'
+    ${EndIf}
+    DeleteRegKey HKCU "${UNINST_KEY}"
+    SetShellVarContext all
+FunctionEnd
 
 ; ---- Desktop shortcut callback (Finish page checkbox) ----
 
@@ -559,9 +614,16 @@ Section "${INFO_PRODUCTNAME}" SecMain
     !insertmacro wails.webview2runtime
 
     ; Whatever runs the executable keeps Windows from replacing it: the
-    ; service, and any copy of the application. Cancelling changes nothing.
+    ; service, and any copy of the application — the per-user one this
+    ; replaces included. Cancelling changes nothing.
     Call StopService
+    Push $INSTDIR
     Call WaitForAppClosed
+    ${If} $0 == "ok"
+    ${AndIf} $ReplaceUser != ""
+        Push $ReplaceUser
+        Call WaitForAppClosed
+    ${EndIf}
     ${If} $0 == "cancel"
         Call RestartService
         Abort "$(app_still_running)"
@@ -618,6 +680,11 @@ Section "${INFO_PRODUCTNAME}" SecMain
         IntFmt $0 "0x%08X" $0
         WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize"          "$0"
     ${EndIf}
+
+    ; Only once this copy is in place, so a failure above leaves the old one
+    ${If} $ReplaceUser != ""
+        Call ReplaceUserCopy
+    ${EndIf}
 SectionEnd
 
 ; ====================================================================
@@ -660,6 +727,7 @@ Section "Uninstall"
     ; ---- Nothing may still run the executable, or it could not be deleted.
     ; Cancelling leaves everything as it was, the service included.
     Call un.StopService
+    Push $INSTDIR
     Call un.WaitForAppClosed
     ${If} $0 == "cancel"
         Call un.RestartService
