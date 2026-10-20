@@ -469,18 +469,22 @@ Section "Uninstall"
         ${EndIf}
     ${EndIf}
 
+    ; ---- Remove WebView2 data ----
+    ; The user's own whatever the install mode: in the all-users context,
+    ; $LOCALAPPDATA is ProgramData. It goes before the application files
+    ; because a per-user install shares %LOCALAPPDATA%\SyslogStudio, which
+    ; RMDir below removes only once it is empty.
+    SetShellVarContext current
+    RMDir /r "$LOCALAPPDATA\SyslogStudio\WebView2"
+    RMDir /r "$TEMP\SyslogStudio"
+
     ; ---- Remove application files ----
     Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
     Delete "$INSTDIR\uninstall.exe"
     RMDir "$INSTDIR"
 
-    ; ---- Remove WebView2 data ----
-    RMDir /r "$LOCALAPPDATA\SyslogStudio\WebView2"
-    RMDir /r "$TEMP\SyslogStudio"
-
     ; ---- Remove shortcuts ----
-    ; Desktop shortcut is always per-user
-    SetShellVarContext current
+    ; Desktop shortcut is always per-user (the context is still current)
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
     ; Restore context for start menu
     ${If} $InstMode == "allusers"
@@ -505,7 +509,10 @@ Section "Uninstall"
     ; ---- Optionally remove application data ----
     MessageBox MB_YESNO|MB_ICONQUESTION "$(remove_data)" IDYES removeData IDNO done
     removeData:
-        ; Config and database in %AppData%\SyslogStudio
+        ; Config and database in the user's own %AppData%\SyslogStudio: in
+        ; the all-users context set for the start menu, $AppData would be
+        ; ProgramData.
+        SetShellVarContext current
         RMDir /r "$AppData\SyslogStudio"
         ; And the service's, when this was an all-users install.
         ${If} $InstMode == "allusers"
