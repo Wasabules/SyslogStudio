@@ -36,20 +36,27 @@ func isInstalled() bool {
 	if real, rerr := filepath.EvalSymlinks(exe); rerr == nil {
 		exe = real
 	}
-	dir := strings.ToLower(filepath.Dir(exe))
+	return installedAt(filepath.Dir(exe), installLocations(), os.Getenv("ProgramFiles"), os.Getenv("LOCALAPPDATA"))
+}
 
-	if loc, ok := installLocation(); ok && loc != "" {
-		// An install is registered: this exe is "installed" only if it lives
-		// under that location.
-		return pathUnder(dir, loc)
+// installedAt is isInstalled's decision for the directory of the running
+// executable. A per-user and an all-users copy can both be registered, so the
+// executable is installed when it lives under any registered location.
+func installedAt(dir string, registered []string, programFiles, localAppData string) bool {
+	if len(registered) > 0 {
+		for _, loc := range registered {
+			if pathUnder(dir, loc) {
+				return true
+			}
+		}
+		return false
 	}
 
 	// No registry entry: fall back to a path heuristic.
-	if pf := os.Getenv("ProgramFiles"); pf != "" && pathUnder(dir, pf) {
+	if programFiles != "" && pathUnder(dir, programFiles) {
 		return true
 	}
-	if la := os.Getenv("LOCALAPPDATA"); la != "" &&
-		pathUnder(dir, filepath.Join(la, "SyslogStudio")) {
+	if localAppData != "" && pathUnder(dir, filepath.Join(localAppData, "SyslogStudio")) {
 		return true
 	}
 	return false
@@ -69,16 +76,18 @@ func pathUnder(dir, base string) bool {
 	return dir == base || strings.HasPrefix(dir, base+string(os.PathSeparator))
 }
 
-// installLocation returns the install directory recorded by the NSIS installer,
-// matched by DisplayName across HKCU (per-user) then HKLM (all-users).
-func installLocation() (string, bool) {
+// installLocations returns the install directories recorded by the NSIS
+// installer, matched by DisplayName: the per-user one (HKCU) and the
+// all-users one (HKLM), whichever exist. Both can.
+func installLocations() []string {
 	const uninstall = `Software\Microsoft\Windows\CurrentVersion\Uninstall`
+	var locs []string
 	for _, root := range []registry.Key{registry.CURRENT_USER, registry.LOCAL_MACHINE} {
-		if loc, ok := findInstallLocation(root, uninstall); ok {
-			return loc, true
+		if loc, ok := findInstallLocation(root, uninstall); ok && loc != "" {
+			locs = append(locs, loc)
 		}
 	}
-	return "", false
+	return locs
 }
 
 func findInstallLocation(root registry.Key, path string) (string, bool) {
