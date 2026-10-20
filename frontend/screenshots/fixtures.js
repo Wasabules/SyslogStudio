@@ -533,7 +533,7 @@ export const SERVICE_LINK = { mode: 'local', installed: false, state: '' };
 
 /** Driving the running service: what the background scene shows. */
 export const SERVICE_LINK_DRIVING = {
-  mode: 'service', installed: true, state: 'running', serviceVersion: 'v1.7.0',
+  mode: 'service', installed: true, state: 'running', serviceVersion: 'v1.7.0', sealed: true,
 };
 
 /** The same, installed and receiving: what the background scene shows. */
@@ -562,5 +562,8 @@ export const SYSTEM_SERVICE_RUNNING = {
     messages: 1843206,
     windows: 1,
     listenOnStart: true,
+    // Sealing for an encrypted database: a few batches waiting to be
+    // collected by the window.
+    inbox: { sealed: true, keyId: '5c9a64d2ab53cf85', batches: 3, bytes: 2_516_582, quota: 1 << 30, dropped: 0 },
   },
 };

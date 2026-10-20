@@ -274,15 +274,43 @@ switches back as soon as the service runs. The banner offers what to do:
 The window and the service connect over a local named pipe that only administrators and the
 allowed accounts may open, and the window checks that what answers is the service itself.
 
+#### With an encrypted database
+
+When your database is encrypted, installing the service asks what it should do with the messages
+it receives.
+
+**Keep it encrypted** is the default. The service then works like this:
+
+- It keeps no database. It seals each batch of messages with a public key: HPKE, hybrid
+  post-quantum ML-KEM-768 + X25519.
+- It cannot read back what it stored, and neither can anyone who copies its files.
+- The private key stays with your database, encrypted by its password.
+- Once you unlock the database in this window, the window collects the sealed batches and stores
+  their messages in your encrypted history. The service then deletes them.
+
+What to expect in this mode:
+
+- The live view, the alerts and the routing work as before: the service sees the messages as
+  they arrive.
+- Until you unlock, your history does not show what the service received.
+- Up to 1 GB waits on the service. At four-fifths full, the Background tab and the Windows event
+  log warn you. Past that, new messages are dropped and counted.
+- If the service stored in the clear before, it moves that database into the sealed inbox and
+  deletes it. Its old messages reach your encrypted history too.
+
+**Store unencrypted** keeps the earlier behaviour. The service has its own database, readable by
+administrators only, and the window shows that database. You confirm that it is not encrypted.
+
 Requirements and limits:
 
 - SyslogStudio must be installed **for all users** (Program Files). A per-user or portable copy
   cannot be installed as a service.
-- The service's database is not encrypted -- nobody is there to type a password at boot. Its
-  directory is readable by administrators only, and its credentials and private key are sealed
-  with DPAPI.
-- At-rest encryption is not available while the window drives the service; the Storage settings
-  say so.
+- Without the sealed inbox, the service's database is not encrypted: nobody is there to type a
+  password at boot. Its directory is readable by administrators only.
+- The service's credentials and private key are sealed with DPAPI.
+- At-rest encryption is not available while the window drives a service that stores in the
+  clear, and the Storage settings say so. With the sealed inbox, encryption applies to your own
+  database, as usual.
 - The messages your own receiver stored stay in your own database; the window shows them again
   when it is not driving the service.
 
@@ -293,9 +321,11 @@ rights.
 
 ### Troubleshooting the service
 
-- `SyslogStudio.exe service status` prints the state, the listeners, whether they start with the
-  service, the number of messages received, the connected windows, the allowed accounts and the
-  last error. Pipe it through
+- `SyslogStudio.exe service status` prints:
+  - the state and the listeners, and whether they start with the service;
+  - the sealed inbox;
+  - the number of messages received and the connected windows;
+  - the allowed accounts and the last error. Pipe it through
   `more` when running it from `cmd`.
 - Start-up errors are written to the Windows **Application** event log, source `SyslogStudio`.
 - The service's own log is `%ProgramData%\SyslogStudio\logs\service.log`.

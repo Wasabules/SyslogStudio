@@ -15,6 +15,7 @@ import (
 
 	"SyslogStudio/internal/alert"
 	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
@@ -57,6 +58,9 @@ type SyslogServer struct {
 	// logStore is swapped atomically: startup and UnlockDatabase set it from
 	// their own goroutines while worker goroutines read it on every message.
 	logStore atomic.Pointer[storage.LogStore]
+	// inbox, on a service sealing for someone else's encrypted database,
+	// takes what logStore would: there is then no database to write to.
+	inbox atomic.Pointer[inbox.Writer]
 	// dispatcher routes messages to outbound destinations. Swapped atomically
 	// for the same reason, and nil until one is installed.
 	dispatcher atomic.Pointer[notify.Dispatcher]
@@ -126,6 +130,12 @@ func NewSyslogServer(emitter event.EventEmitter, tlsMgr *pki.TLSManager) *Syslog
 // call while the server is running.
 func (s *SyslogServer) SetDispatcher(d *notify.Dispatcher) {
 	s.dispatcher.Store(d)
+}
+
+// SetInbox installs (or clears) the sealed inbox persisted messages go to
+// instead of a database.
+func (s *SyslogServer) SetInbox(w *inbox.Writer) {
+	s.inbox.Store(w)
 }
 
 // SetLogStore atomically installs (or clears) the persistence store used by
@@ -802,9 +812,12 @@ func (s *SyslogServer) addMessage(msg models.SyslogMessage) {
 
 	s.stats.RecordMessage(msg)
 
-	// Persist to SQLite
+	// Persist to SQLite, or seal
 	if ls := s.logStore.Load(); ls != nil {
 		ls.BufferMessage(msg)
+	}
+	if w := s.inbox.Load(); w != nil {
+		w.Add(msg)
 	}
 
 	// Check alert rules

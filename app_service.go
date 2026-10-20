@@ -74,9 +74,19 @@ type serviceLink struct {
 	// it would only delay showing the window's own engine.
 	lettingGo bool
 
-	poke chan struct{}
-	stop chan struct{}
-	done chan struct{}
+	// sealed is whether the service driven seals what it receives. store is
+	// then the window's own engine, kept open — never receiving — for the
+	// database the sealed messages are collected into (app_sealed.go), and
+	// collectErr is why collecting them last failed.
+	sealed     bool
+	store      *engine.Engine
+	collectErr string
+
+	poke        chan struct{}
+	stop        chan struct{}
+	done        chan struct{}
+	collectPoke chan struct{}
+	collectDone chan struct{}
 }
 
 // local is the engine this window drives when it drives its own, nil while it
@@ -122,6 +132,9 @@ func (a *App) GetServiceLink() models.ServiceLink {
 	if client != nil {
 		link.Mode = linkService
 		link.ServiceVersion = client.Hello().Version
+		a.link.mu.Lock()
+		link.Sealed, link.CollectError = a.link.sealed, a.link.collectErr
+		a.link.mu.Unlock()
 	} else {
 		link.Reason = reason
 		link.Detail = detail
@@ -171,6 +184,8 @@ func (a *App) startLink() {
 	a.link.poke = make(chan struct{}, 1)
 	a.link.stop = make(chan struct{})
 	a.link.done = make(chan struct{})
+	a.link.collectPoke = make(chan struct{}, 1)
+	a.link.collectDone = make(chan struct{})
 
 	if c, reason, detail := a.dialService(); c != nil {
 		a.useService(c, false)
@@ -182,6 +197,7 @@ func (a *App) startLink() {
 	a.link.started = true
 	a.link.mu.Unlock()
 	go a.watchLink()
+	go a.collectLoop()
 }
 
 // stopLink stops watching and closes whatever the window drives.
@@ -192,15 +208,19 @@ func (a *App) stopLink() {
 	if started {
 		close(a.link.stop)
 		<-a.link.done
+		<-a.link.collectDone
 	}
 	a.link.mu.Lock()
-	client, eng := a.link.client, a.engine
+	client, eng, store := a.link.client, a.engine, a.link.store
 	a.link.mu.Unlock()
 	if client != nil {
 		client.Close()
 	}
 	if eng != nil {
 		eng.Close()
+	}
+	if store != nil {
+		store.Close()
 	}
 }
 
@@ -343,26 +363,50 @@ func (a *App) setReason(reason, detail string) bool {
 // useService makes the window drive the service through c. Its own engine
 // closes: the service has the ports, and the window's database is not the one
 // being written.
+//
+// A service that seals keeps no database: the window's own engine then stays
+// open, as the store its messages are collected into.
 func (a *App) useService(c *remote.Client, reload bool) {
+	sealed := c.GetInboxStatus().Sealed
+
 	a.link.mu.Lock()
-	old, oldClient := a.engine, a.link.client
+	old, oldClient, store := a.engine, a.link.client, a.link.store
+	opened := a.link.localOpened
 	a.link.client = c
-	a.link.reason, a.link.detail = "", ""
+	a.link.reason, a.link.detail, a.link.collectErr = "", "", ""
+	a.link.sealed = sealed
 	a.engine = nil
+	a.link.localOpened = false
+	a.link.store = nil
 	a.link.mu.Unlock()
 
-	a.sw.Set(c)
+	var backend remote.Backend = c
+	if sealed {
+		switch {
+		case store != nil:
+		case old != nil && opened:
+			store, old = old, nil
+		default:
+			store = a.openStore(old)
+			old = nil
+		}
+		a.link.mu.Lock()
+		a.link.store = store
+		a.link.mu.Unlock()
+		backend = sealedBackend{Client: c, store: store}
+	} else if store != nil {
+		store.Close()
+	}
+
+	a.sw.Set(backend)
 	if oldClient != nil {
 		oldClient.Close()
 	}
-	a.link.mu.Lock()
-	opened := a.link.localOpened
-	a.link.localOpened = false
-	a.link.mu.Unlock()
 	if old != nil && opened {
 		old.Close()
 	}
-	slog.Info("this window now drives the service", "version", c.Hello().Version)
+	a.pokeCollect()
+	slog.Info("this window now drives the service", "version", c.Hello().Version, "sealed", sealed)
 	if reload {
 		a.emit("backend:changed")
 	}
@@ -382,6 +426,18 @@ func (a *App) useLocal() {
 // asked for that, and a service going away is not a launch.
 func (a *App) openLocal() {
 	a.link.mu.Lock()
+	if store := a.link.store; store != nil {
+		// Open already, as the store of a service that sealed: it is the
+		// window's own engine, and simply becomes the one driven again.
+		a.link.store = nil
+		a.link.sealed = false
+		a.engine = store
+		a.link.client = nil
+		a.link.localOpened = true
+		a.link.mu.Unlock()
+		a.sw.Set(store)
+		return
+	}
 	eng := a.engine
 	if eng == nil || a.link.localOpened {
 		// A closed engine is not reopened: a fresh one, on the same store.
@@ -405,6 +461,23 @@ func (a *App) openLocal() {
 	a.sw.Set(eng)
 }
 
+// openStore opens the window's own engine as the store of a service that
+// seals: eng if it was never opened, a fresh one otherwise. It never starts
+// receiving — the service has the ports.
+func (a *App) openStore(eng *engine.Engine) *engine.Engine {
+	if eng == nil {
+		eng = engine.New(a.prefs)
+	}
+	var emitter event.EventEmitter = silentEmitter{}
+	if a.ctx != nil {
+		emitter = event.NewWailsEventEmitter(a.ctx)
+	}
+	if err := eng.Open(emitter); err != nil {
+		slog.Warn("the engine could not claim its data directory", "error", err)
+	}
+	return eng
+}
+
 // silentEmitter is the emitter of an engine opened with no window to show
 // its events to: in tests.
 type silentEmitter struct{}
@@ -415,6 +488,11 @@ func (silentEmitter) Emit(string, ...interface{}) {}
 // in-process engine would have emitted it.
 func (a *App) forwardEvent(name string, data []json.RawMessage) {
 	if a.ctx == nil {
+		return
+	}
+	if name == "inbox:batch" {
+		// For this window to collect, not for the interface to show.
+		a.pokeCollect()
 		return
 	}
 	args := make([]interface{}, len(data))

@@ -374,6 +374,18 @@ export interface HostStatus {
     messages: number;
     windows: number;
     listenOnStart: boolean;
+    inbox?: InboxStatus | null;
+    error?: string;
+}
+// The service's sealed inbox: what it received for a window whose database is
+// encrypted, waiting for that window to collect it.
+export interface InboxStatus {
+    sealed: boolean;
+    keyId?: string;
+    batches: number;
+    bytes: number;
+    quota: number;
+    dropped: number;
     error?: string;
 }
 export interface SystemServiceInfo {
@@ -397,7 +409,9 @@ export const getAutoStartError = (): Promise<string> => callGo('GetAutoStartErro
 export const getDataDirConflict = (): Promise<string> => callGo('GetDataDirConflict');
 export const getSystemService = (): Promise<SystemServiceInfo> => callGo('GetSystemService');
 // These four ask for administrator rights through the Windows prompt.
-export const installSystemService = (): Promise<void> => callGo('InstallSystemService');
+// sealed keeps an encrypted database encrypted: the service seals what it
+// receives for this window instead of storing it in the clear.
+export const installSystemService = (sealed: boolean): Promise<void> => callGo('InstallSystemService', sealed);
 export const uninstallSystemService = (purge: boolean): Promise<void> => callGo('UninstallSystemService', purge);
 export const startSystemService = (): Promise<void> => callGo('StartSystemService');
 export const stopSystemService = (): Promise<void> => callGo('StopSystemService');
@@ -418,6 +432,10 @@ export interface ServiceLink {
     reason?: '' | 'stopped' | 'denied' | 'version' | 'notService' | 'unreachable';
     detail?: string;
     serviceVersion?: string;
+    // The service seals what it receives; the history is this window's own
+    // encrypted database, which collects it. collectError says why that fails.
+    sealed?: boolean;
+    collectError?: string;
 }
 export const getServiceLink = (): Promise<ServiceLink> => callGo('GetServiceLink');
 // Lets this window's account drive the service; asks for administrator rights.

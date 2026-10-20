@@ -130,6 +130,9 @@ func (e *Engine) UnlockDatabase(password string) error {
 			slog.Warn("failed to load the persisted server certificate after unlock", "error", err)
 		}
 	}
+	if err := e.loadInboxKey(); err != nil {
+		slog.Warn("failed to load the inbox key after unlock", "error", err)
+	}
 	return nil
 }
 
@@ -160,12 +163,13 @@ func (e *Engine) EnableEncryption(password string) error {
 	}
 	if e.logStore != nil {
 		e.logStore.SetEncryptionPassword(password)
-		e.logStore.UpdateConfig(cfg)
+		e.logStore.UpdateConfig(e.withDBPath(cfg))
 	}
 	if e.caStore != nil && e.tlsManager.HasCA() {
 		e.persistCA()
 	}
 	e.repersistServerCert()
+	e.repersistInboxKey()
 	return nil
 }
 
@@ -196,12 +200,13 @@ func (e *Engine) DisableEncryption(password string) error {
 	}
 	if e.logStore != nil {
 		e.logStore.SetEncryptionPassword("")
-		e.logStore.UpdateConfig(cfg)
+		e.logStore.UpdateConfig(e.withDBPath(cfg))
 	}
 	if e.caStore != nil && e.tlsManager.HasCA() {
 		e.persistCA()
 	}
 	e.repersistServerCert()
+	e.repersistInboxKey()
 	return nil
 }
 
@@ -232,5 +237,6 @@ func (e *Engine) ChangeEncryptionPassword(oldPassword, newPassword string) error
 		e.persistCA()
 	}
 	e.repersistServerCert()
+	e.repersistInboxKey()
 	return nil
 }

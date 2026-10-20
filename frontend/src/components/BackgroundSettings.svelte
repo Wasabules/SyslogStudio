@@ -34,6 +34,9 @@
     let showInstall = false;
     let showUninstall = false;
     let accepted = false;
+    // With an encrypted database: keep it encrypted, the service sealing what
+    // it receives, or let the service store in the clear.
+    let keepEncryption = true;
     let purge = false;
 
     $: overlayOpen = showInstall || showUninstall;
@@ -49,6 +52,11 @@
         .filter(l => l.running)
         .map(l => `${l.protocol.toUpperCase()} ${l.port}`)
         .join(', ');
+    $: inbox = svc?.host?.inbox ?? null;
+
+    function megabytes(bytes: number): string {
+        return (bytes / 1048576).toLocaleString($locale ?? undefined, { maximumFractionDigits: 1 });
+    }
 
     // The service's own "start receiving on start", which only a window
     // driving it can read and change: it lives in the service's directory.
@@ -118,13 +126,15 @@
 
     function openInstall() {
         accepted = false;
+        keepEncryption = true;
         showInstall = true;
     }
 
     async function confirmInstall() {
         const wasInstalled = installed;
         showInstall = false;
-        await elevated(installSystemService,
+        const sealed = encryptionOn && keepEncryption;
+        await elevated(() => installSystemService(sealed),
             wasInstalled ? $_('background.updated') : $_('background.installed'));
     }
 
@@ -213,6 +223,16 @@
         {#if running && svc.host}
             <span class="sub">{$_('background.received', { values: { count: svc.host.messages.toLocaleString($locale ?? undefined) } })}</span>
         {/if}
+        {#if inbox}
+            <span class="sub">{$_(inbox.sealed ? 'background.inboxSealed' : 'background.inboxLeft', { values: {
+                batches: inbox.batches.toLocaleString($locale ?? undefined),
+                size: megabytes(inbox.bytes), quota: megabytes(inbox.quota) } })}</span>
+            {#if inbox.dropped > 0}
+                <span class="note error">{$_('background.inboxDropped', { values: { count: inbox.dropped.toLocaleString($locale ?? undefined), error: inbox.error ?? '' } })}</span>
+            {:else if inbox.quota > 0 && inbox.bytes * 5 >= inbox.quota * 4}
+                <span class="note warn">{$_('background.inboxFilling')}</span>
+            {/if}
+        {/if}
         {#if installed && !running && svc.host?.error}
             <span class="note error">{$_('background.lastError', { values: { error: svc.host.error } })}</span>
         {/if}
@@ -293,8 +313,24 @@
                 <li>{$_('background.installStep6')}</li>
             </ol>
             <p class="text">{$_('background.installNotCopied')}</p>
-            <p class="note warn">{$_('background.installPlaintext', { values: { dir: svc.dataDir } })}</p>
             {#if encryptionOn}
+                <fieldset class="choice">
+                    <legend>{$_('background.installEncryption')}</legend>
+                    <label class="check">
+                        <input type="radio" name="encryption" value={true} bind:group={keepEncryption} />
+                        {$_('background.installSealed')}
+                    </label>
+                    <span class="hint">{$_('background.installSealedHint')}</span>
+                    <label class="check">
+                        <input type="radio" name="encryption" value={false} bind:group={keepEncryption} />
+                        {$_('background.installClear')}
+                    </label>
+                </fieldset>
+            {/if}
+            {#if !encryptionOn || !keepEncryption}
+                <p class="note warn">{$_('background.installPlaintext', { values: { dir: svc.dataDir } })}</p>
+            {/if}
+            {#if encryptionOn && !keepEncryption}
                 <label class="check">
                     <input type="checkbox" bind:checked={accepted} />
                     {$_('background.installAccept')}
@@ -302,7 +338,7 @@
             {/if}
             <div class="dialog-actions">
                 <button class="action-btn" on:click={() => showInstall = false}>{$_('background.cancel')}</button>
-                <button class="action-btn primary" disabled={encryptionOn && !accepted} on:click={confirmInstall}>
+                <button class="action-btn primary" disabled={encryptionOn && !keepEncryption && !accepted} on:click={confirmInstall}>
                     {installed ? $_('background.update') : $_('background.installConfirm')}
                 </button>
             </div>
@@ -374,6 +410,22 @@
         color: var(--text-primary);
     }
     .check input { accent-color: var(--accent); }
+
+    .choice {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin: 0;
+        padding: 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+    }
+    .choice legend {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        padding: 0 4px;
+    }
 
     .hint {
         font-size: 10px;

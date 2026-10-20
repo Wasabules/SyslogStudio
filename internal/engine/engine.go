@@ -15,6 +15,7 @@ import (
 	"log/slog"
 
 	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
@@ -38,6 +39,15 @@ type Engine struct {
 	dispatcher      *notify.Dispatcher
 	secretStore     *storage.SecretStore
 
+	// inbox seals what a service receives, in place of a database; inboxErr
+	// is why a service meant to seal cannot.
+	inbox    *inbox.Writer
+	inboxErr error
+	// inboxKeyStore and inboxPriv are the window's end: the key that opens
+	// what a service sealed, loaded once the database is unlocked.
+	inboxKeyStore *storage.PEMStore
+	inboxPriv     []byte
+
 	encryptionPassword string // in-memory only for session
 
 	// releaseDir gives the data directory back. openErr is why Open could not
@@ -56,6 +66,7 @@ func New(cs *storage.ConfigStore) *Engine {
 		caStore:         storage.NewCAStore(cs.Dir()),
 		serverCertStore: storage.NewServerCertStore(cs.Dir()),
 		secretStore:     storage.NewSecretStore(cs.Dir()),
+		inboxKeyStore:   storage.NewInboxKeyStore(cs.Dir()),
 	}
 	e.tlsManager.SetOnServerCertGenerated(e.persistServerCert)
 	return e
@@ -131,14 +142,16 @@ func (e *Engine) Open(emitter event.EventEmitter) error {
 	}
 	e.releaseDir = release
 
-	// Initialize log store
-	storageCfg := e.withDBPath(e.configStore.LoadStorage())
-	ls, err := storage.NewLogStore(storageCfg, emitter)
-	if err != nil {
-		slog.Warn("failed to initialize log store, persistence disabled", "error", err)
-	} else {
-		e.logStore = ls
-		e.server.SetLogStore(ls)
+	// Initialize log store, unless what is received is sealed instead
+	if !e.openInbox() {
+		storageCfg := e.withDBPath(e.configStore.LoadStorage())
+		ls, err := storage.NewLogStore(storageCfg, emitter)
+		if err != nil {
+			slog.Warn("failed to initialize log store, persistence disabled", "error", err)
+		} else {
+			e.logStore = ls
+			e.server.SetLogStore(ls)
+		}
 	}
 
 	// Restore alert rules
@@ -185,6 +198,9 @@ func (e *Engine) Close() {
 	if e.server != nil {
 		e.server.Stop()
 		e.configStore.SaveAlertRules(e.server.AlertManager.GetRules())
+	}
+	if e.inbox != nil {
+		e.inbox.Close()
 	}
 	if e.logStore != nil {
 		e.logStore.Close()

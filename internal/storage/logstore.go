@@ -380,11 +380,27 @@ func (ls *LogStore) flush() {
 	if db == nil {
 		return
 	}
+	if err := insertMessages(db, batch); err != nil {
+		slog.Error("log store: write failed", "error", err)
+	}
+}
 
+// InsertMessages writes messages now rather than through the write buffer,
+// and says whether they are on disk: the caller deletes its own copy once
+// they are. A message already stored — same id — is left as it is, so
+// writing a batch twice stores it once.
+func (ls *LogStore) InsertMessages(msgs []models.SyslogMessage) error {
+	db := ls.handle()
+	if db == nil {
+		return fmt.Errorf("the database is not open")
+	}
+	return insertMessages(db, msgs)
+}
+
+func insertMessages(db *sql.DB, batch []models.SyslogMessage) error {
 	tx, err := db.Begin()
 	if err != nil {
-		slog.Error("log store: failed to begin transaction", "error", err)
-		return
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 
 	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO messages
@@ -394,8 +410,7 @@ func (ls *LogStore) flush() {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		tx.Rollback()
-		slog.Error("log store: failed to prepare statement", "error", err)
-		return
+		return fmt.Errorf("prepare statement: %w", err)
 	}
 	defer stmt.Close()
 
@@ -417,8 +432,65 @@ func (ls *LogStore) flush() {
 	}
 
 	if err := tx.Commit(); err != nil {
-		slog.Error("log store: commit failed", "error", err)
+		return fmt.Errorf("commit: %w", err)
 	}
+	return nil
+}
+
+// WaitReady waits for the background index rebuild a store starts with: it
+// writes to the database, and a long write of one's own meanwhile meets
+// "database is locked".
+func (ls *LogStore) WaitReady() {
+	if ls.ftsReadyCh != nil {
+		<-ls.ftsReadyCh
+	}
+}
+
+// OldestMessages returns up to limit messages, the earliest received first.
+// With DeleteMessages, it lets a database be emptied into somewhere else a
+// batch at a time.
+func (ls *LogStore) OldestMessages(limit int) ([]models.SyslogMessage, error) {
+	db := ls.handle()
+	if db == nil {
+		return nil, fmt.Errorf("the database is not open")
+	}
+	rows, err := db.Query("SELECT id, timestamp, received_at, severity, severity_label, facility, facility_label, hostname, app_name, proc_id, msg_id, message, raw_message, source_ip, protocol, version, structured_data FROM messages ORDER BY received_at, id LIMIT ?", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []models.SyslogMessage
+	for rows.Next() {
+		if msg := ls.scanMessage(rows); msg != nil {
+			msgs = append(msgs, *msg)
+		}
+	}
+	return msgs, rows.Err()
+}
+
+// DeleteMessages removes messages by id.
+func (ls *LogStore) DeleteMessages(ids []string) error {
+	db := ls.handle()
+	if db == nil {
+		return fmt.Errorf("the database is not open")
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare("DELETE FROM messages WHERE id = ?")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+	for _, id := range ids {
+		if _, err := stmt.Exec(id); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (ls *LogStore) cleanupLoop() {
@@ -861,8 +933,16 @@ func (ls *LogStore) ClearAll() error {
 }
 
 // UpdateConfig updates the storage configuration (for retention changes).
+//
+// A configuration with no path keeps the store's own. The path decides which
+// file Close encrypts and deletes, and an empty one resolves to the user's
+// default database: an engine with a data directory of its own — a test's —
+// once encrypted a real user's database on closing.
 func (ls *LogStore) UpdateConfig(config models.StorageConfig) {
 	ls.mu.Lock()
+	if config.Path == "" {
+		config.Path = ls.config.Path
+	}
 	ls.config = config
 	ls.mu.Unlock()
 }

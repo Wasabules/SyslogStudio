@@ -177,6 +177,8 @@ func (a *App) UnlockDatabase(password string) error {
 		return err
 	}
 	a.autoStart()
+	// The key that opens what a service sealed came with the unlock.
+	a.pokeCollect()
 
 	a.bg.mu.Lock()
 	back := a.bg.revealedForUnlock
@@ -297,7 +299,12 @@ func (a *App) GetSystemService() models.SystemServiceInfo {
 // This window stops receiving first: the service takes the same ports, and
 // starting it while they are held would fail. The listeners no longer start
 // on launch either, since they would only collide with the service.
-func (a *App) InstallSystemService() error {
+//
+// sealed keeps an encrypted database encrypted: the service seals what it
+// receives for this window, which collects it into the database once
+// unlocked. Unset, the service stores what it receives in its own database,
+// in the clear.
+func (a *App) InstallSystemService(sealed bool) error {
 	if !winsvc.Supported() {
 		return winsvc.ErrUnsupported
 	}
@@ -315,6 +322,13 @@ func (a *App) InstallSystemService() error {
 	bundle, err := eng.ExportBundle()
 	if err != nil {
 		return err
+	}
+	if sealed {
+		// The service seals what it receives for this window's key, and
+		// keeps no database: the encryption stays.
+		if bundle.InboxPublicKey, err = eng.PrepareInbox(); err != nil {
+			return err
+		}
 	}
 	data, err := json.Marshal(bundle)
 	if err != nil {

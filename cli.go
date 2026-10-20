@@ -225,6 +225,16 @@ func printServiceStatus(w io.Writer) {
 		onStart = "leaves the listeners for a window to start"
 	}
 	fmt.Fprintf(w, "On start:    %s\n", onStart)
+	if ib := st.Inbox; ib != nil {
+		state := "no longer sealing; batches left to collect"
+		if ib.Sealed {
+			state = "sealed for key " + ib.KeyID
+		}
+		fmt.Fprintf(w, "Inbox:       %s, %d batches waiting (%d of %d MB)\n", state, ib.Batches, ib.Bytes>>20, ib.Quota>>20)
+		if ib.Dropped > 0 {
+			fmt.Fprintf(w, "             %d messages dropped since start: %s\n", ib.Dropped, ib.Error)
+		}
+	}
 	fmt.Fprintf(w, "Received:    %d messages since start\n", st.Messages)
 	fmt.Fprintf(w, "Windows:     %d connected\n", st.Windows)
 	if ops, err := winsvc.Operators(); err == nil {

@@ -282,6 +282,9 @@ type AppConfig struct {
 	// its listeners when it starts. Unset means yes: a service exists to
 	// receive, and one installed before this setting existed keeps doing so.
 	ListenOnStart *bool `json:"listenOnStart,omitempty"`
+	// Inbox, on a service, seals what it receives for the window that
+	// installed it, instead of storing it in a database in the clear.
+	Inbox *InboxConfig `json:"inbox,omitempty"`
 }
 
 // CloseAction is what closing the window means.

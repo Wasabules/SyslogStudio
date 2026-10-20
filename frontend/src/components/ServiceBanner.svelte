@@ -55,7 +55,7 @@
         <span class="svc-title">
             {$_('background.bannerDriving', { values: { ports: ports ? ` (${ports})` : '' } })}
         </span>
-        <span class="svc-text">{$_('background.bannerDrivingNote')}</span>
+        <span class="svc-text">{$_(link?.sealed ? 'background.bannerDrivingSealedNote' : 'background.bannerDrivingNote')}</span>
         <button class="svc-btn" on:click={onOpenSettings}>{$_('background.bannerSettings')}</button>
         <button class="svc-close" on:click={() => dismissed = true} aria-label={$_('common.close')}>&times;</button>
     </div>
@@ -97,6 +97,20 @@
         {:else}
             <button class="svc-btn" on:click={onOpenSettings}>{$_('background.bannerSettings')}</button>
         {/if}
+    </div>
+{/if}
+
+{#if driving && link?.collectError}
+    <div class="svc-banner warn" role="alert">
+        <svg class="svc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span class="svc-title">{$_('background.bannerCollect')}</span>
+        <span class="svc-text" title={link.collectError}>{link.collectError}</span>
     </div>
 {/if}
 

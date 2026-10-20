@@ -132,6 +132,9 @@ func (e *Engine) addImported(batch []models.SyslogMessage, persist bool) {
 		if persist && ls != nil {
 			ls.BufferMessage(msg)
 		}
+		if persist && e.inbox != nil {
+			e.inbox.Add(msg)
+		}
 	}
 	if e.emitter != nil {
 		e.emitter.Emit("syslog:messages", batch)

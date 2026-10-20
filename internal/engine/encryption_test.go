@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"os"
 	"strings"
 	"testing"
 
+	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/storage"
 )
@@ -93,5 +95,33 @@ func TestTestAppUsesIsolatedConfig(t *testing.T) {
 	a := newTestApp(t)
 	if got := a.configStore.LoadStorage(); got != models.DefaultStorageConfig() {
 		t.Errorf("fresh config store returned %+v, want defaults", got)
+	}
+}
+
+// Turning encryption on handed the database a configuration without its
+// path, and closing then encrypted the user's default database instead of
+// the engine's own — on a developer's machine, with a test's password.
+func TestEncryption_ClosingEncryptsTheEnginesOwnDatabase(t *testing.T) {
+	dir := t.TempDir()
+	e := New(storage.NewConfigStoreAt(dir))
+	if err := e.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EnableEncryption("correct horse battery"); err != nil {
+		t.Fatal(err)
+	}
+	e.Close()
+
+	dbPath := storage.DBPathIn(dir)
+	if _, err := os.Stat(dbPath + ".enc"); err != nil {
+		t.Fatalf("the engine's database was not encrypted: %v", err)
+	}
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Fatalf("the engine's database was left in the clear: %v", err)
+	}
+	if def, err := storage.ResolveDBPath(""); err == nil {
+		if _, err := os.Stat(def + ".enc"); !os.IsNotExist(err) {
+			t.Fatalf("the user's default database was written: %s", def)
+		}
 	}
 }

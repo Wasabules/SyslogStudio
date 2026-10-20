@@ -126,7 +126,7 @@ export function HideToBackground():Promise<void>;
 
 export function ImportLogFile(arg1:string,arg2:boolean,arg3:models.ImportFormat):Promise<importer.Result>;
 
-export function InstallSystemService():Promise<void>;
+export function InstallSystemService(arg1:boolean):Promise<void>;
 
 export function IsCAKeyUnencrypted():Promise<boolean>;
 
