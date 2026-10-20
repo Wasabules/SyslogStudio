@@ -35,6 +35,7 @@
     import UnlockScreen from './components/UnlockScreen.svelte';
     import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted, getAutoStartError, getDataDirConflict } from './lib/api';
     import { watchSystemService, unwatchSystemService } from './lib/systemService';
+    import { watchServiceLink } from './lib/serviceLink';
     import ServiceBanner from './components/ServiceBanner.svelte';
     import DataDirConflict from './components/DataDirConflict.svelte';
     import { toastError, toastInfo, toastSuccess } from './lib/toast';
@@ -107,6 +108,9 @@
     }
 
     onMount(async () => {
+        // First, so that whatever this window shows — even the unlock screen of
+        // its own database — gives way when it starts driving the service.
+        watchServiceLink();
         try {
             dataDirConflict = await getDataDirConflict();
             if (dataDirConflict) return;

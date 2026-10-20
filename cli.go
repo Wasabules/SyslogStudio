@@ -41,12 +41,16 @@ Usage:
                                      or a terminal); DIR defaults to the
                                      desktop application's own directory
   SyslogStudio service status        show the Windows service's state
-  SyslogStudio service install --bundle FILE
+  SyslogStudio service install --bundle FILE [--operator SID]
+  SyslogStudio service allow --operator SID
+                                     let an account drive the service from
+                                     its window
   SyslogStudio service uninstall [--purge]
   SyslogStudio service start | stop  manage it (as an administrator)
 
 The service is normally installed from Settings > Background, which prepares
-the bundle and asks for administrator rights itself.
+the bundle and asks for administrator rights itself. Once it runs, the window
+of an allowed account drives it: its settings, its messages, its rules.
 `
 
 // runCommandLine handles every way of starting the executable except the
@@ -119,6 +123,7 @@ func serviceCommand(args []string) int {
 	bundle := fs.String("bundle", "", "configuration bundle to install")
 	result := fs.String("result", "", "where to record the outcome")
 	purge := fs.Bool("purge", false, "also delete the service's data")
+	operator := fs.String("operator", "", "SID of an account allowed to drive the service")
 	if err := fs.Parse(args[1:]); err != nil {
 		winsvc.AttachConsole()
 		fmt.Fprintln(os.Stderr, err)
@@ -157,7 +162,12 @@ func serviceCommand(args []string) int {
 		if err != nil {
 			return finish(err)
 		}
-		return finish(winsvc.Install(exe, *bundle))
+		return finish(winsvc.Install(exe, *bundle, *operator))
+	case "allow":
+		if *operator == "" {
+			return finish(fmt.Errorf("--operator is required: the SID of the account to allow"))
+		}
+		return finish(winsvc.Allow(*operator))
 	case "uninstall":
 		return finish(winsvc.Uninstall(*purge))
 	case "start":
@@ -210,7 +220,26 @@ func printServiceStatus(w io.Writer) {
 		}
 		fmt.Fprintf(w, "  %-4s %5d  %s\n", strings.ToUpper(l.Protocol), l.Port, state)
 	}
+	onStart := "starts the listeners"
+	if !st.ListenOnStart {
+		onStart = "leaves the listeners for a window to start"
+	}
+	fmt.Fprintf(w, "On start:    %s\n", onStart)
 	fmt.Fprintf(w, "Received:    %d messages since start\n", st.Messages)
+	fmt.Fprintf(w, "Windows:     %d connected\n", st.Windows)
+	if ops, err := winsvc.Operators(); err == nil {
+		names := make([]string, 0, len(ops))
+		for _, op := range ops {
+			if op.Name != "" {
+				names = append(names, op.Name)
+			} else {
+				names = append(names, op.SID)
+			}
+		}
+		if len(names) > 0 {
+			fmt.Fprintf(w, "Operators:   %s\n", strings.Join(names, ", "))
+		}
+	}
 	if st.Error != "" {
 		fmt.Fprintf(w, "Last error:  %s\n", st.Error)
 	}

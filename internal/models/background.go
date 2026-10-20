@@ -75,7 +75,13 @@ type HostStatus struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 	Listeners []HostListener `json:"listeners"`
 	Messages  int64          `json:"messages"`
-	// Error is why the host failed or stopped, in words an operator can act on.
+	// Windows is how many windows are connected to drive it.
+	Windows int `json:"windows"`
+	// ListenOnStart is whether it starts its listeners when it starts, or
+	// leaves them for a window to start.
+	ListenOnStart bool `json:"listenOnStart"`
+	// Error is why the host failed or stopped, or why its listeners did not
+	// start, in words an operator can act on.
 	Error string `json:"error,omitempty"`
 }
 
@@ -84,4 +90,23 @@ type HostListener struct {
 	Protocol string `json:"protocol"`
 	Port     int    `json:"port"`
 	Running  bool   `json:"running"`
+}
+
+// ServiceLink is which engine the window drives: its own, or the system
+// service's.
+type ServiceLink struct {
+	// Mode is "local" or "service".
+	Mode string `json:"mode"`
+	// Installed and State are the system service's, as the service manager
+	// reports them.
+	Installed bool   `json:"installed"`
+	State     string `json:"state"`
+	// Reason is why the window drives its own engine although the service is
+	// installed: stopped, denied (this account is not allowed to drive it),
+	// version (it runs another build; Detail names it), notService (something
+	// else holds its pipe), or unreachable (Detail says why).
+	Reason string `json:"reason,omitempty"`
+	Detail string `json:"detail,omitempty"`
+	// ServiceVersion is the version of the service driven.
+	ServiceVersion string `json:"serviceVersion,omitempty"`
 }

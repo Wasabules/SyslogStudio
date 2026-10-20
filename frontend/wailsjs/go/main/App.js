@@ -6,6 +6,10 @@ export function AddAlertRule(arg1) {
   return window['go']['main']['App']['AddAlertRule'](arg1);
 }
 
+export function AllowServiceAccess() {
+  return window['go']['main']['App']['AllowServiceAccess']();
+}
+
 export function AreSinkCredentialsUnencrypted() {
   return window['go']['main']['App']['AreSinkCredentialsUnencrypted']();
 }
@@ -150,6 +154,10 @@ export function GetImportFormat() {
   return window['go']['main']['App']['GetImportFormat']();
 }
 
+export function GetListenOnStart() {
+  return window['go']['main']['App']['GetListenOnStart']();
+}
+
 export function GetLocalIPs() {
   return window['go']['main']['App']['GetLocalIPs']();
 }
@@ -188,6 +196,10 @@ export function GetServerCertInfo() {
 
 export function GetServerStatus() {
   return window['go']['main']['App']['GetServerStatus']();
+}
+
+export function GetServiceLink() {
+  return window['go']['main']['App']['GetServiceLink']();
 }
 
 export function GetSimulatorConfig() {
@@ -328,6 +340,10 @@ export function SetCloseAction(arg1) {
 
 export function SetLaunchAtLogin(arg1) {
   return window['go']['main']['App']['SetLaunchAtLogin'](arg1);
+}
+
+export function SetListenOnStart(arg1) {
+  return window['go']['main']['App']['SetListenOnStart'](arg1);
 }
 
 export function SetStorageConfig(arg1) {

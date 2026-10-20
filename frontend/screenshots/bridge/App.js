@@ -32,7 +32,7 @@ import {
   IMPORT_PREVIEW,
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
-  BACKGROUND_SETTINGS, SYSTEM_SERVICE,
+  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK,
 } from '../fixtures.js';
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -283,6 +283,10 @@ const HANDLERS = {
   UninstallSystemService: () => delayed('UninstallSystemService', null),
   StartSystemService: () => delayed('StartSystemService', null),
   StopSystemService: () => delayed('StopSystemService', null),
+  GetServiceLink: () => Promise.resolve(clone(SERVICE_LINK)),
+  AllowServiceAccess: () => delayed('AllowServiceAccess', null),
+  GetListenOnStart: () => Promise.resolve(true),
+  SetListenOnStart: () => Promise.resolve(null),
 
   // updates and shell
   GetAppVersion: () => Promise.resolve('v1.4.0'),
@@ -345,4 +349,5 @@ export const {
   DownloadAndApplyUpdate, OpenURL,
   GetBackgroundSettings, SetLaunchAtLogin, SetAutoStartListeners, GetAutoStartError, GetDataDirConflict,
   GetSystemService, InstallSystemService, UninstallSystemService, StartSystemService, StopSystemService,
+  GetServiceLink, AllowServiceAccess, GetListenOnStart, SetListenOnStart,
 } = API;

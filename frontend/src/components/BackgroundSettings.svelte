@@ -17,9 +17,10 @@
     import {
         getBackgroundSettings, setLaunchAtLogin, setAutoStartListeners, isEncryptionEnabled,
         installSystemService, uninstallSystemService, startSystemService, stopSystemService,
-        type BackgroundSettings,
+        allowServiceAccess, getListenOnStart, setListenOnStart, type BackgroundSettings,
     } from '../lib/api';
     import { systemService, refreshSystemService } from '../lib/systemService';
+    import { serviceLink, refreshServiceLink } from '../lib/serviceLink';
     import { toastSuccess, toastError } from '../lib/toast';
 
     // Bound by Settings, so Escape closes this panel's dialogs before the
@@ -37,12 +38,24 @@
 
     $: overlayOpen = showInstall || showUninstall;
     $: svc = $systemService;
+    // While this window drives the service, its settings are the service's:
+    // there is nothing to copy over, and "update its configuration" would
+    // overwrite them with the window's own, unused ones.
+    $: driving = $serviceLink?.mode === 'service';
+    $: denied = !driving && $serviceLink?.reason === 'denied';
     $: installed = !!svc?.installed;
     $: running = svc?.state === 'running';
     $: listening = (svc?.host?.listeners ?? [])
         .filter(l => l.running)
         .map(l => `${l.protocol.toUpperCase()} ${l.port}`)
         .join(', ');
+
+    // The service's own "start receiving on start", which only a window
+    // driving it can read and change: it lives in the service's directory.
+    let listenOnStart = true;
+    $: if (driving) {
+        getListenOnStart().then(v => listenOnStart = v).catch(() => { /* keep */ });
+    }
 
     onMount(load);
 
@@ -76,6 +89,16 @@
         }
     }
 
+    async function onListenOnStart(e: Event) {
+        const enabled = (e.currentTarget as HTMLInputElement).checked;
+        try {
+            await setListenOnStart(enabled);
+            listenOnStart = enabled;
+        } catch (err) {
+            toastError(message(err));
+        }
+    }
+
     // Every service action goes through the administrator prompt and can take
     // a while after it; the buttons stay disabled until it has answered.
     async function elevated(action: () => Promise<void>, done: string) {
@@ -88,6 +111,7 @@
         } finally {
             busy = false;
             await refreshSystemService();
+            await refreshServiceLink();
             try { settings = await getBackgroundSettings(); } catch { /* keep */ }
         }
     }
@@ -160,6 +184,9 @@
                 {$_('background.autoStart')}
             </label>
             <span class="hint">{$_('background.autoStartHint')}</span>
+            {#if driving}
+                <span class="note">{$_('background.autoStartDriving')}</span>
+            {/if}
         </div>
 
         {#if !settings.trayAvailable}
@@ -196,16 +223,34 @@
             <span class="note warn">{$_('background.mustBePerMachine')}</span>
         {/if}
 
+        {#if driving}
+            <div class="field">
+                <label class="check">
+                    <input type="checkbox" checked={listenOnStart} on:change={onListenOnStart} />
+                    {$_('background.listenOnStart')}
+                </label>
+                <span class="hint">{$_('background.listenOnStartHint')}</span>
+            </div>
+        {/if}
+
         <div class="actions">
             {#if !installed}
                 <button class="action-btn primary" disabled={!svc.canInstall || busy} on:click={openInstall}>
                     {$_('background.install')}
                 </button>
             {:else}
-                <button class="action-btn" disabled={!svc.canInstall || busy} on:click={openInstall}
-                        title={$_('background.updateHint')}>
-                    {$_('background.update')}
-                </button>
+                {#if !driving}
+                    <button class="action-btn" disabled={!svc.canInstall || busy} on:click={openInstall}
+                            title={$_('background.updateHint')}>
+                        {$_('background.update')}
+                    </button>
+                {/if}
+                {#if denied}
+                    <button class="action-btn primary" disabled={busy}
+                            on:click={() => elevated(allowServiceAccess, $_('background.allowed'))}>
+                        {$_('background.allow')}
+                    </button>
+                {/if}
                 {#if running}
                     <button class="action-btn" disabled={busy}
                             on:click={() => elevated(stopSystemService, $_('background.stopped'))}>
@@ -227,7 +272,7 @@
         </div>
 
         {#if installed}
-            <span class="hint">{$_('background.viewerNote')}</span>
+            <span class="hint">{driving ? $_('background.viewerDriving') : $_('background.viewerLocal')}</span>
         {/if}
     {/if}
 </section>
@@ -245,6 +290,7 @@
                 <li>{$_('background.installStep3')}</li>
                 <li>{$_('background.installStep4')}</li>
                 <li>{$_('background.installStep5')}</li>
+                <li>{$_('background.installStep6')}</li>
             </ol>
             <p class="text">{$_('background.installNotCopied')}</p>
             <p class="note warn">{$_('background.installPlaintext', { values: { dir: svc.dataDir } })}</p>

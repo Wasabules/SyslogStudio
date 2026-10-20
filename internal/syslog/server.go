@@ -244,6 +244,14 @@ func (s *SyslogServer) Start(config models.ServerConfig) error {
 		}
 	}
 
+	// Not one listener came up: a port taken by another program, most often.
+	// Staying "running" on nothing would receive nothing, and refuse the next
+	// Start — the one made after fixing the port — as already running.
+	if len(startErrors) > 0 && !s.listening() {
+		s.stop()
+		return fmt.Errorf("%s", strings.Join(startErrors, "; "))
+	}
+
 	// Start batch emitter and stats emitter
 	s.wg.Add(2)
 	go s.runBatchEmitter(ctx)
@@ -309,16 +317,28 @@ func (s *SyslogServer) startTLSListener(ctx context.Context, config models.Serve
 	return nil
 }
 
+// listening reports whether any listener is open.
+func (s *SyslogServer) listening() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.udpConn != nil || s.tcpListener != nil || s.tlsListener != nil
+}
+
 // Stop gracefully shuts down all listeners.
 func (s *SyslogServer) Stop() error {
 	// Serialize the whole lifecycle against Start (see startStopMu doc).
 	s.startStopMu.Lock()
 	defer s.startStopMu.Unlock()
+	s.stop()
+	return nil
+}
 
+// stop is Stop, for a caller holding startStopMu.
+func (s *SyslogServer) stop() {
 	s.mu.Lock()
 	if !s.running {
 		s.mu.Unlock()
-		return nil
+		return
 	}
 
 	s.running = false
@@ -354,7 +374,6 @@ func (s *SyslogServer) Stop() error {
 	s.wg.Wait()
 	slog.Info("syslog server stopped")
 	s.emitStatus()
-	return nil
 }
 
 // GetStatus returns the current server status.

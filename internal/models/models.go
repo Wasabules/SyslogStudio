@@ -278,6 +278,10 @@ type AppConfig struct {
 	Import ImportFormat `json:"import"`
 	// Background holds the desktop application's start-up choices.
 	Background BackgroundPrefs `json:"background"`
+	// ListenOnStart is whether a headless host — the system service — starts
+	// its listeners when it starts. Unset means yes: a service exists to
+	// receive, and one installed before this setting existed keeps doing so.
+	ListenOnStart *bool `json:"listenOnStart,omitempty"`
 }
 
 // CloseAction is what closing the window means.

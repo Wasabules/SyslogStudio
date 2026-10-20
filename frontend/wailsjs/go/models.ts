@@ -299,6 +299,8 @@ export namespace models {
 	    updatedAt: any;
 	    listeners: HostListener[];
 	    messages: number;
+	    windows: number;
+	    listenOnStart: boolean;
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -315,6 +317,8 @@ export namespace models {
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	        this.listeners = this.convertValues(source["listeners"], HostListener);
 	        this.messages = source["messages"];
+	        this.windows = source["windows"];
+	        this.listenOnStart = source["listenOnStart"];
 	        this.error = source["error"];
 	    }
 	
@@ -677,6 +681,28 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class ServiceLink {
+	    mode: string;
+	    installed: boolean;
+	    state: string;
+	    reason?: string;
+	    detail?: string;
+	    serviceVersion?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServiceLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.installed = source["installed"];
+	        this.state = source["state"];
+	        this.reason = source["reason"];
+	        this.detail = source["detail"];
+	        this.serviceVersion = source["serviceVersion"];
+	    }
 	}
 	export class SimulatorDestination {
 	    id: string;

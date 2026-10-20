@@ -235,7 +235,44 @@ administrator rights once, creates the `SyslogStudio` service (automatic start a
 `NT SERVICE\SyslogStudio`, restart on failure), copies your listeners, alert rules, routes,
 destinations with their credentials and your TLS certificate to `%ProgramData%\SyslogStudio`,
 and adds an inbound firewall rule on domain and private networks. This window stops its own
-listeners, since the service takes over the ports.
+listeners, since the service takes over the ports, and your account is allowed to drive the
+service.
+
+While the service runs, **this window drives it**. A banner says so. Everything you see and
+change is the service's:
+
+- the listeners and their ports (ports below 1024 included), saved by the service and used
+  again at its next start;
+- the live view, the history and the statistics: what the service receives and stores;
+- alert rules, routes and destinations, certificates, the simulator;
+- imports: the window reads the file, which the service's account could not, and sends the
+  messages to the service.
+
+**Start** and **Stop** in the toolbar start and stop the service's listeners. The service itself
+keeps running, and so do its alert rules and routes. A listener whose port another program holds
+does not start, and the error names that program.
+
+What happens when the service next starts, at boot for instance, is set by **Start receiving when
+the service starts**. This option sits in Settings > Background and is shown while the window
+drives the service:
+
+- **On** (the default): the service listens as last saved, whatever was pressed before.
+- **Off**: the service still starts with the computer, but receives nothing until you press
+  Start.
+
+The *Start receiving when SyslogStudio opens* option above only concerns your own receiver, so it
+has no effect while the window drives the service.
+
+When the service stops, the window shows your own receiver again, with a banner saying why, and
+switches back as soon as the service runs. The banner offers what to do:
+
+- **Start the service**, when it is stopped;
+- **Allow my account**, when the service runs but your account may not drive it — another user
+  of the machine, or a service installed by an earlier version. It asks for administrator
+  rights once and restarts the service.
+
+The window and the service connect over a local named pipe that only administrators and the
+allowed accounts may open, and the window checks that what answers is the service itself.
 
 Requirements and limits:
 
@@ -244,18 +281,26 @@ Requirements and limits:
 - The service's database is not encrypted -- nobody is there to type a password at boot. Its
   directory is readable by administrators only, and its credentials and private key are sealed
   with DPAPI.
-- This window does not show the service's messages yet; they are in the service's database.
+- At-rest encryption is not available while the window drives the service; the Storage settings
+  say so.
+- The messages your own receiver stored stay in your own database; the window shows them again
+  when it is not driving the service.
 
-**Update its configuration** copies the window's current settings to the service again and
-restarts it. **Start**, **Stop** and **Uninstall** each ask for administrator rights.
+While the service is stopped, **Update its configuration** copies the window's own settings to
+the service and restarts it; while the window drives the service there is nothing to copy, and
+the button is not shown. **Start**, **Stop** and **Uninstall** each ask for administrator
+rights.
 
 ### Troubleshooting the service
 
-- `SyslogStudio.exe service status` prints the state, the listeners, the number of messages
-  received and the last error. Pipe it through `more` when running it from `cmd`.
+- `SyslogStudio.exe service status` prints the state, the listeners, whether they start with the
+  service, the number of messages received, the connected windows, the allowed accounts and the
+  last error. Pipe it through
+  `more` when running it from `cmd`.
 - Start-up errors are written to the Windows **Application** event log, source `SyslogStudio`.
 - The service's own log is `%ProgramData%\SyslogStudio\logs\service.log`.
-- A port already in use at boot makes the service retry after 5 s, 30 s, then every minute.
+- A port already in use at boot does not stop the service: it reports the error, retries every
+  30 seconds, and a window can change the ports meanwhile.
 
 ### Headless
 

@@ -41,6 +41,18 @@ var ErrUnsupported = errors.New("the system service is only available on Windows
 // ErrCancelled means the user declined the administrator prompt.
 var ErrCancelled = errors.New("the administrator prompt was declined")
 
+// ErrAccessDenied means this account is not one of the service's operators.
+var ErrAccessDenied = errors.New("this account is not allowed to drive the service")
+
+// ErrNotService means something other than the service holds its pipe.
+var ErrNotService = errors.New("the program answering on the service's pipe is not the SyslogStudio service")
+
+// Operator is an account allowed to drive the service from a window.
+type Operator struct {
+	SID  string `json:"sid"`
+	Name string `json:"name,omitempty"`
+}
+
 // Info is the service manager's view of the service.
 type Info struct {
 	Installed bool
@@ -48,6 +60,8 @@ type Info struct {
 	State      string
 	Executable string
 	Account    string
+	// PID is the service's process while it runs.
+	PID uint32
 }
 
 // Result is what an elevated command reports back to the window that started

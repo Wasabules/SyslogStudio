@@ -48,7 +48,7 @@ func (e *Engine) PreviewLogFile(path string, format models.ImportFormat) (import
 	if path == "" {
 		return importer.Preview{}, fmt.Errorf("no file chosen")
 	}
-	return importer.PreviewFile(e.importOptions(path, format))
+	return importer.PreviewFile(ImportOptions(path, format))
 }
 
 // ImportLogFile reads a file into the live view.
@@ -64,46 +64,78 @@ func (e *Engine) ImportLogFile(path string, persist bool, format models.ImportFo
 		return importer.Result{}, e.openErr
 	}
 
-	opts := e.importOptions(path, format)
-	// Sized to the ring the viewer reads from: importing more than it can hold
-	// would silently drop the beginning of the file, which reads as a broken
-	// import rather than a full buffer.
-	if e.server != nil {
-		opts.Limit = e.server.BufferSize()
-	}
+	opts := ImportOptions(path, format)
+	opts.Limit = e.ImportCapacity()
 
 	batch := make([]models.SyslogMessage, 0, importBatch)
-	flush := func() {
-		if len(batch) == 0 || e.emitter == nil {
-			return
+	res, err := importer.Read(opts, func(msg models.SyslogMessage) bool {
+		batch = append(batch, msg)
+		if len(batch) >= importBatch {
+			e.addImported(batch, persist)
+			batch = make([]models.SyslogMessage, 0, importBatch)
 		}
-		e.emitter.Emit("syslog:messages", batch)
-		batch = make([]models.SyslogMessage, 0, importBatch)
+		return true
+	})
+	e.addImported(batch, persist)
+
+	// Remembered only when it worked. Storing a format that just failed would
+	// mean the next import opens pre-loaded with the thing that went wrong.
+	if err == nil {
+		e.RememberImportFormat(format)
 	}
 
+	return res, err
+}
+
+// ImportCapacity is how many messages an import may bring in: the size of the
+// ring the viewer reads from. Importing more than it can hold would silently
+// drop the beginning of the file, which reads as a broken import rather than
+// a full buffer. Zero means no limit.
+func (e *Engine) ImportCapacity() int {
+	if e.server == nil {
+		return 0
+	}
+	return e.server.BufferSize()
+}
+
+// ImportMessages adds messages read from a file somewhere else — by a window
+// driving this engine from another process, whose user's file this engine's
+// account may not be able to read. It is the second half of ImportLogFile.
+func (e *Engine) ImportMessages(msgs []models.SyslogMessage, persist bool) error {
+	if e.openErr != nil {
+		return e.openErr
+	}
+	e.addImported(msgs, persist)
+	return nil
+}
+
+// RememberImportFormat keeps the format of an import that worked, for the
+// dialog to open with next time.
+func (e *Engine) RememberImportFormat(format models.ImportFormat) {
+	if e.configStore != nil {
+		e.configStore.SaveImportFormat(format)
+	}
+}
+
+// addImported puts a batch of imported messages in the live view, and in the
+// database when persist is set. The batch reaches the renderer the way
+// received traffic does, so the viewer's existing path handles it.
+func (e *Engine) addImported(batch []models.SyslogMessage, persist bool) {
+	if len(batch) == 0 {
+		return
+	}
 	ls := e.logStore
-	res, err := importer.Read(opts, func(msg models.SyslogMessage) bool {
+	for _, msg := range batch {
 		if e.server != nil {
 			e.server.AddImported(msg)
 		}
 		if persist && ls != nil {
 			ls.BufferMessage(msg)
 		}
-		batch = append(batch, msg)
-		if len(batch) >= importBatch {
-			flush()
-		}
-		return true
-	})
-	flush()
-
-	// Remembered only when it worked. Storing a format that just failed would
-	// mean the next import opens pre-loaded with the thing that went wrong.
-	if err == nil && e.configStore != nil {
-		e.configStore.SaveImportFormat(format)
 	}
-
-	return res, err
+	if e.emitter != nil {
+		e.emitter.Emit("syslog:messages", batch)
+	}
 }
 
 // GetImportFormat is what the dialog opens with: whatever the last import
@@ -115,7 +147,7 @@ func (e *Engine) GetImportFormat() models.ImportFormat {
 	return e.configStore.LoadImportFormat()
 }
 
-// importOptions answers the two questions a file cannot: which year a
+// ImportOptions answers the two questions a file cannot: which year a
 // BSD-shaped timestamp belongs to, and which zone a timestamp without one is
 // read in.
 //
@@ -124,7 +156,7 @@ func (e *Engine) GetImportFormat() models.ImportFormat {
 // received over the network land on the same instant. The timezone setting in
 // the interface changes how a timestamp is DISPLAYED, not how a zoneless one is
 // interpreted, and importing must not be the one place that differs.
-func (e *Engine) importOptions(path string, format models.ImportFormat) importer.Options {
+func ImportOptions(path string, format models.ImportFormat) importer.Options {
 	return importer.Options{
 		Path:     path,
 		Year:     time.Now().Year(),

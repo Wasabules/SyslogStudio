@@ -106,11 +106,11 @@ in a ticket without going through a redaction tool first.
 ### Running with no window
 
 In your session, started at sign-in and hidden in the tray — or as a Windows service that
-starts with the computer, before anyone signs in.
+starts with the computer, before anyone signs in, and that the window then drives.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/background-dark.png" />
-  <img src="docs/assets/img/background-light.png" alt="Settings, Background tab: the user-session options above, and below them the system service, running and listening on UDP 514, TCP 601 and TLS 6514." width="900" />
+  <img src="docs/assets/img/background-light.png" alt="Settings, Background tab: the user-session options above, and below them the system service, running and listening on UDP 514, TCP 601 and TLS 6514. A banner says the window drives the service." width="900" />
 </picture>
 
 ### Built-in traffic generator
@@ -323,18 +323,34 @@ stops when you sign out.
   TLS certificate into `%ProgramData%\SyslogStudio`, readable by the service and
   administrators only — credentials and the private key additionally sealed with DPAPI;
 - adds an inbound firewall rule for the executable on domain and private networks;
-- stops this window's own listeners, since the service takes the ports.
+- stops this window's own listeners, since the service takes the ports;
+- allows your account to drive the service.
+
+While the service runs, the window **drives it**: the settings it shows and changes are the
+service's, the messages it shows are the ones the service receives and stores, and so are the
+alerts, routes, certificates and imports. It connects over a local named pipe that only
+administrators and the allowed accounts may open; another account gets an *Allow my account*
+button, which asks for administrator rights once. When the service stops, the window goes back
+to your own receiver, and a banner says so.
+
+Start and Stop in the window start and stop the service's listeners, while the service keeps
+running. At its next start, the service listens again as last saved, unless *Start receiving
+when the service starts* is turned off. In that case it starts with the computer but waits for
+someone to press Start.
 
 The service's database is **not encrypted**: there is nobody to type the password at boot.
 The installation says so and, when your own database is encrypted, asks you to confirm.
 SyslogStudio must be installed for all users (in Program Files) to install the service: a
 service runs under a system account, and a copy an ordinary user can replace would hand that
-account to whoever replaces it. This window does not show the service's messages yet.
+account to whoever replaces it. At-rest encryption is not available for the service either.
 
 To check on it or find out why it does not start:
 
 ```
-SyslogStudio.exe service status     state, listeners, messages received, last error
+SyslogStudio.exe service status     state, listeners, whether they start with it, messages
+                                    received, connected windows, allowed accounts, last error
+SyslogStudio.exe service allow --operator SID
+                                    let another account drive it (as an administrator)
 ```
 
 Its errors also go to the Windows **Application** event log (source `SyslogStudio`), and its

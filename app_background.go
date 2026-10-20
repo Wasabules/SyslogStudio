@@ -14,6 +14,7 @@ import (
 	"SyslogStudio/internal/autostart"
 	"SyslogStudio/internal/headless"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/portowner"
 	"SyslogStudio/internal/winsvc"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -105,17 +106,20 @@ func (a *App) GetAutoStartError() string {
 // GetDataDirConflict explains why this window cannot use its data directory —
 // another SyslogStudio process has it — or returns empty.
 func (a *App) GetDataDirConflict() string {
-	if a.engine == nil || a.engine.OpenError() == nil {
+	eng := a.local()
+	if eng == nil || eng.OpenError() == nil {
 		return ""
 	}
-	return a.engine.OpenError().Error()
+	return eng.OpenError().Error()
 }
 
 // autoStart starts the listeners if the user asked for that on launch, as soon
 // as the engine can: at startup, or right after the unlock when the database
-// is encrypted. It runs once per launch.
+// is encrypted. It runs once per launch, and only for the window's own
+// engine: the service starts its listeners itself.
 func (a *App) autoStart() {
-	if !a.prefs.LoadBackground().AutoStartListeners || a.engine.OpenError() != nil || a.IsEncryptionLocked() {
+	eng := a.local()
+	if eng == nil || !a.prefs.LoadBackground().AutoStartListeners || eng.OpenError() != nil || a.IsEncryptionLocked() {
 		return
 	}
 	a.bg.mu.Lock()
@@ -184,22 +188,64 @@ func (a *App) UnlockDatabase(password string) error {
 	return nil
 }
 
-// StartServer starts the listeners, and names the system service when it is
-// the one holding a port: "address already in use" alone sends people looking
-// for some other program.
+// StartServer starts the listeners and, for each one that did not open because
+// another program holds its port, names that program: "address already in
+// use" alone sends people looking for it. When it is the system service, it
+// also says how to get the port back.
 func (a *App) StartServer(config models.ServerConfig) error {
 	err := a.Backend.StartServer(config)
-	if err == nil || !winsvc.Supported() {
-		return err
+	if err == nil {
+		return nil
 	}
-	msg := strings.ToLower(err.Error())
-	if !strings.Contains(msg, "only one usage") && !strings.Contains(msg, "address already in use") {
-		return err
-	}
-	if info, qerr := winsvc.Query(); qerr == nil && info.Installed && info.State == "running" {
-		return fmt.Errorf("%w — the SyslogStudio system service is running and listening; stop it, or use other ports here", err)
+	if held := a.heldPorts(config); held != "" {
+		return fmt.Errorf("%w — %s", err, held)
 	}
 	return err
+}
+
+// heldPorts says who holds the ports of the listeners that did not open. The
+// engine that just tried is left out: the ports it holds are those that did.
+// Looking the owners up, rather than reading the error, works whatever the
+// language of the system's messages.
+func (a *App) heldPorts(config models.ServerConfig) string {
+	st := a.GetServerStatus()
+	self, service := uint32(os.Getpid()), uint32(0)
+	if c := a.serviceClient(); c != nil {
+		self = uint32(c.Hello().PID)
+	} else if winsvc.Supported() {
+		if info, err := winsvc.Query(); err == nil && info.State == "running" {
+			service = info.PID
+		}
+	}
+
+	var held []string
+	byService := false
+	for _, l := range []struct {
+		name, proto string
+		port        int
+		on, running bool
+	}{
+		{"UDP", "udp", config.UDPPort, config.UDPEnabled, st.UDPRunning},
+		{"TCP", "tcp", config.TCPPort, config.TCPEnabled, st.TCPRunning},
+		{"TLS", "tcp", config.TLSPort, config.TLSEnabled, st.TLSRunning},
+	} {
+		if !l.on || l.running {
+			continue
+		}
+		owner, ok := portowner.Find(l.proto, l.port)
+		if !ok || owner.PID == self {
+			continue
+		}
+		who := owner.String()
+		if service != 0 && owner.PID == service {
+			who, byService = "the SyslogStudio system service", true
+		}
+		held = append(held, fmt.Sprintf("%s port %d is held by %s", l.name, l.port, who))
+	}
+	if byService {
+		held = append(held, "stop the service, or use other ports here")
+	}
+	return strings.Join(held, "; ")
 }
 
 // --- The system service ----------------------------------------------------
@@ -262,7 +308,11 @@ func (a *App) InstallSystemService() error {
 	if err := winsvc.CheckLocation(exe); err != nil {
 		return err
 	}
-	bundle, err := a.keys.ExportBundle()
+	eng := a.local()
+	if eng == nil {
+		return errors.New("this window is driving the service: its settings are the service's already")
+	}
+	bundle, err := eng.ExportBundle()
 	if err != nil {
 		return err
 	}
@@ -291,7 +341,13 @@ func (a *App) InstallSystemService() error {
 	a.SetAutoStartListeners(false)
 	a.refreshTrayStatus()
 
-	err = a.runElevated(exe, dir, "install", "--bundle", bundlePath)
+	// This account may then drive the service from this window.
+	args := []string{"install", "--bundle", bundlePath}
+	if sid, serr := winsvc.CurrentUserSID(); serr == nil {
+		args = append(args, "--operator", sid)
+	}
+	err = a.runElevated(exe, dir, args...)
+	a.pokeLink()
 	if err != nil {
 		// Declined or failed: nothing took the ports over, so this window goes
 		// back to receiving the way it was rather than leaving the machine
@@ -314,14 +370,20 @@ func (a *App) UninstallSystemService(purge bool) error {
 	if purge {
 		args = append(args, "--purge")
 	}
-	return a.runServiceCommand(args...)
+	return a.lettingGoOfService(func() error { return a.runServiceCommand(args...) })
 }
 
-// StartSystemService starts the installed service.
-func (a *App) StartSystemService() error { return a.runServiceCommand("start") }
+// StartSystemService starts the installed service; the window then drives it.
+func (a *App) StartSystemService() error {
+	err := a.runServiceCommand("start")
+	a.pokeLink()
+	return err
+}
 
-// StopSystemService stops it.
-func (a *App) StopSystemService() error { return a.runServiceCommand("stop") }
+// StopSystemService stops it; the window then drives its own engine.
+func (a *App) StopSystemService() error {
+	return a.lettingGoOfService(func() error { return a.runServiceCommand("stop") })
+}
 
 func (a *App) runServiceCommand(args ...string) error {
 	if !winsvc.Supported() {

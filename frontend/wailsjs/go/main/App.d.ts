@@ -6,6 +6,8 @@ import {importer} from '../models';
 
 export function AddAlertRule(arg1:models.AlertRule):Promise<models.AlertRule>;
 
+export function AllowServiceAccess():Promise<void>;
+
 export function AreSinkCredentialsUnencrypted():Promise<boolean>;
 
 export function CancelClose():Promise<void>;
@@ -78,6 +80,8 @@ export function GetDefaultConfig():Promise<models.ServerConfig>;
 
 export function GetImportFormat():Promise<models.ImportFormat>;
 
+export function GetListenOnStart():Promise<boolean>;
+
 export function GetLocalIPs():Promise<Array<string>>;
 
 export function GetMessages(arg1:models.FilterCriteria):Promise<Array<models.SyslogMessage>>;
@@ -97,6 +101,8 @@ export function GetScenarioDurationSeconds():Promise<number>;
 export function GetServerCertInfo():Promise<models.CertInfo>;
 
 export function GetServerStatus():Promise<models.ServerStatus>;
+
+export function GetServiceLink():Promise<models.ServiceLink>;
 
 export function GetSimulatorConfig():Promise<models.SimulatorConfig>;
 
@@ -167,6 +173,8 @@ export function SetAutoStartListeners(arg1:boolean):Promise<void>;
 export function SetCloseAction(arg1:string):Promise<void>;
 
 export function SetLaunchAtLogin(arg1:boolean):Promise<void>;
+
+export function SetListenOnStart(arg1:boolean):Promise<void>;
 
 export function SetStorageConfig(arg1:models.StorageConfig):Promise<void>;
 
