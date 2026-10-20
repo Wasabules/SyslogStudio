@@ -77,6 +77,9 @@ type HostStatus struct {
 	Messages  int64          `json:"messages"`
 	// Windows is how many windows are connected to drive it.
 	Windows int `json:"windows"`
+	// ListenOnStart is whether it starts its listeners when it starts, or
+	// leaves them for a window to start.
+	ListenOnStart bool `json:"listenOnStart"`
 	// Error is why the host failed or stopped, or why its listeners did not
 	// start, in words an operator can act on.
 	Error string `json:"error,omitempty"`

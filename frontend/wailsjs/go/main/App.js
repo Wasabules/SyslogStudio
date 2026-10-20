@@ -154,6 +154,10 @@ export function GetImportFormat() {
   return window['go']['main']['App']['GetImportFormat']();
 }
 
+export function GetListenOnStart() {
+  return window['go']['main']['App']['GetListenOnStart']();
+}
+
 export function GetLocalIPs() {
   return window['go']['main']['App']['GetLocalIPs']();
 }
@@ -336,6 +340,10 @@ export function SetCloseAction(arg1) {
 
 export function SetLaunchAtLogin(arg1) {
   return window['go']['main']['App']['SetLaunchAtLogin'](arg1);
+}
+
+export function SetListenOnStart(arg1) {
+  return window['go']['main']['App']['SetListenOnStart'](arg1);
 }
 
 export function SetStorageConfig(arg1) {

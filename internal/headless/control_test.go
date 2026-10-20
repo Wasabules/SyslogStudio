@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"SyslogStudio/internal/remote"
+	"SyslogStudio/internal/storage"
 )
 
 // controlListener stands in for the service's pipe: what the host serves on
@@ -166,5 +167,60 @@ func TestHost_WithoutWindowsATakenPortIsFatal(t *testing.T) {
 	}
 	if st, _ := ReadStatus(dir); st.State != "failed" {
 		t.Fatalf("status: %+v", st)
+	}
+}
+
+// Listening on start turned off, from a window: the host starts, for its
+// windows, and its listeners wait for one to press Start.
+func TestHost_ListeningOnStartOffWaitsForAWindow(t *testing.T) {
+	dir := t.TempDir()
+	port := freeUDPPort(t)
+	configure(t, dir, port)
+	storage.NewConfigStoreAt(dir).SaveListenOnStart(false)
+
+	l := controlListener(t)
+	h, err := Start(Options{DataDir: dir, Version: "test", Control: l})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Stop()
+	if h.eng.GetServerStatus().Running {
+		t.Fatal("listening although listening on start is off")
+	}
+	if st := h.Status(); st.State != "running" || st.Error != "" || st.ListenOnStart {
+		t.Fatalf("status: %+v", st)
+	}
+
+	c := connect(t, l)
+	if c.GetListenOnStart() {
+		t.Fatal("the window sees listening on start as on")
+	}
+	if err := c.StartServer(c.GetDefaultConfig()); err != nil {
+		t.Fatal(err)
+	}
+	if st := c.GetServerStatus(); !st.UDPRunning || st.Config.UDPPort != port {
+		t.Fatalf("after the window's Start: %+v", st)
+	}
+
+	c.SetListenOnStart(true)
+	h.refresh()
+	if !h.Status().ListenOnStart {
+		t.Fatal("the window turned listening on start back on; the status still says off")
+	}
+}
+
+// A host no window can reach has nobody to press Start: it listens anyway.
+func TestHost_WithoutWindowsListensRegardless(t *testing.T) {
+	dir := t.TempDir()
+	configure(t, dir, freeUDPPort(t))
+	storage.NewConfigStoreAt(dir).SaveListenOnStart(false)
+
+	h, err := Start(Options{DataDir: dir, Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Stop()
+	if !h.eng.GetServerStatus().UDPRunning {
+		t.Fatal("a host nobody can drive waits for a window")
 	}
 }

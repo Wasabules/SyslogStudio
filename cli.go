@@ -220,6 +220,11 @@ func printServiceStatus(w io.Writer) {
 		}
 		fmt.Fprintf(w, "  %-4s %5d  %s\n", strings.ToUpper(l.Protocol), l.Port, state)
 	}
+	onStart := "starts the listeners"
+	if !st.ListenOnStart {
+		onStart = "leaves the listeners for a window to start"
+	}
+	fmt.Fprintf(w, "On start:    %s\n", onStart)
 	fmt.Fprintf(w, "Received:    %d messages since start\n", st.Messages)
 	fmt.Fprintf(w, "Windows:     %d connected\n", st.Windows)
 	if ops, err := winsvc.Operators(); err == nil {

@@ -333,6 +333,11 @@ administrators and the allowed accounts may open; another account gets an *Allow
 button, which asks for administrator rights once. When the service stops, the window goes back
 to your own receiver, and a banner says so.
 
+Start and Stop in the window start and stop the service's listeners, while the service keeps
+running. At its next start, the service listens again as last saved, unless *Start receiving
+when the service starts* is turned off. In that case it starts with the computer but waits for
+someone to press Start.
+
 The service's database is **not encrypted**: there is nobody to type the password at boot.
 The installation says so and, when your own database is encrypted, asks you to confirm.
 SyslogStudio must be installed for all users (in Program Files) to install the service: a
@@ -342,8 +347,8 @@ account to whoever replaces it. At-rest encryption is not available for the serv
 To check on it or find out why it does not start:
 
 ```
-SyslogStudio.exe service status     state, listeners, messages received, connected windows,
-                                    allowed accounts, last error
+SyslogStudio.exe service status     state, listeners, whether they start with it, messages
+                                    received, connected windows, allowed accounts, last error
 SyslogStudio.exe service allow --operator SID
                                     let another account drive it (as an administrator)
 ```

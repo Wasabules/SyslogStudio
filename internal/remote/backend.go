@@ -39,6 +39,8 @@ type Backend interface {
 	GetStats() models.ServerStats
 	GetLocalIPs() []string
 	GetNetworkInterfaces() []models.NetworkInterface
+	GetListenOnStart() bool
+	SetListenOnStart(enabled bool)
 
 	// Storage
 	IsStorageReady() bool

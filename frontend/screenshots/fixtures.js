@@ -561,5 +561,6 @@ export const SYSTEM_SERVICE_RUNNING = {
     ],
     messages: 1843206,
     windows: 1,
+    listenOnStart: true,
   },
 };

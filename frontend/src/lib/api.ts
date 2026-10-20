@@ -373,6 +373,7 @@ export interface HostStatus {
     listeners: HostListener[] | null;
     messages: number;
     windows: number;
+    listenOnStart: boolean;
     error?: string;
 }
 export interface SystemServiceInfo {
@@ -400,6 +401,11 @@ export const installSystemService = (): Promise<void> => callGo('InstallSystemSe
 export const uninstallSystemService = (purge: boolean): Promise<void> => callGo('UninstallSystemService', purge);
 export const startSystemService = (): Promise<void> => callGo('StartSystemService');
 export const stopSystemService = (): Promise<void> => callGo('StopSystemService');
+// Whether the service starts its listeners when it starts, or leaves them for
+// a window to start. Read and written on the engine this window drives: the
+// service's, while it drives it.
+export const getListenOnStart = (): Promise<boolean> => callGo('GetListenOnStart');
+export const setListenOnStart = (enabled: boolean): Promise<void> => callGo('SetListenOnStart', enabled);
 
 // Which engine this window drives: its own, or the system service's while it
 // runs. reason says why it drives its own although the service is installed:

@@ -61,6 +61,16 @@ func (c *Client) GetNetworkInterfaces() []models.NetworkInterface {
 	return r0
 }
 
+func (c *Client) GetListenOnStart() bool {
+	var r0 bool
+	c.logLost("GetListenOnStart", c.call("GetListenOnStart", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) SetListenOnStart(enabled bool) {
+	c.logLost("SetListenOnStart", c.call("SetListenOnStart", []any{enabled}))
+}
+
 func (c *Client) IsStorageReady() bool {
 	var r0 bool
 	c.logLost("IsStorageReady", c.call("IsStorageReady", []any{}, &r0))

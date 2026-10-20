@@ -107,6 +107,19 @@ func (e *Engine) SaveServerConfig(config models.ServerConfig) {
 	e.configStore.Save(config)
 }
 
+// GetListenOnStart reports whether this engine, run by a headless host — the
+// system service — starts its listeners when the host starts. Otherwise they
+// wait for a window to press Start. The desktop application's own engine has
+// its own choice, AutoStartListeners, kept with the window's preferences.
+func (e *Engine) GetListenOnStart() bool {
+	return e.configStore.LoadListenOnStart()
+}
+
+// SetListenOnStart records it, for the host's next start.
+func (e *Engine) SetListenOnStart(enabled bool) {
+	e.configStore.SaveListenOnStart(enabled)
+}
+
 func (e *Engine) GetDefaultConfig() models.ServerConfig {
 	return e.configStore.Load()
 }

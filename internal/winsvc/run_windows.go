@@ -116,6 +116,9 @@ func describe(h *headless.Host) string {
 		}
 	}
 	if len(parts) == 0 {
+		if !h.Status().ListenOnStart {
+			return "not receiving: listening on start is off, so the listeners wait for a window to start them."
+		}
 		return "no listener is running."
 	}
 	return "listening on " + strings.Join(parts, ", ") + "."

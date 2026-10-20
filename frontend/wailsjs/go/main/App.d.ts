@@ -80,6 +80,8 @@ export function GetDefaultConfig():Promise<models.ServerConfig>;
 
 export function GetImportFormat():Promise<models.ImportFormat>;
 
+export function GetListenOnStart():Promise<boolean>;
+
 export function GetLocalIPs():Promise<Array<string>>;
 
 export function GetMessages(arg1:models.FilterCriteria):Promise<Array<models.SyslogMessage>>;
@@ -171,6 +173,8 @@ export function SetAutoStartListeners(arg1:boolean):Promise<void>;
 export function SetCloseAction(arg1:string):Promise<void>;
 
 export function SetLaunchAtLogin(arg1:boolean):Promise<void>;
+
+export function SetListenOnStart(arg1:boolean):Promise<void>;
 
 export function SetStorageConfig(arg1:models.StorageConfig):Promise<void>;
 

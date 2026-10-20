@@ -398,6 +398,24 @@ func (cs *ConfigStore) SaveBackground(p models.BackgroundPrefs) {
 	cs.saveAll(all)
 }
 
+// LoadListenOnStart reads whether a headless host starts its listeners when it
+// starts: yes unless told otherwise.
+func (cs *ConfigStore) LoadListenOnStart() bool {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	v := cs.loadAll().ListenOnStart
+	return v == nil || *v
+}
+
+// SaveListenOnStart writes it.
+func (cs *ConfigStore) SaveListenOnStart(enabled bool) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.ListenOnStart = &enabled
+	cs.saveAll(all)
+}
+
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
 	cs.mu.Lock()

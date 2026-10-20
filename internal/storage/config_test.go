@@ -155,3 +155,21 @@ func TestConfigStore_EmptyDir(t *testing.T) {
 	}
 	cs.Save(cfg) // should not panic
 }
+
+// A service installed before the setting existed has none saved, and must keep
+// listening when it starts.
+func TestConfigStore_ListenOnStart(t *testing.T) {
+	dir := t.TempDir()
+	cs := &ConfigStore{dir: dir}
+	if !cs.LoadListenOnStart() {
+		t.Fatal("unset should mean listening on start")
+	}
+	cs.SaveListenOnStart(false)
+	if (&ConfigStore{dir: dir}).LoadListenOnStart() {
+		t.Fatal("turned off, then read back as on")
+	}
+	cs.SaveListenOnStart(true)
+	if !cs.LoadListenOnStart() {
+		t.Fatal("turned back on, then read as off")
+	}
+}

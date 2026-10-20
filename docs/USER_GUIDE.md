@@ -248,6 +248,21 @@ change is the service's:
 - imports: the window reads the file, which the service's account could not, and sends the
   messages to the service.
 
+**Start** and **Stop** in the toolbar start and stop the service's listeners. The service itself
+keeps running, and so do its alert rules and routes. A listener whose port another program holds
+does not start, and the error names that program.
+
+What happens when the service next starts, at boot for instance, is set by **Start receiving when
+the service starts**. This option sits in Settings > Background and is shown while the window
+drives the service:
+
+- **On** (the default): the service listens as last saved, whatever was pressed before.
+- **Off**: the service still starts with the computer, but receives nothing until you press
+  Start.
+
+The *Start receiving when SyslogStudio opens* option above only concerns your own receiver, so it
+has no effect while the window drives the service.
+
 When the service stops, the window shows your own receiver again, with a banner saying why, and
 switches back as soon as the service runs. The banner offers what to do:
 
@@ -278,8 +293,9 @@ rights.
 
 ### Troubleshooting the service
 
-- `SyslogStudio.exe service status` prints the state, the listeners, the number of messages
-  received, the connected windows, the allowed accounts and the last error. Pipe it through
+- `SyslogStudio.exe service status` prints the state, the listeners, whether they start with the
+  service, the number of messages received, the connected windows, the allowed accounts and the
+  last error. Pipe it through
   `more` when running it from `cmd`.
 - Start-up errors are written to the Windows **Application** event log, source `SyslogStudio`.
 - The service's own log is `%ProgramData%\SyslogStudio\logs\service.log`.

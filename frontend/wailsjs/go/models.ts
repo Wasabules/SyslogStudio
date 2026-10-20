@@ -300,6 +300,7 @@ export namespace models {
 	    listeners: HostListener[];
 	    messages: number;
 	    windows: number;
+	    listenOnStart: boolean;
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -317,6 +318,7 @@ export namespace models {
 	        this.listeners = this.convertValues(source["listeners"], HostListener);
 	        this.messages = source["messages"];
 	        this.windows = source["windows"];
+	        this.listenOnStart = source["listenOnStart"];
 	        this.error = source["error"];
 	    }
 	

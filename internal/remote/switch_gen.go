@@ -48,6 +48,14 @@ func (s *Switch) GetNetworkInterfaces() []models.NetworkInterface {
 	return s.Current().GetNetworkInterfaces()
 }
 
+func (s *Switch) GetListenOnStart() bool {
+	return s.Current().GetListenOnStart()
+}
+
+func (s *Switch) SetListenOnStart(enabled bool) {
+	s.Current().SetListenOnStart(enabled)
+}
+
 func (s *Switch) IsStorageReady() bool {
 	return s.Current().IsStorageReady()
 }

@@ -144,7 +144,11 @@ func (h *Host) start() error {
 		h.eng.Close()
 		return err
 	}
-	if err := h.eng.StartSaved(); err != nil {
+	// Listening waits for a window only on a host windows can reach: one
+	// nobody can drive would wait for ever.
+	if h.server != nil && !h.eng.GetListenOnStart() {
+		h.log.Info("listening on start is off; the listeners wait for a window to start them")
+	} else if err := h.eng.StartSaved(); err != nil {
 		if h.server == nil {
 			h.eng.Close()
 			return fmt.Errorf("start the listeners: %w", err)
@@ -255,8 +259,10 @@ func (h *Host) refresh() {
 	h.mu.Lock()
 	h.status.Listeners = listeners(st)
 	h.status.Messages = stats.TotalMessages
+	h.status.ListenOnStart = true
 	if h.server != nil {
 		h.status.Windows = h.server.Windows()
+		h.status.ListenOnStart = h.eng.GetListenOnStart()
 	}
 	h.mu.Unlock()
 	h.publish()

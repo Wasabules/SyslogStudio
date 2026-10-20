@@ -17,7 +17,7 @@
     import {
         getBackgroundSettings, setLaunchAtLogin, setAutoStartListeners, isEncryptionEnabled,
         installSystemService, uninstallSystemService, startSystemService, stopSystemService,
-        allowServiceAccess, type BackgroundSettings,
+        allowServiceAccess, getListenOnStart, setListenOnStart, type BackgroundSettings,
     } from '../lib/api';
     import { systemService, refreshSystemService } from '../lib/systemService';
     import { serviceLink, refreshServiceLink } from '../lib/serviceLink';
@@ -50,6 +50,13 @@
         .map(l => `${l.protocol.toUpperCase()} ${l.port}`)
         .join(', ');
 
+    // The service's own "start receiving on start", which only a window
+    // driving it can read and change: it lives in the service's directory.
+    let listenOnStart = true;
+    $: if (driving) {
+        getListenOnStart().then(v => listenOnStart = v).catch(() => { /* keep */ });
+    }
+
     onMount(load);
 
     async function load() {
@@ -77,6 +84,16 @@
         try {
             await setAutoStartListeners(enabled);
             if (settings) settings.autoStartListeners = enabled;
+        } catch (err) {
+            toastError(message(err));
+        }
+    }
+
+    async function onListenOnStart(e: Event) {
+        const enabled = (e.currentTarget as HTMLInputElement).checked;
+        try {
+            await setListenOnStart(enabled);
+            listenOnStart = enabled;
         } catch (err) {
             toastError(message(err));
         }
@@ -167,6 +184,9 @@
                 {$_('background.autoStart')}
             </label>
             <span class="hint">{$_('background.autoStartHint')}</span>
+            {#if driving}
+                <span class="note">{$_('background.autoStartDriving')}</span>
+            {/if}
         </div>
 
         {#if !settings.trayAvailable}
@@ -201,6 +221,16 @@
         {/if}
         {#if !svc.canInstall}
             <span class="note warn">{$_('background.mustBePerMachine')}</span>
+        {/if}
+
+        {#if driving}
+            <div class="field">
+                <label class="check">
+                    <input type="checkbox" checked={listenOnStart} on:change={onListenOnStart} />
+                    {$_('background.listenOnStart')}
+                </label>
+                <span class="hint">{$_('background.listenOnStartHint')}</span>
+            </div>
         {/if}
 
         <div class="actions">
