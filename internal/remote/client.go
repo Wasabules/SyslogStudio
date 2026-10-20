@@ -35,6 +35,9 @@ type Client struct {
 
 	writeMu sync.Mutex
 
+	// events holds what the service broadcast until onEvent takes it.
+	events chan frame
+
 	mu      sync.Mutex
 	nextID  uint64
 	pending map[uint64]chan frame
@@ -44,8 +47,15 @@ type Client struct {
 
 // NewClient takes over conn, reads the service's hello and checks it against
 // this build: version must match exactly, since the two are one executable.
-// An empty version accepts any, for tests. onEvent receives what the service
-// broadcasts, in order, on the connection's reading goroutine.
+// An empty version accepts any, for tests.
+//
+// onEvent receives what the service broadcasts, in order, on a goroutine of
+// its own, so it may call the client: the answer is read meanwhile. Run on
+// the reading goroutine, as it first was, a handler that asked the service
+// something — the window's tray, reading the status again when it changed —
+// waited for an answer only that goroutine could read, and the window hung
+// until the service gave up on it. A handler that falls eventQueue events
+// behind loses the connection, as on the service's side.
 func NewClient(conn net.Conn, version string, onEvent func(name string, data []json.RawMessage)) (*Client, error) {
 	dec := json.NewDecoder(conn)
 	_ = conn.SetReadDeadline(time.Now().Add(helloTimeout))
@@ -71,6 +81,10 @@ func NewClient(conn net.Conn, version string, onEvent func(name string, data []j
 		onEvent: onEvent,
 		pending: map[uint64]chan frame{},
 		done:    make(chan struct{}),
+	}
+	if onEvent != nil {
+		c.events = make(chan frame, eventQueue)
+		go c.eventLoop()
 	}
 	go c.readLoop(dec)
 	return c, nil
@@ -112,8 +126,14 @@ func (c *Client) readLoop(dec *json.Decoder) {
 			return
 		}
 		if f.Event != "" {
-			if c.onEvent != nil {
-				c.onEvent(f.Event, f.Data)
+			if c.events == nil {
+				continue
+			}
+			select {
+			case c.events <- f:
+			default:
+				c.shutdown(fmt.Errorf("%w: the window fell too far behind the service's events", ErrClosed))
+				return
 			}
 			continue
 		}
@@ -123,6 +143,20 @@ func (c *Client) readLoop(dec *json.Decoder) {
 		c.mu.Unlock()
 		if ok {
 			ch <- f
+		}
+	}
+}
+
+// eventLoop hands the service's events to onEvent, in the order they came.
+// Those still queued when the connection ends are dropped: the window reloads
+// from whichever engine it drives next.
+func (c *Client) eventLoop() {
+	for {
+		select {
+		case f := <-c.events:
+			c.onEvent(f.Event, f.Data)
+		case <-c.done:
+			return
 		}
 	}
 }

@@ -215,6 +215,69 @@ func TestClient_KnowsWhenTheServiceGoesAway(t *testing.T) {
 	}
 }
 
+// What the user met: Stop, then Start, took most of a minute, or several
+// clicks. The window's tray reads the status again when the service says it
+// changed — a call made from inside an event. Handled on the reading
+// goroutine, that call waited for an answer only that goroutine could read:
+// every call hung until the service, its queue to the window full, dropped it.
+func TestClient_AnEventMayCallTheService(t *testing.T) {
+	eng := engine.New(storage.NewConfigStoreAt(t.TempDir()))
+	srv := NewServer(eng, "", nil)
+	if err := eng.Open(srv); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		srv.Close()
+		eng.Close()
+	})
+	window, service := net.Pipe()
+	go srv.ServeConn(service)
+
+	var c *Client
+	ready := make(chan struct{})
+	c, err := NewClient(window, "", func(name string, _ []json.RawMessage) {
+		if name == "syslog:status" {
+			<-ready
+			c.GetServerStatus()
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(ready)
+	t.Cleanup(c.Close)
+
+	cfg := c.GetDefaultConfig()
+	cfg.UDPEnabled, cfg.TCPEnabled, cfg.TLSEnabled = true, false, false
+	cfg.UDPPort = freeUDPPort(t)
+	cfg.BindAddress = "127.0.0.1"
+	done := make(chan error, 1)
+	go func() {
+		for _, step := range []func() error{
+			func() error { return c.StartServer(cfg) },
+			c.StopServer,
+			func() error { return c.StartServer(cfg) },
+		} {
+			if err := step(); err != nil {
+				done <- err
+				return
+			}
+		}
+		done <- nil
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("start, stop, start hung: a call made from an event was never answered")
+	}
+	if !c.GetServerStatus().UDPRunning {
+		t.Fatal("not receiving after the second start")
+	}
+}
+
 // A window that stops reading is disconnected rather than allowed to hold up
 // the engine emitting to it.
 func TestServer_DisconnectsAWindowThatStopsReading(t *testing.T) {
