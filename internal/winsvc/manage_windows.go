@@ -50,6 +50,7 @@ func Query() (Info, error) {
 	info := Info{Installed: true, State: "unknown"}
 	if st, err := s.Query(); err == nil {
 		info.State = stateName(st.State)
+		info.PID = st.ProcessId
 	}
 	if cfg, err := s.Config(); err == nil {
 		info.Executable = binaryOf(cfg.BinaryPathName)
@@ -89,8 +90,9 @@ func binaryOf(cmd string) string {
 // Install installs the service, or updates an installed one, from a
 // configuration bundle the desktop application prepared, and starts it.
 // It must run elevated. bundlePath is deleted as soon as it has been read:
-// it holds credentials in the clear.
-func Install(exe, bundlePath string) error {
+// it holds credentials in the clear. operatorSID, when given, is the account
+// of the window that asked, which may then drive the service.
+func Install(exe, bundlePath, operatorSID string) error {
 	if !IsElevated() {
 		return fmt.Errorf("installing the service needs administrator rights")
 	}
@@ -168,6 +170,12 @@ func Install(exe, bundlePath string) error {
 	}
 	if err := secureDir(statusDir, sid, true); err != nil {
 		return err
+	}
+
+	if operatorSID != "" {
+		if _, err := addOperator(dataDir, operatorSID); err != nil {
+			return err
+		}
 	}
 
 	eng := engine.New(storage.NewConfigStoreAt(dataDir))

@@ -67,12 +67,22 @@ func (h *handler) Execute(_ []string, requests <-chan svc.ChangeRequest, status 
 	}
 	statusDir, _ := StatusDir()
 
+	// Without its pipe the service still receives; windows just cannot
+	// reach it, and the event log says why.
+	control, err := ListenControl()
+	if err != nil {
+		logger.Error("windows cannot connect", "error", err)
+		report(eventFailed, true, "SyslogStudio receives, but windows cannot connect to it: "+err.Error())
+		control = nil
+	}
+
 	host, err := headless.Start(headless.Options{
 		DataDir:   dataDir,
 		StatusDir: statusDir,
 		Sealer:    MachineSealer{},
 		Version:   h.version,
 		Logger:    logger,
+		Control:   control,
 	})
 	if err != nil {
 		// The service manager restarts us after a failure; the event log and
