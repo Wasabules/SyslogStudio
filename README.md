@@ -255,7 +255,8 @@ The Windows installer asks whether to install just for you (in your profile, no 
 rights) or for all users (in Program Files, with administrator rights). Either can keep
 receiving in the background during your session; only an all-users install can also run as a
 Windows service, receiving from boot with nobody signed in (see *Running with no window* under
-Usage).
+Usage). Over an existing installation — which is what the in-app update does — the installer
+updates that copy where it is, in the same mode, instead of asking again.
 
 Verify what you downloaded:
 
@@ -338,7 +339,9 @@ SyslogStudio.exe service status     state, listeners, messages received, last er
 Its errors also go to the Windows **Application** event log (source `SyslogStudio`), and its
 own log is `%ProgramData%\SyslogStudio\logs\service.log`. `service start`, `stop`,
 `uninstall [--purge]` do what they say, from an administrator prompt. Updating SyslogStudio
-with the installer stops the service for the update and starts it again.
+with the installer stops the service for the update and starts it again. A copy of the
+application still running, in the tray or in another user's session, has to be quit first:
+the installer and the uninstaller wait and say so.
 
 **Headless, anywhere.** `SyslogStudio --headless [--data-dir DIR]` runs the engine in the
 foreground with no window until interrupted — under systemd or launchd, or in a terminal. By
