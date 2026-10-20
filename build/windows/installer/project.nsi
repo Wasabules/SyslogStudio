@@ -102,6 +102,7 @@ Var ReplaceUser   ; the per-user copy this all-users install replaces, or ""
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
 !define MUI_FINISHPAGE_RUN_TEXT "$(launch_app)"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp
 
 ; Finish page: desktop shortcut checkbox (reuses the "Show Readme" slot)
 !define MUI_FINISHPAGE_SHOWREADME ""
@@ -587,6 +588,19 @@ Function ReplaceUserCopy
     ${EndIf}
     DeleteRegKey HKCU "${UNINST_KEY}"
     SetShellVarContext all
+FunctionEnd
+
+; ---- Finish page: launch ----
+
+; This installer runs elevated when it installs for all users, and so would
+; the application started from it — as the administrator, who may not even be
+; the user signed in. Explorer starts it as that user, unelevated.
+Function LaunchApp
+    ${If} $InstMode == "allusers"
+        Exec '"$WINDIR\explorer.exe" "$INSTDIR\${PRODUCT_EXECUTABLE}"'
+    ${Else}
+        Exec '"$INSTDIR\${PRODUCT_EXECUTABLE}"'
+    ${EndIf}
 FunctionEnd
 
 ; ---- Desktop shortcut callback (Finish page checkbox) ----
