@@ -197,7 +197,9 @@ in a ticket without going through a redaction tool first.
 - **Built-in traffic generator** to prove the chain works before a device is pointed at it
 - **Anonymous mode** masking hosts, addresses, MACs, e-mails and user names with stable
   stand-ins from the documentation ranges (RFC 5737, RFC 3849)
-- **TLS/PKI assistant** — generate a CA and server certificates from the interface
+- **TLS/PKI assistant** — generate a CA and server certificates from the interface; both are
+  kept across restarts, so clients meet the certificate they were told to trust. A
+  certificate given as files is re-read when it is renewed on disk, without a restart
 - **Light and dark themes**, persisted
 - **Eight languages** — English, French, German, Spanish, Portuguese, Italian, Japanese, Chinese
 - **Signed releases** with SLSA build provenance and an in-application updater that verifies
@@ -279,8 +281,10 @@ each of these, and everything except receiving can be tried in the
 | Linux | `~/.config/SyslogStudio/` |
 
 `config.json` holds settings, rules and destinations; `logs.db` the messages;
-`sinksecrets.json` the destination credentials, encrypted when at-rest encryption is on.
-No credential is ever written to `config.json`.
+`sinksecrets.json` the destination credentials; `ca.json` and `server-cert.json` the
+generated CA and the server's TLS identity, private keys included. The last three are
+encrypted (`.enc`) when at-rest encryption is on. No credential is ever written to
+`config.json`.
 
 ### Storage and encryption
 

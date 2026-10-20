@@ -30,12 +30,15 @@ type App struct {
 	server      *syslog.SyslogServer
 	tlsManager  *pki.TLSManager
 	configStore *storage.ConfigStore
-	caStore     *storage.CAStore
-	logStore    *storage.LogStore
-	updater     *updater.Service
-	simulator   *simulator.Simulator
-	dispatcher  *notify.Dispatcher
-	secretStore *storage.SecretStore
+	caStore     *storage.PEMStore
+	// serverCertStore holds the server's generated TLS identity, so a restart
+	// presents the certificate clients were told to trust.
+	serverCertStore *storage.PEMStore
+	logStore        *storage.LogStore
+	updater         *updater.Service
+	simulator       *simulator.Simulator
+	dispatcher      *notify.Dispatcher
+	secretStore     *storage.SecretStore
 
 	encryptionPassword string // in-memory only for session
 }
@@ -58,14 +61,22 @@ const (
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
-	cs := storage.NewConfigStore()
-	return &App{
-		tlsManager:  pki.NewTLSManager(),
-		configStore: cs,
-		caStore:     storage.NewCAStore(cs.Dir()),
-		secretStore: storage.NewSecretStore(cs.Dir()),
-		updater:     updater.NewService("Wasabules", "SyslogStudio"),
+	return newAppIn(storage.NewConfigStore())
+}
+
+// newAppIn builds the application around a configuration store, so tests can
+// root one in a temporary directory.
+func newAppIn(cs *storage.ConfigStore) *App {
+	a := &App{
+		tlsManager:      pki.NewTLSManager(),
+		configStore:     cs,
+		caStore:         storage.NewCAStore(cs.Dir()),
+		serverCertStore: storage.NewServerCertStore(cs.Dir()),
+		secretStore:     storage.NewSecretStore(cs.Dir()),
+		updater:         updater.NewService("Wasabules", "SyslogStudio"),
 	}
+	a.tlsManager.SetOnServerCertGenerated(a.persistServerCert)
+	return a
 }
 
 // startup is called when the app starts.
@@ -118,8 +129,8 @@ func (a *App) startup(ctx context.Context) {
 		slog.Info("restored alert rules", "count", len(rules))
 	}
 
-	// Restore a persisted CA if one exists and is not encrypted. An
-	// encrypted CA is loaded after the database is unlocked.
+	// Restore a persisted CA and server identity if they exist and are not
+	// encrypted. Encrypted ones are loaded after the database is unlocked.
 	if a.caStore != nil && a.caStore.Exists() && !a.caStore.IsEncrypted() {
 		if certPEM, keyPEM, err := a.caStore.Load(""); err == nil && len(certPEM) > 0 {
 			if err := a.tlsManager.LoadCAMaterial(certPEM, keyPEM); err != nil {
@@ -127,6 +138,11 @@ func (a *App) startup(ctx context.Context) {
 			} else {
 				slog.Info("restored persisted CA")
 			}
+		}
+	}
+	if a.serverCertStore != nil && a.serverCertStore.Exists() && !a.serverCertStore.IsEncrypted() {
+		if err := a.loadPersistedServerCert(); err != nil {
+			slog.Warn("failed to load the persisted server certificate", "error", err)
 		}
 	}
 }
@@ -151,6 +167,14 @@ func (a *App) shutdown(ctx context.Context) {
 // --- Server Control Methods ---
 
 func (a *App) StartServer(config models.ServerConfig) error {
+	// A saved identity that is not loaded — still encrypted, or unreadable —
+	// must stop the start rather than be replaced. Generating a fresh one here
+	// would hand clients a certificate they were never told to trust, and
+	// persisting it would overwrite the one they were.
+	if config.TLSEnabled && config.UseSelfSigned && !a.tlsManager.HasServerCert() &&
+		a.serverCertStore != nil && a.serverCertStore.Exists() {
+		return fmt.Errorf("the saved TLS certificate is not loaded; unlock the database, or generate a new certificate in the TLS settings")
+	}
 	err := a.server.Start(config)
 	if err == nil {
 		a.configStore.Save(config)
@@ -332,7 +356,7 @@ func (a *App) GenerateCA(opts models.CertOptions) (models.CertInfo, error) {
 // password when encryption is enabled. Failures are logged but do not
 // abort CA generation, since an in-memory CA is still usable this session.
 func (a *App) persistCA() {
-	if a.caStore == nil {
+	if a.caStore == nil || !a.canPersistKeys("CA") {
 		return
 	}
 	certPEM, keyPEM, err := a.tlsManager.GetCAMaterial()
@@ -346,6 +370,62 @@ func (a *App) persistCA() {
 	if a.encryptionPassword == "" {
 		slog.Warn("CA private key persisted unencrypted (0600); enable encryption to protect it at rest")
 	}
+}
+
+// canPersistKeys reports whether a private key may be written now. With
+// encryption on and no session password — a database not yet unlocked — the
+// write would land in plaintext and remove the encrypted copy, so it is
+// refused; the material stays in memory for this session.
+func (a *App) canPersistKeys(what string) bool {
+	if a.encryptionPassword == "" && a.configStore.LoadStorage().EncryptionEnabled {
+		slog.Warn("not persisting a private key while the database is locked", "key", what)
+		return false
+	}
+	return true
+}
+
+// persistServerCert saves the server's generated TLS identity. It is called by
+// the TLS manager each time one is generated, from the assistant or on a first
+// TLS start, and again whenever the encryption password changes.
+func (a *App) persistServerCert(certPEM, keyPEM []byte) {
+	if a.serverCertStore == nil || !a.canPersistKeys("server certificate") {
+		return
+	}
+	if err := a.serverCertStore.Save(certPEM, keyPEM, a.encryptionPassword); err != nil {
+		slog.Warn("failed to persist the server certificate", "error", err)
+		return
+	}
+	if a.encryptionPassword == "" {
+		slog.Warn("server TLS private key persisted unencrypted (0600); enable encryption to protect it at rest")
+	}
+}
+
+// repersistServerCert writes the identity in memory again, under the current
+// password. Used when encryption is turned on or off, or its password changes.
+func (a *App) repersistServerCert() {
+	if a.tlsManager == nil {
+		return
+	}
+	if certPEM, keyPEM, ok := a.tlsManager.GetServerMaterial(); ok {
+		a.persistServerCert(certPEM, keyPEM)
+	}
+}
+
+// loadPersistedServerCert restores the server identity with the current
+// session password. Nothing persisted is not an error.
+func (a *App) loadPersistedServerCert() error {
+	certPEM, keyPEM, err := a.serverCertStore.Load(a.encryptionPassword)
+	if err != nil {
+		return err
+	}
+	if len(certPEM) == 0 {
+		return nil
+	}
+	if err := a.tlsManager.LoadServerMaterial(certPEM, keyPEM); err != nil {
+		return err
+	}
+	slog.Info("restored the persisted server certificate")
+	return nil
 }
 
 // LoadPersistedCA loads an encrypted persisted CA using the current
@@ -643,9 +723,15 @@ func (a *App) UnlockDatabase(password string) error {
 		a.server.AlertManager.SetRules(rules)
 	}
 
-	// Load an encrypted persisted CA now that the password is available.
+	// Load an encrypted persisted CA and server identity now that the
+	// password is available.
 	if err := a.LoadPersistedCA(); err != nil {
 		slog.Warn("failed to load persisted CA after unlock", "error", err)
+	}
+	if a.serverCertStore != nil && a.serverCertStore.IsEncrypted() {
+		if err := a.loadPersistedServerCert(); err != nil {
+			slog.Warn("failed to load the persisted server certificate after unlock", "error", err)
+		}
 	}
 	return nil
 }
@@ -682,6 +768,7 @@ func (a *App) EnableEncryption(password string) error {
 	if a.caStore != nil && a.tlsManager.HasCA() {
 		a.persistCA()
 	}
+	a.repersistServerCert()
 	return nil
 }
 
@@ -717,6 +804,7 @@ func (a *App) DisableEncryption(password string) error {
 	if a.caStore != nil && a.tlsManager.HasCA() {
 		a.persistCA()
 	}
+	a.repersistServerCert()
 	return nil
 }
 
@@ -741,10 +829,12 @@ func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 	if a.logStore != nil {
 		a.logStore.SetEncryptionPassword(newPassword)
 	}
-	// Re-persist the CA (if any) under the new password.
+	// Re-persist the CA and the server identity (if any) under the new
+	// password.
 	if a.caStore != nil && a.tlsManager.HasCA() {
 		a.persistCA()
 	}
+	a.repersistServerCert()
 	return nil
 }
 

@@ -73,7 +73,7 @@ func TestCAStore_PlaintextRoundtrip(t *testing.T) {
 	// Key file must be 0600 — but only on POSIX systems. Windows does not
 	// map Unix permission bits, so os.Stat reports 0666 there regardless.
 	if runtime.GOOS != "windows" {
-		info, err := os.Stat(filepath.Join(dir, caStoreFileName))
+		info, err := os.Stat(filepath.Join(dir, "ca.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestCAStore_SwitchModesRemovesStale(t *testing.T) {
 	if err := cs.Save([]byte("c"), []byte("k"), "pw"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, caStoreFileName)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "ca.json")); !os.IsNotExist(err) {
 		t.Error("plaintext CA file should be removed after switching to encrypted")
 	}
 	if !cs.IsEncrypted() {
@@ -153,5 +153,36 @@ func TestCAStore_EmptyWhenNothingSaved(t *testing.T) {
 	}
 	if cert != nil || key != nil {
 		t.Fatal("empty store should return nil material")
+	}
+}
+
+// The CA and the server identity share a directory and a format, and must not
+// share a file: saving one over the other would silently swap which key signs
+// device certificates and which key the listener presents.
+func TestServerCertStore_IsIndependentOfTheCA(t *testing.T) {
+	dir := t.TempDir()
+	ca := NewCAStore(dir)
+	server := NewServerCertStore(dir)
+
+	if err := ca.Save([]byte("CA-CERT"), []byte("CA-KEY"), ""); err != nil {
+		t.Fatal(err)
+	}
+	if server.Exists() {
+		t.Fatal("saving the CA must not make a server identity appear")
+	}
+	if err := server.Save([]byte("SRV-CERT"), []byte("SRV-KEY"), "pw"); err != nil {
+		t.Fatal(err)
+	}
+
+	caCert, caKey, err := ca.Load("")
+	if err != nil || string(caCert) != "CA-CERT" || string(caKey) != "CA-KEY" {
+		t.Fatalf("CA changed under the server identity: %q %q %v", caCert, caKey, err)
+	}
+	if ca.IsEncrypted() {
+		t.Error("encrypting the server identity must not report the CA as encrypted")
+	}
+	srvCert, srvKey, err := server.Load("pw")
+	if err != nil || string(srvCert) != "SRV-CERT" || string(srvKey) != "SRV-KEY" {
+		t.Fatalf("server identity roundtrip: %q %q %v", srvCert, srvKey, err)
 	}
 }
