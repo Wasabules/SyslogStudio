@@ -68,14 +68,14 @@ func (a *App) IsTrayAvailable() bool {
 
 // GetCloseAction reports what the close button currently does.
 func (a *App) GetCloseAction() string {
-	return string(a.configStore.LoadCloseAction())
+	return string(a.prefs.LoadCloseAction())
 }
 
 // SetCloseAction records the choice, so the dialog can stop appearing. An
 // unknown value is ignored by the store rather than written, which keeps
 // "ask" as the state that cannot be corrupted into a silent decision.
 func (a *App) SetCloseAction(action string) {
-	a.configStore.SaveCloseAction(models.CloseAction(action))
+	a.prefs.SaveCloseAction(models.CloseAction(action))
 }
 
 // beforeClose runs when the window is about to close. Returning true swallows
@@ -92,7 +92,7 @@ func (a *App) beforeClose() bool {
 	}
 	window.mu.Unlock()
 
-	switch a.configStore.LoadCloseAction() {
+	switch a.prefs.LoadCloseAction() {
 	case models.CloseQuit:
 		a.markQuitting()
 		return false
@@ -165,11 +165,11 @@ func (a *App) SetTrayLabels(show, quit string) {
 // the window would want to know.
 func (a *App) refreshTrayStatus() {
 	ctrl := trayController()
-	if ctrl == nil || a.server == nil {
+	if ctrl == nil || a.Backend == nil {
 		return
 	}
-	status := a.server.GetStatus()
-	stats := a.server.GetStats()
+	status := a.GetServerStatus()
+	stats := a.GetStats()
 
 	var listeners []string
 	if status.UDPRunning {

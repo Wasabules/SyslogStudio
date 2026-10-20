@@ -2,62 +2,43 @@ package main
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/csv"
 	"fmt"
 	"log/slog"
-	"net"
 	neturl "net/url"
 	"os"
 	"strings"
 	"time"
 
+	"SyslogStudio/internal/engine"
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
-	"SyslogStudio/internal/notify"
-	"SyslogStudio/internal/pki"
-	"SyslogStudio/internal/simulator"
 	"SyslogStudio/internal/storage"
-	"SyslogStudio/internal/syslog"
 	"SyslogStudio/internal/updater"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// App struct is the main Wails binding facade.
+// App is the Wails binding facade: the window's side of the application.
+//
+// What the receiver does lives in the engine, and reaches the frontend through
+// the embedded Backend. What stays here needs the window: file dialogs, the
+// updater, the close button, the tray, and the user's own preferences.
 type App struct {
-	ctx         context.Context
-	server      *syslog.SyslogServer
-	tlsManager  *pki.TLSManager
-	configStore *storage.ConfigStore
-	caStore     *storage.PEMStore
-	// serverCertStore holds the server's generated TLS identity, so a restart
-	// presents the certificate clients were told to trust.
-	serverCertStore *storage.PEMStore
-	logStore        *storage.LogStore
-	updater         *updater.Service
-	simulator       *simulator.Simulator
-	dispatcher      *notify.Dispatcher
-	secretStore     *storage.SecretStore
+	Backend
 
-	encryptionPassword string // in-memory only for session
+	ctx context.Context
+	// keys is the engine's private key material, kept off the embedded
+	// interface so it is never bound to the frontend.
+	keys keyMaterial
+	// engine is the in-process engine this window hosts.
+	engine *engine.Engine
+	// prefs holds this window's preferences — the close action, update
+	// checks. In-process it is the engine's own store, shared rather than
+	// opened twice on the same file.
+	prefs   *storage.ConfigStore
+	updater *updater.Service
 }
-
-const (
-	// unlockAttemptsBeforeBackoff is how many failed unlock attempts are
-	// allowed before a backoff delay begins.
-	unlockAttemptsBeforeBackoff = 5
-	// baseLockoutBackoff is the delay imposed at the first backoff step;
-	// it doubles with each subsequent failed attempt.
-	baseLockoutBackoff = 30 * time.Second
-	// maxLockoutBackoff caps the backoff delay.
-	maxLockoutBackoff = 15 * time.Minute
-	// minPasswordLen is the minimum at-rest encryption password length. The
-	// unlock lockout only rate-limits attempts through the UI; a weak password
-	// is brute-forced offline against a copied logs.db.enc, so the strong KDF
-	// alone is not enough.
-	minPasswordLen = 8
-)
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
@@ -67,422 +48,38 @@ func NewApp() *App {
 // newAppIn builds the application around a configuration store, so tests can
 // root one in a temporary directory.
 func newAppIn(cs *storage.ConfigStore) *App {
-	a := &App{
-		tlsManager:      pki.NewTLSManager(),
-		configStore:     cs,
-		caStore:         storage.NewCAStore(cs.Dir()),
-		serverCertStore: storage.NewServerCertStore(cs.Dir()),
-		secretStore:     storage.NewSecretStore(cs.Dir()),
-		updater:         updater.NewService("Wasabules", "SyslogStudio"),
+	eng := engine.New(cs)
+	return &App{
+		Backend: eng,
+		keys:    eng,
+		engine:  eng,
+		prefs:   eng.ConfigStore(),
+		updater: updater.NewService("Wasabules", "SyslogStudio"),
 	}
-	a.tlsManager.SetOnServerCertGenerated(a.persistServerCert)
-	return a
 }
 
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.updater.SetContext(ctx)
-	emitter := event.NewWailsEventEmitter(ctx)
-	a.server = syslog.NewSyslogServer(emitter, a.tlsManager)
-	a.simulator = simulator.New(emitter)
-
-	// The dispatcher resolves a credential by sink id AND destination, so a
-	// stored secret can only be used with the place it was stored against.
-	a.dispatcher = notify.NewDispatcher(emitter, func(sinkID string) string {
-		if a.secretStore == nil {
-			return ""
-		}
-		for _, sink := range a.configStore.LoadSinks() {
-			if sink.ID != sinkID {
-				continue
-			}
-			dest, ok := notify.Destination(sink)
-			if !ok {
-				return ""
-			}
-			return a.secretStore.Get(sinkID, dest)
-		}
-		return ""
-	})
-	a.server.SetDispatcher(a.dispatcher)
-	// A destination the breaker cuts off is persisted as disabled. Leaving it
-	// enabled would mean the next restart walks straight back into the flood
-	// that caused it, and the operator would be none the wiser.
-	a.dispatcher.SetOnTrip(a.persistTrippedSink)
-	a.reconfigureNotify()
-
-	// Initialize log store
-	storageCfg := a.configStore.LoadStorage()
-	ls, err := storage.NewLogStore(storageCfg, emitter)
-	if err != nil {
-		slog.Warn("failed to initialize log store, persistence disabled", "error", err)
-	} else {
-		a.logStore = ls
-		a.server.SetLogStore(ls)
-	}
-
-	// Restore alert rules
-	rules := a.configStore.LoadAlertRules()
-	if len(rules) > 0 {
-		a.server.AlertManager.SetRules(rules)
-		slog.Info("restored alert rules", "count", len(rules))
-	}
-
-	// Restore a persisted CA and server identity if they exist and are not
-	// encrypted. Encrypted ones are loaded after the database is unlocked.
-	if a.caStore != nil && a.caStore.Exists() && !a.caStore.IsEncrypted() {
-		if certPEM, keyPEM, err := a.caStore.Load(""); err == nil && len(certPEM) > 0 {
-			if err := a.tlsManager.LoadCAMaterial(certPEM, keyPEM); err != nil {
-				slog.Warn("failed to load persisted CA", "error", err)
-			} else {
-				slog.Info("restored persisted CA")
-			}
-		}
-	}
-	if a.serverCertStore != nil && a.serverCertStore.Exists() && !a.serverCertStore.IsEncrypted() {
-		if err := a.loadPersistedServerCert(); err != nil {
-			slog.Warn("failed to load the persisted server certificate", "error", err)
-		}
-	}
+	a.engine.Open(event.NewWailsEventEmitter(ctx))
 }
 
 // shutdown is called when the app is closing.
 func (a *App) shutdown(ctx context.Context) {
-	if a.simulator != nil {
-		a.simulator.Stop()
-	}
-	if a.dispatcher != nil {
-		a.dispatcher.Close()
-	}
-	if a.server != nil {
-		a.server.Stop()
-		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
-	}
-	if a.logStore != nil {
-		a.logStore.Close()
-	}
+	a.engine.Close()
 }
 
-// --- Server Control Methods ---
-
-func (a *App) StartServer(config models.ServerConfig) error {
-	// A saved identity that is not loaded — still encrypted, or unreadable —
-	// must stop the start rather than be replaced. Generating a fresh one here
-	// would hand clients a certificate they were never told to trust, and
-	// persisting it would overwrite the one they were.
-	if config.TLSEnabled && config.UseSelfSigned && !a.tlsManager.HasServerCert() &&
-		a.serverCertStore != nil && a.serverCertStore.Exists() {
-		return fmt.Errorf("the saved TLS certificate is not loaded; unlock the database, or generate a new certificate in the TLS settings")
-	}
-	err := a.server.Start(config)
-	if err == nil {
-		a.configStore.Save(config)
-		a.refreshLocalEndpoints(config)
-	}
-	return err
-}
-
-// refreshLocalEndpoints tells the dispatcher which ports this app now listens
-// on, so a destination pointing back at one is recognised as a relay loop even
-// if it was saved while the listener was elsewhere.
-func (a *App) refreshLocalEndpoints(config models.ServerConfig) {
-	if a.dispatcher == nil {
-		return
-	}
-	ports := make(map[int]bool, 3)
-	if config.UDPEnabled {
-		ports[config.UDPPort] = true
-	}
-	if config.TCPEnabled {
-		ports[config.TCPPort] = true
-	}
-	if config.TLSEnabled {
-		ports[config.TLSPort] = true
-	}
-	a.dispatcher.SetLocalEndpoints(notify.LocalEndpoints{Ports: ports, IPs: localIPs()})
-}
-
-// localIPs lists this machine's addresses, used only to recognise a
-// destination that points back at us.
-func localIPs() map[string]bool {
-	out := make(map[string]bool)
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return out
-	}
-	for _, addr := range addrs {
-		if ipNet, ok := addr.(*net.IPNet); ok {
-			out[ipNet.IP.String()] = true
-		}
-	}
-	return out
-}
-
-func (a *App) StopServer() error {
-	err := a.server.Stop()
-	if err == nil && a.dispatcher != nil {
-		// Nothing is listening, so nothing here can be looped back into.
-		a.dispatcher.SetLocalEndpoints(notify.LocalEndpoints{})
-	}
-	return err
-}
-
-// GetServerStatus reports what the server is doing, and what it is configured
-// with.
+// --- Certificate export ---
 //
-// The server only learns its configuration in Start, so before the first start
-// it has none — and returning that emptiness as "the configuration" is how the
-// saved TLS certificate paths came to be wiped on every launch (#45): the
-// renderer syncs the TLS fields from this status, and copied blanks over the
-// paths it had just loaded. When nothing is running, the honest answer to
-// "what is this server set up with" is what was saved.
-func (a *App) GetServerStatus() models.ServerStatus {
-	status := a.server.GetStatus()
-	if !status.Running {
-		status.Config = a.configStore.Load()
-	}
-	return status
-}
-
-// SaveServerConfig persists the server configuration without starting anything.
-//
-// Until this existed, settings were only written on a successful start, so
-// choosing a certificate and closing the window without pressing Start threw
-// the choice away — the same complaint as #45 arriving by a second route.
-//
-// Deliberately NOT validated. Choosing a certificate and then its key is two
-// steps, and a configuration halfway through one is exactly what needs to
-// survive; refusing to save it would reintroduce the bug this exists to fix.
-// StartServer validates, which is where an incomplete configuration actually
-// matters and where the message can say what is missing.
-func (a *App) SaveServerConfig(config models.ServerConfig) {
-	a.configStore.Save(config)
-}
-
-func (a *App) GetDefaultConfig() models.ServerConfig {
-	return a.configStore.Load()
-}
-
-// --- Log Methods ---
-
-func (a *App) GetMessages(filter models.FilterCriteria) []models.SyslogMessage {
-	return a.server.GetMessages(filter)
-}
-
-func (a *App) ClearMessages() {
-	a.server.ClearMessages()
-}
-
-func (a *App) GetStats() models.ServerStats {
-	return a.server.GetStats()
-}
-
-// IsStorageReady returns true if the database is fully initialized (FTS index built).
-func (a *App) IsStorageReady() bool {
-	if a.logStore == nil {
-		return false
-	}
-	return a.logStore.IsReady()
-}
-
-// --- Storage Methods ---
-
-func (a *App) GetStorageConfig() models.StorageConfig {
-	cfg := a.configStore.LoadStorage()
-	if cfg.Path == "" {
-		resolved, err := storage.ResolveDBPath("")
-		if err == nil {
-			cfg.Path = resolved
-		}
-	}
-	return cfg
-}
-
-func (a *App) SetStorageConfig(cfg models.StorageConfig) {
-	a.configStore.SaveStorage(cfg)
-	if a.logStore != nil {
-		a.logStore.UpdateConfig(cfg)
-	}
-}
-
-func (a *App) GetStorageStats() models.StorageStats {
-	if a.logStore != nil {
-		return a.logStore.GetStats()
-	}
-	return models.StorageStats{}
-}
-
-func (a *App) QueryMessages(opts models.QueryOptions) models.PagedResult {
-	if a.logStore != nil {
-		return a.logStore.QueryMessages(opts)
-	}
-	return models.PagedResult{Page: opts.Page, PageSize: opts.PageSize}
-}
-
-func (a *App) QueryMessageGroups(filter models.FilterCriteria, groupField string) []models.GroupSummary {
-	if a.logStore != nil {
-		return a.logStore.QueryGroups(filter, groupField)
-	}
-	return nil
-}
-
-func (a *App) CompactDatabase() error {
-	if a.logStore != nil {
-		return a.logStore.Compact()
-	}
-	return nil
-}
-
-func (a *App) ClearDatabase() error {
-	if a.logStore != nil {
-		return a.logStore.ClearAll()
-	}
-	return nil
-}
-
-// --- PKI / Certificate Methods ---
-
-func (a *App) GenerateCA(opts models.CertOptions) (models.CertInfo, error) {
-	info, err := a.tlsManager.GenerateCA(opts)
-	if err != nil {
-		return info, err
-	}
-	a.persistCA()
-	return info, nil
-}
-
-// persistCA saves the current CA to disk, encrypting it with the session
-// password when encryption is enabled. Failures are logged but do not
-// abort CA generation, since an in-memory CA is still usable this session.
-func (a *App) persistCA() {
-	if a.caStore == nil || !a.canPersistKeys("CA") {
-		return
-	}
-	certPEM, keyPEM, err := a.tlsManager.GetCAMaterial()
-	if err != nil {
-		return
-	}
-	if err := a.caStore.Save(certPEM, keyPEM, a.encryptionPassword); err != nil {
-		slog.Warn("failed to persist CA", "error", err)
-		return
-	}
-	if a.encryptionPassword == "" {
-		slog.Warn("CA private key persisted unencrypted (0600); enable encryption to protect it at rest")
-	}
-}
-
-// canPersistKeys reports whether a private key may be written now. With
-// encryption on and no session password — a database not yet unlocked — the
-// write would land in plaintext and remove the encrypted copy, so it is
-// refused; the material stays in memory for this session.
-func (a *App) canPersistKeys(what string) bool {
-	if a.encryptionPassword == "" && a.configStore.LoadStorage().EncryptionEnabled {
-		slog.Warn("not persisting a private key while the database is locked", "key", what)
-		return false
-	}
-	return true
-}
-
-// persistServerCert saves the server's generated TLS identity. It is called by
-// the TLS manager each time one is generated, from the assistant or on a first
-// TLS start, and again whenever the encryption password changes.
-func (a *App) persistServerCert(certPEM, keyPEM []byte) {
-	if a.serverCertStore == nil || !a.canPersistKeys("server certificate") {
-		return
-	}
-	if err := a.serverCertStore.Save(certPEM, keyPEM, a.encryptionPassword); err != nil {
-		slog.Warn("failed to persist the server certificate", "error", err)
-		return
-	}
-	if a.encryptionPassword == "" {
-		slog.Warn("server TLS private key persisted unencrypted (0600); enable encryption to protect it at rest")
-	}
-}
-
-// repersistServerCert writes the identity in memory again, under the current
-// password. Used when encryption is turned on or off, or its password changes.
-func (a *App) repersistServerCert() {
-	if a.tlsManager == nil {
-		return
-	}
-	if certPEM, keyPEM, ok := a.tlsManager.GetServerMaterial(); ok {
-		a.persistServerCert(certPEM, keyPEM)
-	}
-}
-
-// loadPersistedServerCert restores the server identity with the current
-// session password. Nothing persisted is not an error.
-func (a *App) loadPersistedServerCert() error {
-	certPEM, keyPEM, err := a.serverCertStore.Load(a.encryptionPassword)
-	if err != nil {
-		return err
-	}
-	if len(certPEM) == 0 {
-		return nil
-	}
-	if err := a.tlsManager.LoadServerMaterial(certPEM, keyPEM); err != nil {
-		return err
-	}
-	slog.Info("restored the persisted server certificate")
-	return nil
-}
-
-// LoadPersistedCA loads an encrypted persisted CA using the current
-// session password. Called after the database is unlocked. Returns nil if
-// there is no encrypted CA to load.
-func (a *App) LoadPersistedCA() error {
-	if a.caStore == nil || !a.caStore.Exists() || !a.caStore.IsEncrypted() {
-		return nil
-	}
-	certPEM, keyPEM, err := a.caStore.Load(a.encryptionPassword)
-	if err != nil {
-		return err
-	}
-	if len(certPEM) == 0 {
-		return nil
-	}
-	return a.tlsManager.LoadCAMaterial(certPEM, keyPEM)
-}
-
-// IsCAKeyUnencrypted reports whether a persisted CA private key is stored in
-// plaintext on disk (i.e. a CA exists but at-rest encryption is off). The UI
-// surfaces this so the user knows the signing key is not protected at rest.
-func (a *App) IsCAKeyUnencrypted() bool {
-	return a.caStore != nil && a.caStore.Exists() && !a.caStore.IsEncrypted()
-}
-
-func (a *App) GenerateServerCert(opts models.CertOptions) (models.CertInfo, error) {
-	return a.tlsManager.GenerateServerCertSignedByCA(opts)
-}
-
-func (a *App) GenerateCertificate(opts models.CertOptions) (models.CertInfo, error) {
-	_, info, err := a.tlsManager.GenerateSelfSignedWithOptions(opts)
-	if err != nil {
-		return models.CertInfo{}, err
-	}
-	return info, nil
-}
-
-func (a *App) GetCACertInfo() (models.CertInfo, error) {
-	return a.tlsManager.GetCACertificateInfo()
-}
-
-func (a *App) GetServerCertInfo() (models.CertInfo, error) {
-	return a.tlsManager.GetServerCertificateInfo()
-}
-
-func (a *App) GetCertificateInfo(config models.ServerConfig) (models.CertInfo, error) {
-	return a.tlsManager.GetCertificateInfo(config)
-}
-
-func (a *App) GetDefaultCertOptions() models.CertOptions {
-	return models.DefaultCertOptions()
-}
+// The engine hands over the material; the window writes it where its user
+// chose. Writing is the window's job because the file is the user's: an engine
+// running as a service would otherwise create it under the service's account.
 
 func (a *App) ExportCACertificate() (string, error) {
-	if !a.tlsManager.HasCA() {
-		return "", fmt.Errorf("no CA certificate available to export; generate a CA first")
+	certPEM, err := a.keys.CACertificatePEM()
+	if err != nil {
+		return "", err
 	}
 
 	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
@@ -499,15 +96,16 @@ func (a *App) ExportCACertificate() (string, error) {
 		return "", nil
 	}
 
-	if err := a.tlsManager.SaveCACertificateToFile(path); err != nil {
+	if err := os.WriteFile(path, certPEM, 0644); err != nil {
 		return "", err
 	}
 	return path, nil
 }
 
 func (a *App) ExportServerCertificate() (string, error) {
-	if !a.tlsManager.HasServerCert() {
-		return "", fmt.Errorf("no server certificate available to export")
+	certPEM, keyPEM, err := a.keys.ServerCertificatePEM()
+	if err != nil {
+		return "", err
 	}
 
 	certPath, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
@@ -538,8 +136,11 @@ func (a *App) ExportServerCertificate() (string, error) {
 		return "", nil
 	}
 
-	if err := a.tlsManager.SaveServerCertificateToFile(certPath, keyPath); err != nil {
-		return "", err
+	if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
+		return "", fmt.Errorf("failed to write certificate: %w", err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		return "", fmt.Errorf("failed to write key: %w", err)
 	}
 	return fmt.Sprintf("Exported:\n  %s\n  %s", certPath, keyPath), nil
 }
@@ -547,298 +148,6 @@ func (a *App) ExportServerCertificate() (string, error) {
 func (a *App) ExportCertificate() (string, error) {
 	return a.ExportServerCertificate()
 }
-
-func (a *App) GetLocalIPs() []string {
-	var ips []string
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return ips
-	}
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				ips = append(ips, ipnet.IP.String())
-			}
-		}
-	}
-	return ips
-}
-
-// GetNetworkInterfaces lists bindable local IPv4 addresses with their
-// interface name, for the bind-address selector. Interfaces that are down are
-// skipped; loopback is included so the server can be restricted to localhost.
-func (a *App) GetNetworkInterfaces() []models.NetworkInterface {
-	var out []models.NetworkInterface
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return out
-	}
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 {
-			continue
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok {
-				if ip4 := ipnet.IP.To4(); ip4 != nil {
-					out = append(out, models.NetworkInterface{Name: iface.Name, IP: ip4.String()})
-				}
-			}
-		}
-	}
-	return out
-}
-
-// --- Alert Methods ---
-
-func (a *App) GetAlertRules() []models.AlertRule {
-	return a.server.AlertManager.GetRules()
-}
-
-func (a *App) AddAlertRule(rule models.AlertRule) models.AlertRule {
-	r := a.server.AlertManager.AddRule(rule)
-	a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
-	return r
-}
-
-func (a *App) UpdateAlertRule(rule models.AlertRule) bool {
-	ok := a.server.AlertManager.UpdateRule(rule)
-	if ok {
-		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
-	}
-	return ok
-}
-
-func (a *App) DeleteAlertRule(id string) bool {
-	ok := a.server.AlertManager.DeleteRule(id)
-	if ok {
-		a.configStore.SaveAlertRules(a.server.AlertManager.GetRules())
-	}
-	return ok
-}
-
-func (a *App) GetAlertHistory() []models.AlertEvent {
-	return a.server.AlertManager.GetHistory()
-}
-
-func (a *App) ClearAlertHistory() {
-	a.server.AlertManager.ClearHistory()
-}
-
-// --- Encryption Methods ---
-
-// GetUnlockAttemptsRemaining returns how many unlock attempts remain
-// before the next backoff delay is applied.
-func (a *App) GetUnlockAttemptsRemaining() int {
-	state := a.configStore.LoadLockout()
-	remaining := unlockAttemptsBeforeBackoff - (state.FailedAttempts % unlockAttemptsBeforeBackoff)
-	if remaining < 0 {
-		remaining = 0
-	}
-	return remaining
-}
-
-// GetUnlockLockoutSeconds returns the number of seconds remaining in the
-// current lockout window, or 0 if unlock attempts are currently allowed.
-func (a *App) GetUnlockLockoutSeconds() int {
-	state := a.configStore.LoadLockout()
-	if state.LockedUntilUnix == 0 {
-		return 0
-	}
-	remaining := state.LockedUntilUnix - time.Now().Unix()
-	if remaining < 0 {
-		return 0
-	}
-	return int(remaining)
-}
-
-// IsEncryptionEnabled returns whether encryption is configured.
-func (a *App) IsEncryptionEnabled() bool {
-	return a.configStore.LoadStorage().EncryptionEnabled
-}
-
-// IsEncryptionLocked returns true if the database is encrypted and not yet unlocked.
-func (a *App) IsEncryptionLocked() bool {
-	return a.logStore != nil && a.logStore.IsLocked()
-}
-
-// lockoutBackoff returns the delay to impose after failedAttempts
-// consecutive failures. No delay until the threshold is reached, then an
-// exponentially growing delay capped at maxLockoutBackoff.
-func lockoutBackoff(failedAttempts int) time.Duration {
-	if failedAttempts < unlockAttemptsBeforeBackoff {
-		return 0
-	}
-	steps := failedAttempts - unlockAttemptsBeforeBackoff // 0, 1, 2, ...
-	delay := baseLockoutBackoff << steps
-	if delay > maxLockoutBackoff || delay <= 0 {
-		delay = maxLockoutBackoff
-	}
-	return delay
-}
-
-// UnlockDatabase decrypts the database with the given password and opens it.
-// Failed attempts accumulate in persisted state; after a threshold, an
-// exponentially growing backoff delay is enforced that survives restarts,
-// so relaunching the app cannot be used to reset the counter or bypass
-// the delay.
-func (a *App) UnlockDatabase(password string) error {
-	if a.logStore == nil {
-		return fmt.Errorf("log store not initialized")
-	}
-
-	state := a.configStore.LoadLockout()
-	if wait := state.LockedUntilUnix - time.Now().Unix(); state.LockedUntilUnix != 0 && wait > 0 {
-		return fmt.Errorf("too many failed attempts — locked for %d more seconds", wait)
-	}
-
-	if err := a.logStore.UnlockAndOpen(password); err != nil {
-		state.FailedAttempts++
-		if backoff := lockoutBackoff(state.FailedAttempts); backoff > 0 {
-			state.LockedUntilUnix = time.Now().Add(backoff).Unix()
-			a.configStore.SaveLockout(state)
-			slog.Warn("unlock failed, backoff enforced", "attempts", state.FailedAttempts, "backoffSeconds", int(backoff.Seconds()))
-			return fmt.Errorf("wrong password — locked for %d seconds after %d failed attempts", int(backoff.Seconds()), state.FailedAttempts)
-		}
-		a.configStore.SaveLockout(state)
-		remaining := unlockAttemptsBeforeBackoff - state.FailedAttempts
-		slog.Warn("unlock failed", "attempts", state.FailedAttempts, "remaining", remaining)
-		return fmt.Errorf("wrong password (%d attempts remaining before lockout)", remaining)
-	}
-
-	// Success: clear persisted lockout state.
-	a.configStore.SaveLockout(models.LockoutState{})
-	a.encryptionPassword = password
-	if a.secretStore != nil {
-		a.secretStore.SetPassword(password)
-	}
-	a.server.SetLogStore(a.logStore)
-
-	// Restore alert rules now that the store is available
-	rules := a.configStore.LoadAlertRules()
-	if len(rules) > 0 {
-		a.server.AlertManager.SetRules(rules)
-	}
-
-	// Load an encrypted persisted CA and server identity now that the
-	// password is available.
-	if err := a.LoadPersistedCA(); err != nil {
-		slog.Warn("failed to load persisted CA after unlock", "error", err)
-	}
-	if a.serverCertStore != nil && a.serverCertStore.IsEncrypted() {
-		if err := a.loadPersistedServerCert(); err != nil {
-			slog.Warn("failed to load the persisted server certificate after unlock", "error", err)
-		}
-	}
-	return nil
-}
-
-// EnableEncryption enables at-rest encryption with the given password.
-// It refuses to run when encryption is already on: silently accepting a new
-// password there would be an unauthenticated password change (the counterpart
-// of ChangeEncryptionPassword, which requires the current one), and against a
-// still-locked database it would re-key the store to a password that cannot
-// decrypt the existing logs.db.enc.
-func (a *App) EnableEncryption(password string) error {
-	if len(password) < minPasswordLen {
-		return fmt.Errorf("password must be at least %d characters", minPasswordLen)
-	}
-	cfg := a.configStore.LoadStorage()
-	if cfg.EncryptionEnabled {
-		return fmt.Errorf("encryption is already enabled; use the change-password action instead")
-	}
-	cfg.EncryptionEnabled = true
-	a.configStore.SaveStorage(cfg)
-	a.encryptionPassword = password
-	if a.secretStore != nil {
-		a.secretStore.SetPassword(password)
-		// Re-persist under the new password, so credentials do not stay behind
-		// in the previous form.
-		if err := a.secretStore.Rewrite(); err != nil {
-			slog.Warn("could not re-encrypt sink credentials", "error", err)
-		}
-	}
-	if a.logStore != nil {
-		a.logStore.SetEncryptionPassword(password)
-		a.logStore.UpdateConfig(cfg)
-	}
-	if a.caStore != nil && a.tlsManager.HasCA() {
-		a.persistCA()
-	}
-	a.repersistServerCert()
-	return nil
-}
-
-// DisableEncryption disables at-rest encryption after verifying the password.
-func (a *App) DisableEncryption(password string) error {
-	cfg := a.configStore.LoadStorage()
-	if cfg.EncryptionEnabled {
-		// If the session password is not present (e.g. fresh start with a
-		// still-locked database), require an unlock first. Previously an
-		// empty session password caused the verification to be skipped
-		// entirely, allowing encryption to be disabled without knowing
-		// the password.
-		if a.encryptionPassword == "" {
-			return fmt.Errorf("database must be unlocked before disabling encryption")
-		}
-		if subtle.ConstantTimeCompare([]byte(password), []byte(a.encryptionPassword)) != 1 {
-			return fmt.Errorf("incorrect password")
-		}
-	}
-	cfg.EncryptionEnabled = false
-	a.configStore.SaveStorage(cfg)
-	a.encryptionPassword = ""
-	if a.secretStore != nil {
-		a.secretStore.SetPassword("")
-		if err := a.secretStore.Rewrite(); err != nil {
-			slog.Warn("could not rewrite sink credentials in plaintext", "error", err)
-		}
-	}
-	if a.logStore != nil {
-		a.logStore.SetEncryptionPassword("")
-		a.logStore.UpdateConfig(cfg)
-	}
-	if a.caStore != nil && a.tlsManager.HasCA() {
-		a.persistCA()
-	}
-	a.repersistServerCert()
-	return nil
-}
-
-// ChangeEncryptionPassword changes the encryption password.
-func (a *App) ChangeEncryptionPassword(oldPassword, newPassword string) error {
-	if a.encryptionPassword == "" {
-		return fmt.Errorf("database must be unlocked before changing the password")
-	}
-	if subtle.ConstantTimeCompare([]byte(oldPassword), []byte(a.encryptionPassword)) != 1 {
-		return fmt.Errorf("incorrect current password")
-	}
-	if len(newPassword) < minPasswordLen {
-		return fmt.Errorf("new password must be at least %d characters", minPasswordLen)
-	}
-	a.encryptionPassword = newPassword
-	if a.secretStore != nil {
-		a.secretStore.SetPassword(newPassword)
-		if err := a.secretStore.Rewrite(); err != nil {
-			slog.Warn("could not re-encrypt sink credentials", "error", err)
-		}
-	}
-	if a.logStore != nil {
-		a.logStore.SetEncryptionPassword(newPassword)
-	}
-	// Re-persist the CA and the server identity (if any) under the new
-	// password.
-	if a.caStore != nil && a.tlsManager.HasCA() {
-		a.persistCA()
-	}
-	a.repersistServerCert()
-	return nil
-}
-
-// --- Update Methods ---
 
 // CheckForUpdate queries GitHub for the latest release. Errors are logged and
 // returned so the frontend can surface them (e.g. on a manual check).
@@ -849,9 +158,9 @@ func (a *App) CheckForUpdate() (models.UpdateInfo, error) {
 		return info, err
 	}
 	// Record the successful check time (used to throttle auto-checks).
-	cfg := a.configStore.LoadUpdateConfig()
+	cfg := a.prefs.LoadUpdateConfig()
 	cfg.LastCheckUnix = time.Now().Unix()
-	a.configStore.SaveUpdateConfig(cfg)
+	a.prefs.SaveUpdateConfig(cfg)
 	return info, nil
 }
 
@@ -877,72 +186,20 @@ func (a *App) OpenURL(url string) {
 
 // GetUpdateConfig returns the persisted update-check preferences.
 func (a *App) GetUpdateConfig() models.UpdateConfig {
-	return a.configStore.LoadUpdateConfig()
+	return a.prefs.LoadUpdateConfig()
 }
 
 // SetUpdateConfig persists update-check preferences.
 func (a *App) SetUpdateConfig(cfg models.UpdateConfig) {
-	a.configStore.SaveUpdateConfig(cfg)
+	a.prefs.SaveUpdateConfig(cfg)
 }
 
 // SkipUpdateVersion records a release version the user chose to skip.
 func (a *App) SkipUpdateVersion(version string) {
-	cfg := a.configStore.LoadUpdateConfig()
+	cfg := a.prefs.LoadUpdateConfig()
 	cfg.SkipVersion = version
-	a.configStore.SaveUpdateConfig(cfg)
+	a.prefs.SaveUpdateConfig(cfg)
 }
-
-// --- Simulator Methods ---
-
-// StartSimulator begins a traffic run. Progress arrives on the frontend through
-// syslog:simulatorStatus events rather than by polling.
-func (a *App) StartSimulator(cfg models.SimulatorConfig) error {
-	if a.simulator == nil {
-		return fmt.Errorf("simulator not initialized")
-	}
-	if err := a.simulator.Start(cfg); err != nil {
-		return err
-	}
-	a.configStore.SaveSimulator(cfg)
-	return nil
-}
-
-// StopSimulator ends the current run. It returns once the run has unwound.
-func (a *App) StopSimulator() error {
-	if a.simulator == nil {
-		return nil
-	}
-	return a.simulator.Stop()
-}
-
-// GetSimulatorStatus returns the live state of the run, for the initial render
-// before the first event arrives.
-func (a *App) GetSimulatorStatus() models.SimulatorStatus {
-	if a.simulator == nil {
-		return models.SimulatorStatus{}
-	}
-	return a.simulator.Status()
-}
-
-// GetSimulatorConfig returns the last saved run configuration, or a runnable
-// default aimed at this app's own UDP port.
-func (a *App) GetSimulatorConfig() models.SimulatorConfig {
-	return a.configStore.LoadSimulator()
-}
-
-// SaveSimulatorConfig persists the configuration without starting a run, so a
-// destination list survives a restart.
-func (a *App) SaveSimulatorConfig(cfg models.SimulatorConfig) {
-	a.configStore.SaveSimulator(cfg)
-}
-
-// GetScenarioDurationSeconds is how long a full scenario run lasts, so the UI
-// can show real progress instead of an open-ended spinner.
-func (a *App) GetScenarioDurationSeconds() int {
-	return int(simulator.ScenarioDuration().Seconds())
-}
-
-// --- File Selection Dialogs ---
 
 func (a *App) SelectCertFile() (string, error) {
 	return wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
@@ -974,14 +231,12 @@ func (a *App) SelectCAFile() (string, error) {
 	})
 }
 
-// --- Export Logs ---
-
 // ExportLogs writes the filtered messages to a file the user picks. timezone is
 // an IANA zone name from the display setting, so an export reads the same way as
 // the screen it was taken from; an empty or unknown name falls back to the
 // machine's zone rather than failing the export.
 func (a *App) ExportLogs(filter models.FilterCriteria, format string, timezone string) (string, error) {
-	return a.writeMessagesTo(a.server.GetMessages(filter), "syslog_export", format, timezone)
+	return a.writeMessagesTo(a.GetMessages(filter), "syslog_export", format, timezone)
 }
 
 // ExportSelection writes only the messages whose ids are given.
@@ -1004,7 +259,7 @@ func (a *App) ExportSelection(ids []string, format string, timezone string) (str
 	// clicked: an export that reordered a log would be a strange thing to hand
 	// to anyone.
 	var messages []models.SyslogMessage
-	for _, msg := range a.server.GetMessages(models.FilterCriteria{}) {
+	for _, msg := range a.GetMessages(models.FilterCriteria{}) {
 		if wanted[msg.ID] {
 			messages = append(messages, msg)
 		}

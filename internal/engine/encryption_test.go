@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"strings"
@@ -10,9 +10,9 @@ import (
 
 // newTestApp builds an App whose configuration lives in a temp directory, so
 // tests never touch the real user config.
-func newTestApp(t *testing.T) *App {
+func newTestApp(t *testing.T) *Engine {
 	t.Helper()
-	return &App{configStore: storage.NewConfigStoreAt(t.TempDir())}
+	return New(storage.NewConfigStoreAt(t.TempDir()))
 }
 
 func TestEnableEncryption_RejectsWhenAlreadyEnabled(t *testing.T) {

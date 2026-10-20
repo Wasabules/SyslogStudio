@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ func ecdsaOpts() models.CertOptions {
 
 func TestServerIdentity_PersistedEncryptedAndRestoredAfterUnlock(t *testing.T) {
 	dir := t.TempDir()
-	a := newAppIn(storage.NewConfigStoreAt(dir))
+	a := New(storage.NewConfigStoreAt(dir))
 	if err := a.EnableEncryption(identityPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestServerIdentity_PersistedEncryptedAndRestoredAfterUnlock(t *testing.T) {
 	wantCert, _, _ := a.tlsManager.GetServerMaterial()
 
 	// Restart, still locked: the identity is on disk but not readable.
-	b := newAppIn(storage.NewConfigStoreAt(dir))
+	b := New(storage.NewConfigStoreAt(dir))
 	if b.tlsManager.HasServerCert() {
 		t.Fatal("an encrypted identity was loaded without the password")
 	}
@@ -63,7 +63,7 @@ func TestServerIdentity_PersistedEncryptedAndRestoredAfterUnlock(t *testing.T) {
 // the password would land in plaintext and remove the .enc file.
 func TestServerIdentity_NotOverwrittenWhileLocked(t *testing.T) {
 	dir := t.TempDir()
-	a := newAppIn(storage.NewConfigStoreAt(dir))
+	a := New(storage.NewConfigStoreAt(dir))
 	if err := a.EnableEncryption(identityPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestServerIdentity_NotOverwrittenWhileLocked(t *testing.T) {
 		t.Fatalf("no encrypted identity on disk: %v", err)
 	}
 
-	locked := newAppIn(storage.NewConfigStoreAt(dir))
+	locked := New(storage.NewConfigStoreAt(dir))
 	if _, err := locked.GenerateCertificate(ecdsaOpts()); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestServerIdentity_NotOverwrittenWhileLocked(t *testing.T) {
 // encrypts it — the same as the CA, so neither lingers in the other form.
 func TestServerIdentity_FollowsEncryptionToggles(t *testing.T) {
 	dir := t.TempDir()
-	a := newAppIn(storage.NewConfigStoreAt(dir))
+	a := New(storage.NewConfigStoreAt(dir))
 	if _, err := a.GenerateCertificate(ecdsaOpts()); err != nil {
 		t.Fatal(err)
 	}

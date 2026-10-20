@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"fmt"
@@ -20,22 +20,22 @@ import (
 // without ever receiving the value.
 
 // GetNotifyRoutes returns the saved routing rules.
-func (a *App) GetNotifyRoutes() []notify.Route {
-	return a.configStore.LoadRoutes()
+func (e *Engine) GetNotifyRoutes() []notify.Route {
+	return e.configStore.LoadRoutes()
 }
 
 // GetNotifySinks returns the saved destinations, with credentials stripped.
-func (a *App) GetNotifySinks() []notify.SinkConfig {
-	sinks := a.configStore.LoadSinks()
+func (e *Engine) GetNotifySinks() []notify.SinkConfig {
+	sinks := e.configStore.LoadSinks()
 	for i := range sinks {
 		sinks[i].Secret = ""
-		sinks[i].HasSecret = a.secretStore != nil && a.secretStore.Has(sinks[i].ID)
+		sinks[i].HasSecret = e.secretStore != nil && e.secretStore.Has(sinks[i].ID)
 	}
 	return sinks
 }
 
 // SaveNotifyRoute adds or replaces one routing rule.
-func (a *App) SaveNotifyRoute(route notify.Route) error {
+func (e *Engine) SaveNotifyRoute(route notify.Route) error {
 	if err := notify.ValidateRoute(route); err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (a *App) SaveNotifyRoute(route notify.Route) error {
 		route.ID = newID("route")
 	}
 
-	routes := a.configStore.LoadRoutes()
+	routes := e.configStore.LoadRoutes()
 	replaced := false
 	for i := range routes {
 		if routes[i].ID == route.ID {
@@ -55,22 +55,22 @@ func (a *App) SaveNotifyRoute(route notify.Route) error {
 	if !replaced {
 		routes = append(routes, route)
 	}
-	a.configStore.SaveRoutes(routes)
-	a.reconfigureNotify()
+	e.configStore.SaveRoutes(routes)
+	e.reconfigureNotify()
 	return nil
 }
 
 // DeleteNotifyRoute removes a routing rule.
-func (a *App) DeleteNotifyRoute(id string) {
-	routes := a.configStore.LoadRoutes()
+func (e *Engine) DeleteNotifyRoute(id string) {
+	routes := e.configStore.LoadRoutes()
 	out := routes[:0]
 	for _, r := range routes {
 		if r.ID != id {
 			out = append(out, r)
 		}
 	}
-	a.configStore.SaveRoutes(out)
-	a.reconfigureNotify()
+	e.configStore.SaveRoutes(out)
+	e.reconfigureNotify()
 }
 
 // SaveNotifySink adds or replaces one destination.
@@ -84,7 +84,7 @@ func (a *App) DeleteNotifyRoute(id string) {
 //     destination did not change. Moving a webhook to another host, or
 //     downgrading SMTP from starttls to none, drops the stored credential
 //     rather than carrying it to a place it was never given for.
-func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
+func (e *Engine) SaveNotifySink(sink notify.SinkConfig) error {
 	if err := notify.ValidateSink(sink); err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
 	// would return as two, then four: the receiver stores every copy and the
 	// loop only stops when something runs out. Caught here because this is
 	// where it can be explained, rather than as a mystery later.
-	if sink.Kind == notify.SinkSyslog && a.isSelfDestination(sink.Syslog.Address) {
+	if sink.Kind == notify.SinkSyslog && e.isSelfDestination(sink.Syslog.Address) {
 		return fmt.Errorf("%s points back at this application's own syslog listener, which would loop every message it relays", sink.Syslog.Address)
 	}
 	if sink.ID == "" {
@@ -107,7 +107,7 @@ func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
 		return fmt.Errorf("destination kind %q cannot be addressed", sink.Kind)
 	}
 
-	sinks := a.configStore.LoadSinks()
+	sinks := e.configStore.LoadSinks()
 	var previous *notify.SinkConfig
 	for i := range sinks {
 		if sinks[i].ID == sink.ID {
@@ -116,16 +116,16 @@ func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
 		}
 	}
 
-	if a.secretStore != nil {
+	if e.secretStore != nil {
 		switch {
 		case sink.Secret != "":
-			if err := a.secretStore.Set(sink.ID, dest, sink.Secret); err != nil {
+			if err := e.secretStore.Set(sink.ID, dest, sink.Secret); err != nil {
 				return fmt.Errorf("store credential: %w", err)
 			}
 		case previous != nil && !notify.SameDestination(*previous, sink):
 			// The destination moved. Whatever was on file was given for the old
 			// one, so it is dropped rather than followed to the new address.
-			if err := a.secretStore.Delete(sink.ID); err != nil {
+			if err := e.secretStore.Delete(sink.ID); err != nil {
 				slog.Warn("could not drop credential after a destination change",
 					"sink", sink.ID, "error", err)
 			}
@@ -139,30 +139,30 @@ func (a *App) SaveNotifySink(sink notify.SinkConfig) error {
 	} else {
 		sinks = append(sinks, sink)
 	}
-	a.configStore.SaveSinks(sinks)
+	e.configStore.SaveSinks(sinks)
 	// Re-enabling a destination the breaker cut off has to clear its counters,
 	// otherwise the very traffic that tripped it trips it again immediately.
-	if a.dispatcher != nil && sink.Enabled {
-		a.dispatcher.ResetSink(sink.ID)
+	if e.dispatcher != nil && sink.Enabled {
+		e.dispatcher.ResetSink(sink.ID)
 	}
-	a.reconfigureNotify()
+	e.reconfigureNotify()
 	return nil
 }
 
 // DeleteNotifySink removes a destination, its credential, and its mention in
 // any route — a route left pointing at a deleted sink would fail every message
 // it matched.
-func (a *App) DeleteNotifySink(id string) {
-	sinks := a.configStore.LoadSinks()
+func (e *Engine) DeleteNotifySink(id string) {
+	sinks := e.configStore.LoadSinks()
 	out := sinks[:0]
 	for _, s := range sinks {
 		if s.ID != id {
 			out = append(out, s)
 		}
 	}
-	a.configStore.SaveSinks(out)
+	e.configStore.SaveSinks(out)
 
-	routes := a.configStore.LoadRoutes()
+	routes := e.configStore.LoadRoutes()
 	for i := range routes {
 		ids := routes[i].SinkIDs[:0]
 		for _, sid := range routes[i].SinkIDs {
@@ -172,14 +172,14 @@ func (a *App) DeleteNotifySink(id string) {
 		}
 		routes[i].SinkIDs = ids
 	}
-	a.configStore.SaveRoutes(routes)
+	e.configStore.SaveRoutes(routes)
 
-	if a.secretStore != nil {
-		if err := a.secretStore.Delete(id); err != nil {
+	if e.secretStore != nil {
+		if err := e.secretStore.Delete(id); err != nil {
 			slog.Warn("could not delete credential for a removed destination", "sink", id, "error", err)
 		}
 	}
-	a.reconfigureNotify()
+	e.reconfigureNotify()
 }
 
 // TestNotifySink delivers one sample message immediately, so the UI reports a
@@ -189,7 +189,7 @@ func (a *App) DeleteNotifySink(id string) {
 // resolved only when the form's destination matches the one it was stored
 // against — the alternative is an endpoint that reads back any sink's secret by
 // naming its id and pointing the URL elsewhere.
-func (a *App) TestNotifySink(sink notify.SinkConfig) error {
+func (e *Engine) TestNotifySink(sink notify.SinkConfig) error {
 	if err := notify.ValidateSink(sink); err != nil {
 		return err
 	}
@@ -198,9 +198,9 @@ func (a *App) TestNotifySink(sink notify.SinkConfig) error {
 	}
 
 	secret := sink.Secret
-	if secret == "" && a.secretStore != nil && sink.ID != "" {
+	if secret == "" && e.secretStore != nil && sink.ID != "" {
 		if dest, ok := notify.Destination(sink); ok {
-			secret = a.secretStore.Get(sink.ID, dest)
+			secret = e.secretStore.Get(sink.ID, dest)
 		}
 	}
 
@@ -218,33 +218,33 @@ func (a *App) TestNotifySink(sink notify.SinkConfig) error {
 }
 
 // GetNotifyLog returns the delivery log.
-func (a *App) GetNotifyLog() []notify.DeliveryEntry {
-	if a.dispatcher == nil {
+func (e *Engine) GetNotifyLog() []notify.DeliveryEntry {
+	if e.dispatcher == nil {
 		return nil
 	}
-	return a.dispatcher.Log()
+	return e.dispatcher.Log()
 }
 
 // ClearNotifyLog empties the delivery log.
-func (a *App) ClearNotifyLog() {
-	if a.dispatcher != nil {
-		a.dispatcher.ClearLog()
+func (e *Engine) ClearNotifyLog() {
+	if e.dispatcher != nil {
+		e.dispatcher.ClearLog()
 	}
 }
 
 // GetNotifyStats returns dispatcher counters.
-func (a *App) GetNotifyStats() notify.Stats {
-	if a.dispatcher == nil {
+func (e *Engine) GetNotifyStats() notify.Stats {
+	if e.dispatcher == nil {
 		return notify.Stats{}
 	}
-	return a.dispatcher.Stats()
+	return e.dispatcher.Stats()
 }
 
 // AreSinkCredentialsUnencrypted reports whether credentials rest in plaintext,
 // which they do when at-rest encryption is off. The UI surfaces it the same way
 // it does for an unencrypted CA key.
-func (a *App) AreSinkCredentialsUnencrypted() bool {
-	return a.secretStore != nil && a.secretStore.HasAny() && !a.secretStore.IsEncrypted()
+func (e *Engine) AreSinkCredentialsUnencrypted() bool {
+	return e.secretStore != nil && e.secretStore.HasAny() && !e.secretStore.IsEncrypted()
 }
 
 // persistTrippedSink disables a destination the breaker cut off.
@@ -252,8 +252,8 @@ func (a *App) AreSinkCredentialsUnencrypted() bool {
 // It writes through the same path the UI uses, so the destination simply shows
 // as disabled with the reason in the delivery log. Re-enabling it from the UI
 // is what clears the breaker.
-func (a *App) persistTrippedSink(sinkID string, reason notify.TripReason) {
-	sinks := a.configStore.LoadSinks()
+func (e *Engine) persistTrippedSink(sinkID string, reason notify.TripReason) {
+	sinks := e.configStore.LoadSinks()
 	changed := false
 	for i := range sinks {
 		if sinks[i].ID == sinkID && sinks[i].Enabled {
@@ -265,18 +265,18 @@ func (a *App) persistTrippedSink(sinkID string, reason notify.TripReason) {
 	if !changed {
 		return
 	}
-	a.configStore.SaveSinks(sinks)
+	e.configStore.SaveSinks(sinks)
 	slog.Warn("notify destination disabled after the rate breaker tripped",
 		"sink", sinkID, "reason", string(reason))
-	a.reconfigureNotify()
+	e.reconfigureNotify()
 }
 
 // isSelfDestination reports whether an address aims at one of this app's own
 // listeners. It consults the saved server configuration rather than the live
 // one, so the check is just as good while the server is stopped — that is when
 // destinations tend to be set up.
-func (a *App) isSelfDestination(address string) bool {
-	cfg := a.configStore.Load()
+func (e *Engine) isSelfDestination(address string) bool {
+	cfg := e.configStore.Load()
 	ports := make(map[int]bool, 3)
 	if cfg.UDPEnabled {
 		ports[cfg.UDPPort] = true
@@ -291,21 +291,21 @@ func (a *App) isSelfDestination(address string) bool {
 }
 
 // reconfigureNotify pushes the saved configuration into the dispatcher.
-func (a *App) reconfigureNotify() {
-	if a.dispatcher == nil {
+func (e *Engine) reconfigureNotify() {
+	if e.dispatcher == nil {
 		return
 	}
-	sinks := a.configStore.LoadSinks()
-	a.dispatcher.Configure(a.configStore.LoadRoutes(), sinks)
+	sinks := e.configStore.LoadSinks()
+	e.dispatcher.Configure(e.configStore.LoadRoutes(), sinks)
 
 	// Drop credentials for sinks that no longer exist, so a deleted
 	// destination does not leave its password behind.
-	if a.secretStore != nil {
+	if e.secretStore != nil {
 		keep := make(map[string]bool, len(sinks))
 		for _, s := range sinks {
 			keep[s.ID] = true
 		}
-		if err := a.secretStore.Prune(keep); err != nil {
+		if err := e.secretStore.Prune(keep); err != nil {
 			slog.Warn("could not prune orphaned credentials", "error", err)
 		}
 	}

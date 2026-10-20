@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"testing"
@@ -19,7 +19,7 @@ import (
 // These pin the answer that fixes it: when nothing is running, the status
 // reports what was saved.
 
-func appWithServer(t *testing.T) *App {
+func appWithServer(t *testing.T) *Engine {
 	t.Helper()
 	a := newTestApp(t)
 	a.server = syslog.NewSyslogServer(nil, nil)

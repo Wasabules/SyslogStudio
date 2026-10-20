@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"os"
@@ -12,14 +12,17 @@ import (
 	"SyslogStudio/internal/syslog"
 )
 
-// The facade is where the feature either works or does not: the importer can be
+// The engine is where the feature either works or does not: the importer can be
 // perfect and the import still be useless if the messages never reach the buffer
 // the viewer reads, or if they arrive as traffic and wake the alert rules.
 
-func importApp(t *testing.T) (*App, *event.MockEventEmitter) {
+func importApp(t *testing.T) (*Engine, *event.MockEventEmitter) {
 	t.Helper()
 	em := event.NewMockEventEmitter()
-	return &App{server: syslog.NewSyslogServer(em, nil)}, em
+	e := New(storage.NewConfigStoreAt(t.TempDir()))
+	e.server = syslog.NewSyslogServer(em, nil)
+	e.emitter = em
+	return e, em
 }
 
 // A file with both shapes in it, which is what an archive directory looks like
