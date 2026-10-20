@@ -861,8 +861,16 @@ func (ls *LogStore) ClearAll() error {
 }
 
 // UpdateConfig updates the storage configuration (for retention changes).
+//
+// A configuration with no path keeps the store's own. The path decides which
+// file Close encrypts and deletes, and an empty one resolves to the user's
+// default database: an engine with a data directory of its own — a test's —
+// once encrypted a real user's database on closing.
 func (ls *LogStore) UpdateConfig(config models.StorageConfig) {
 	ls.mu.Lock()
+	if config.Path == "" {
+		config.Path = ls.config.Path
+	}
 	ls.config = config
 	ls.mu.Unlock()
 }

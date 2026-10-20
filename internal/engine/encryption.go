@@ -160,7 +160,7 @@ func (e *Engine) EnableEncryption(password string) error {
 	}
 	if e.logStore != nil {
 		e.logStore.SetEncryptionPassword(password)
-		e.logStore.UpdateConfig(cfg)
+		e.logStore.UpdateConfig(e.withDBPath(cfg))
 	}
 	if e.caStore != nil && e.tlsManager.HasCA() {
 		e.persistCA()
@@ -196,7 +196,7 @@ func (e *Engine) DisableEncryption(password string) error {
 	}
 	if e.logStore != nil {
 		e.logStore.SetEncryptionPassword("")
-		e.logStore.UpdateConfig(cfg)
+		e.logStore.UpdateConfig(e.withDBPath(cfg))
 	}
 	if e.caStore != nil && e.tlsManager.HasCA() {
 		e.persistCA()
