@@ -2,8 +2,20 @@
     import { onDestroy, onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { unlockDatabase, getUnlockLockoutSeconds } from '../lib/api';
+    import { errorText, getRecoveryKey, resetEncryptionPassword, selectRecoveryKeyFile,
+             unlockWithRecoveryKeyFile } from '../lib/backup';
 
     export let onUnlocked: () => void = () => {};
+
+    // 'password' asks for it; 'key' takes the recovery key's file instead,
+    // and 'reset' follows a key unlock: the password was forgotten, so a new
+    // one is asked for before the application opens.
+    let mode: 'password' | 'key' | 'reset' = 'password';
+    let hasRecoveryKey = false;
+    let keyPath = '';
+    let newPassword = '';
+    let newPasswordConfirm = '';
+    $: keyName = keyPath.split(/[\\/]/).pop() || '';
 
     let password = '';
     let error = '';
@@ -67,6 +79,7 @@
     }
 
     onMount(async () => {
+        try { hasRecoveryKey = (await getRecoveryKey())?.set ?? false; } catch {}
         try {
             const secs = await getUnlockLockoutSeconds();
             if (secs > 0) {
@@ -113,6 +126,54 @@
         }
     }
 
+    function switchMode(next: 'password' | 'key') {
+        mode = next;
+        error = '';
+        password = '';
+        keyPath = '';
+    }
+
+    async function chooseKey() {
+        try {
+            const path = await selectRecoveryKeyFile();
+            if (path) { keyPath = path; error = ''; }
+        } catch (e) { error = errorText(e); }
+    }
+
+    async function handleKeyUnlock() {
+        error = '';
+        if (!keyPath) return;
+        loading = true;
+        progressPhase = '';
+        progressPercent = 0;
+        try {
+            await unlockWithRecoveryKeyFile(keyPath);
+            mode = 'reset';
+        } catch (e) {
+            progressPhase = '';
+            error = errorText(e);
+        } finally {
+            loading = false;
+        }
+    }
+
+    async function handleReset() {
+        error = '';
+        if (!newPassword) { error = $_('encryption.passwordRequired'); return; }
+        if (newPassword !== newPasswordConfirm) { error = $_('encryption.passwordMismatch'); return; }
+        loading = true;
+        try {
+            await resetEncryptionPassword(newPassword);
+            newPassword = '';
+            newPasswordConfirm = '';
+            onUnlocked();
+        } catch (e) {
+            error = errorText(e);
+        } finally {
+            loading = false;
+        }
+    }
+
     $: phaseLabel = progressPhase && phaseLabels[progressPhase]
         ? $_(phaseLabels[progressPhase])
         : '';
@@ -128,19 +189,36 @@
             </svg>
         </div>
         <h1 class="app-name">SyslogStudio</h1>
-        <p class="subtitle">{$_('encryption.unlockMessage')}</p>
+        {#if mode === 'reset'}
+            <p class="subtitle"><strong>{$_('recovery.resetTitle')}</strong><br />{$_('recovery.resetMessage')}</p>
+            <div class="input-group stacked">
+                <!-- svelte-ignore a11y-autofocus -->
+                <input type="password" bind:value={newPassword} placeholder={$_('encryption.newPassword')}
+                       disabled={loading} autofocus />
+                <input type="password" bind:value={newPasswordConfirm} placeholder={$_('encryption.confirmPassword')}
+                       disabled={loading} on:keydown={e => e.key === 'Enter' && handleReset()} />
+            </div>
+        {:else if mode === 'key'}
+            <p class="subtitle">{$_('recovery.hint')}</p>
+            <div class="input-group key-group">
+                <button class="secondary-btn" on:click={chooseKey} disabled={loading}>{$_('recovery.chooseKey')}</button>
+                {#if keyName}<span class="key-name">{$_('recovery.keyFile', { values: { name: keyName } })}</span>{/if}
+            </div>
+        {:else}
+            <p class="subtitle">{$_('encryption.unlockMessage')}</p>
 
-        <div class="input-group">
-            <!-- svelte-ignore a11y-autofocus -->
-            <input
-                type="password"
-                bind:value={password}
-                on:keydown={handleKeydown}
-                placeholder={$_('encryption.password')}
-                disabled={loading || lockedOut}
-                autofocus
-            />
-        </div>
+            <div class="input-group">
+                <!-- svelte-ignore a11y-autofocus -->
+                <input
+                    type="password"
+                    bind:value={password}
+                    on:keydown={handleKeydown}
+                    placeholder={$_('encryption.password')}
+                    disabled={loading || lockedOut}
+                    autofocus
+                />
+            </div>
+        {/if}
 
         {#if error}
             <div class="error-message" class:lockout={lockedOut}>{error}</div>
@@ -161,15 +239,28 @@
             </div>
         {/if}
 
-        <button class="unlock-btn" on:click={handleUnlock} disabled={loading || lockedOut}>
-            {#if lockedOut}
-                {$_('encryption.lockedOut')}
-            {:else if loading}
-                {$_('encryption.unlocking')}
-            {:else}
-                {$_('encryption.unlock')}
+        {#if mode === 'reset'}
+            <button class="unlock-btn" on:click={handleReset} disabled={loading}>{$_('recovery.resetSave')}</button>
+            <button class="link-btn" on:click={onUnlocked} disabled={loading}>{$_('recovery.resetLater')}</button>
+        {:else if mode === 'key'}
+            <button class="unlock-btn" on:click={handleKeyUnlock} disabled={loading || !keyPath}>
+                {loading ? $_('encryption.unlocking') : $_('recovery.unlock')}
+            </button>
+            <button class="link-btn" on:click={() => switchMode('password')} disabled={loading}>{$_('recovery.usePassword')}</button>
+        {:else}
+            <button class="unlock-btn" on:click={handleUnlock} disabled={loading || lockedOut}>
+                {#if lockedOut}
+                    {$_('encryption.lockedOut')}
+                {:else if loading}
+                    {$_('encryption.unlocking')}
+                {:else}
+                    {$_('encryption.unlock')}
+                {/if}
+            </button>
+            {#if hasRecoveryKey}
+                <button class="link-btn" on:click={() => switchMode('key')} disabled={loading}>{$_('recovery.useKey')}</button>
             {/if}
-        </button>
+        {/if}
     </div>
 </div>
 
@@ -313,6 +404,57 @@
     }
 
     .unlock-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .input-group.stacked {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .key-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .key-name {
+        font-size: 12px;
+        color: var(--text-secondary);
+        word-break: break-all;
+        text-align: center;
+    }
+
+    .secondary-btn {
+        padding: 8px 14px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .secondary-btn:hover:not(:disabled) {
+        border-color: var(--accent);
+    }
+
+    .link-btn {
+        background: none;
+        border: none;
+        padding: 2px 4px;
+        color: var(--accent);
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .link-btn:hover:not(:disabled) {
+        text-decoration: underline;
+    }
+
+    .link-btn:disabled {
         opacity: 0.6;
         cursor: not-allowed;
     }

@@ -18,6 +18,8 @@
     import type { ColumnKey, AnyColumn } from '../lib/columns';
     import { shownValue } from '../lib/cells';
     import LogRowMenu from './LogRowMenu.svelte';
+    import BackupBanner from './BackupBanner.svelte';
+    import { backupView } from '../lib/backup';
 
     const ROW_HEIGHT = 28;
     const GROUP_ROW_HEIGHT = 32;
@@ -508,6 +510,14 @@
         }
     }
 
+    // A backup opened or closed: the history is another database now.
+    let prevView = '';
+    $: if ($logViewMode === 'history' && ($backupView.path || '') !== prevView) {
+        prevView = $backupView.path || '';
+        if (isGrouped) loadHistoryGroups();
+        else loadHistoryPage(1);
+    }
+
     $: historyPage = $historyResult.page;
     $: historyTotal = $historyResult.total;
     $: historyPageSize = $historyResult.pageSize || 200;
@@ -699,6 +709,9 @@
 <svelte:window on:keydown={onWindowKey} />
 
 <div class="log-viewer-wrapper" style={widthVars($columnWidths)}>
+    {#if $logViewMode === 'history'}
+        <BackupBanner />
+    {/if}
     {#if $frozen}
         <div class="frozen-bar" role="status">
             <span class="frozen-dot"></span>

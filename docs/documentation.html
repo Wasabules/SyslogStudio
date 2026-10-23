@@ -157,13 +157,29 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
       <h3>Encryption at rest</h3>
       <p>
         Turning on encryption asks for a password and re-writes the database encrypted with
-        AES-256-GCM, the key derived with Argon2id. The password is held in memory for the
-        session only; it is not stored anywhere, so losing it means losing the history.
+        AES-256-GCM. The password opens a random key, derived with Argon2id, and that key
+        encrypts the database and everything secret beside it. The password is not stored
+        anywhere: forgetting it loses the history, unless you made a recovery key.
       </p>
       <p>
         With encryption on, the application asks for the password at startup. Repeated wrong
         answers back off, and the lockout survives a restart — so a stolen laptop cannot be
         brute-forced by relaunching the application.
+      </p>
+      <h3>The recovery key</h3>
+      <p>
+        A recovery key is a file that opens the database and its backups without the password.
+        Make it in <strong>Settings › Storage</strong> and keep it away from the computer. On the
+        unlock screen, the key opens the database and you choose a new password.
+      </p>
+      <h3>Backups</h3>
+      <p>
+        <strong>Settings › Backups</strong> copies the database to another folder — a second
+        disk, a network share — every day, week or month, while messages keep arriving. Each
+        copy is encrypted as the database is and opens on its own, with the password it was made
+        under or the recovery key. A copy can be opened in the History to be read, or restored
+        in place of the database; restoring first copies the database as it was, so it can be
+        undone.
       </p>
     </div>
   </section>

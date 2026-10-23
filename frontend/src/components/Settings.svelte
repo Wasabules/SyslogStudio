@@ -22,10 +22,12 @@
     async function onCloseActionChange() {
         try { await setCloseAction(closeAction); } catch { /* preference only */ }
     }
-    import { enableEncryption, disableEncryption, isEncryptionEnabled, getUpdateConfig, setUpdateConfig,
-             getCloseAction, setCloseAction, type CloseAction } from '../lib/api';
+    import { enableEncryption, disableEncryption, changeEncryptionPassword, isEncryptionEnabled, getUpdateConfig,
+             setUpdateConfig, getCloseAction, setCloseAction, type CloseAction } from '../lib/api';
     import { updateStore } from '../lib/updateStore';
     import BackgroundSettings from './BackgroundSettings.svelte';
+    import BackupSettings from './BackupSettings.svelte';
+    import RecoveryKeySettings from './RecoveryKeySettings.svelte';
     import { serviceLink } from '../lib/serviceLink';
 
     export let visible = false;
@@ -33,11 +35,12 @@
     // Opens Settings on a given tab — the service banner opens Background.
     export let initialTab: Tab | '' = '';
 
-    type Tab = 'general' | 'storage' | 'background' | 'about';
+    type Tab = 'general' | 'storage' | 'backups' | 'background' | 'about';
     let activeTab: Tab = 'general';
     $: if (visible && initialTab) activeTab = initialTab;
-    // A dialog open inside the Background tab takes Escape first.
+    // A dialog open inside the Background or Backups tab takes Escape first.
     let backgroundOverlayOpen = false;
+    let backupsOverlayOpen = false;
 
     // --- General ---
     let enableNotifications = false;
@@ -62,7 +65,7 @@
 
     function handleKeydown(e: KeyboardEvent) {
         if (!visible || e.key !== 'Escape') return;
-        if (backgroundOverlayOpen) return;
+        if (backgroundOverlayOpen || backupsOverlayOpen) return;
         // Escape dismisses the confirmation overlay first, if open, rather than
         // closing the whole Settings panel underneath it.
         if (showEncryptionWarning) {
@@ -125,6 +128,10 @@
     let encPasswordConfirm = '';
     let encError = '';
     let encLoading = false;
+    // Changing the password, once encryption is on.
+    let showChangePassword = false;
+    let newPassword = '';
+    let newPasswordConfirm = '';
 
     // --- About ---
     let appVersion = '';
@@ -301,6 +308,31 @@
         }
     }
 
+    async function handleChangePassword() {
+        encError = '';
+        if (!encPassword || !newPassword) {
+            encError = $_('encryption.passwordRequired');
+            return;
+        }
+        if (newPassword !== newPasswordConfirm) {
+            encError = $_('encryption.passwordMismatch');
+            return;
+        }
+        encLoading = true;
+        try {
+            await changeEncryptionPassword(encPassword, newPassword);
+            encPassword = '';
+            newPassword = '';
+            newPasswordConfirm = '';
+            showChangePassword = false;
+            toastSuccess($_('encryption.changeSuccess'));
+        } catch (e: any) {
+            encError = e?.message || String(e);
+        } finally {
+            encLoading = false;
+        }
+    }
+
     function handleThemeChange(e: Event) {
         const val = (e.target as HTMLSelectElement).value;
         theme.set(val as 'dark' | 'light');
@@ -408,6 +440,10 @@
                 <button class="tab" class:active={activeTab === 'storage'}
                         on:click={() => activeTab = 'storage'}>
                     {$_('settings.storage')}
+                </button>
+                <button class="tab" class:active={activeTab === 'backups'}
+                        on:click={() => activeTab = 'backups'}>
+                    {$_('backup.tab')}
                 </button>
                 <button class="tab" class:active={activeTab === 'background'}
                         on:click={() => activeTab = 'background'}>
@@ -644,7 +680,46 @@
                                 </button>
                             </div>
                         {/if}
+
+                        {#if encryptionToggle && encryptionOn}
+                            {#if !showChangePassword}
+                                <div>
+                                    <button class="action-btn compact-btn"
+                                            on:click={() => { showChangePassword = true; encError = ''; encPassword = ''; }}>
+                                        {$_('encryption.changePassword')}
+                                    </button>
+                                </div>
+                            {:else}
+                                <div class="enc-fields">
+                                    <input type="password" bind:value={encPassword}
+                                           placeholder={$_('encryption.currentPassword')}
+                                           disabled={encLoading} />
+                                    <input type="password" bind:value={newPassword}
+                                           placeholder={$_('encryption.newPassword')}
+                                           disabled={encLoading} />
+                                    <input type="password" bind:value={newPasswordConfirm}
+                                           placeholder={$_('encryption.confirmPassword')}
+                                           disabled={encLoading} />
+                                    {#if encError}
+                                        <div class="enc-error">{encError}</div>
+                                    {/if}
+                                    <div class="enc-buttons">
+                                        <button class="action-btn compact-btn"
+                                                on:click={() => { showChangePassword = false; encError = ''; }}
+                                                disabled={encLoading}>
+                                            {$_('backup.cancel')}
+                                        </button>
+                                        <button class="action-btn compact-btn" on:click={handleChangePassword}
+                                                disabled={encLoading}>
+                                            {$_('encryption.changePassword')}
+                                        </button>
+                                    </div>
+                                </div>
+                            {/if}
                         {/if}
+                        {/if}
+
+                        <RecoveryKeySettings />
                     </div>
 
                     {#if showEncryptionWarning}
@@ -707,6 +782,9 @@
                             {$_('settings.clearAllLogs')}
                         </button>
                     </div>
+
+                {:else if activeTab === 'backups'}
+                    <BackupSettings onViewed={onClose} bind:overlayOpen={backupsOverlayOpen} />
 
                 {:else if activeTab === 'background'}
                     <BackgroundSettings bind:overlayOpen={backgroundOverlayOpen} />
@@ -925,6 +1003,11 @@
         flex-direction: column;
         gap: 8px;
         margin-top: 4px;
+    }
+
+    .enc-buttons {
+        display: flex;
+        gap: 8px;
     }
 
     .reshuffle-btn {

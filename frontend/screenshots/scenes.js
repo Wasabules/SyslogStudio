@@ -141,16 +141,28 @@ const BASE = [
     title: 'Receiving with no window: in the session, or as a service',
     nav: NAV.logs,
     // The gear at the bottom of the sidebar, then the Background tab — the
-    // third, after General and Storage.
+    // fourth, after General, Storage and Backups.
     click: [
       { selector: '.settings-btn' },
-      { selector: '.tab', nth: 2 },
+      { selector: '.tab', nth: 3 },
     ],
     // Installed, running, and driven from this window: its settings and
     // messages are the service's.
     bindings: { GetSystemService: SYSTEM_SERVICE_RUNNING, GetServiceLink: SERVICE_LINK_DRIVING },
     settle: 700,
     expect: { selector: '.card', atLeast: 2 },
+  },
+  {
+    name: 'backups',
+    title: 'Backups to another disk, and the copies kept',
+    nav: NAV.logs,
+    // The gear, then the Backups tab — the third, after General and Storage.
+    click: [
+      { selector: '.settings-btn' },
+      { selector: '.tab', nth: 2 },
+    ],
+    settle: 700,
+    expect: { selector: '.backups .row', atLeast: 3 },
   },
   {
     name: 'anonymous',
