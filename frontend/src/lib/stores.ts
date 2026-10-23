@@ -125,6 +125,17 @@ export interface AlertEvent {
     timestamp: string;
 }
 
+export interface CleanupSchedule {
+    /** '' continuous, 'daily', 'weekly', 'monthly'. */
+    every?: string;
+    /** "HH:MM" on the machine's clock; '' is 03:00. */
+    at?: string;
+    /** 0 Sunday … 6 Saturday. */
+    weekday?: number;
+    /** 1–31, the last day of a shorter month. */
+    monthDay?: number;
+}
+
 export interface StorageConfig {
     enabled: boolean;
     path: string;
@@ -132,6 +143,31 @@ export interface StorageConfig {
     maxMessages: number;
     maxSizeMB: number;
     encryptionEnabled: boolean;
+    /** '' to the minute, 'day', 'week', 'month': whole periods kept. */
+    retentionAlign?: string;
+    cleanup?: CleanupSchedule;
+    /** '' automatic, 'afterCleanup', 'manual'. */
+    compaction?: string;
+}
+
+export interface CleanupRecord {
+    at: string;
+    deleted: number;
+    freedMB: number;
+    tookMs: number;
+}
+
+export interface StorageForecast {
+    messagesPerDay: number;
+    bytesPerMessage: number;
+    growthMBPerDay: number;
+    steadyMB: number;
+    /** 'age', 'count', 'size', or absent when nothing bounds the database. */
+    boundBy?: string;
+    steadyInDays: number;
+    fileMB: number;
+    diskFreeMB: number;
+    diskFullInDays: number;
 }
 
 export interface StorageStats {
@@ -139,6 +175,12 @@ export interface StorageStats {
     databaseSizeMB: number;
     oldestTimestamp: string;
     droppedWrites: number;
+    usedMB?: number;
+    spaceReturns?: boolean;
+    compacting?: boolean;
+    lastCleanup?: CleanupRecord;
+    nextCleanup?: string;
+    forecast?: StorageForecast;
 }
 
 export interface PagedResult {

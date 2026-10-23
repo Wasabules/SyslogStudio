@@ -7,6 +7,8 @@
     import { appLocale, setLocale, SUPPORTED_LOCALES } from '../lib/i18n';
     import { toastSuccess, toastError } from '../lib/toast';
     import { dbStatsVersion, historyResult } from '../lib/stores';
+    import type { CleanupSchedule, StorageConfig, StorageStats } from '../lib/stores';
+    import RetentionSettings from './RetentionSettings.svelte';
 
     // What the close button does. Held here rather than in a store because it
     // lives in the Go configuration, not in browser storage: the decision has
@@ -103,6 +105,13 @@
     let retentionDays = 0;         // 0 = unlimited
     let maxMessages = 0;           // 0 = unlimited
     let maxDbSize = 0;             // 0 = unlimited
+    let retentionAlign = '';
+    let cleanup: CleanupSchedule = {};
+    let compaction = '';
+    // The configuration as loaded: saving starts from it, so a field this
+    // form does not show is kept rather than reset.
+    let storageCfg: Partial<StorageConfig> = {};
+    let storageStats: StorageStats | null = null;
     let storageMessageCount = 0;
     let storageDbSizeMB = 0;
     let storageOldest = '';
@@ -140,6 +149,10 @@
                 retentionDays = cfg.retentionDays ?? 0;
                 maxMessages = cfg.maxMessages ?? 0;
                 maxDbSize = cfg.maxSizeMB ?? 0;
+                retentionAlign = cfg.retentionAlign ?? '';
+                cleanup = cfg.cleanup ?? {};
+                compaction = cfg.compaction ?? '';
+                storageCfg = cfg;
             }
         } catch {}
 
@@ -171,6 +184,7 @@
         try {
             const s = await callGo('GetStorageStats');
             if (s) {
+                storageStats = s;
                 storageMessageCount = s.messageCount ?? 0;
                 storageDbSizeMB = s.databaseSizeMB ?? 0;
                 storageOldest = s.oldestTimestamp ?? '';
@@ -183,12 +197,18 @@
     async function saveStorageConfig() {
         try {
             await callGo('SetStorageConfig', {
+                ...storageCfg,
                 enabled: enablePersistence,
                 path: '',
                 retentionDays,
                 maxMessages,
                 maxSizeMB: maxDbSize,
+                retentionAlign,
+                cleanup,
+                compaction,
             });
+            // The forecast follows the settings.
+            await loadStorageStats();
         } catch (e: any) {
             toastError(e?.message || 'Failed to save storage config');
         }
@@ -320,14 +340,6 @@
         return formatInZone(ts, zone) || ts;
     }
 
-    const retentionOptions = [
-        { value: 1, label: '1' },
-        { value: 7, label: '7' },
-        { value: 30, label: '30' },
-        { value: 90, label: '90' },
-        { value: 0, label: '' },  // unlimited — label set dynamically via i18n
-    ];
-
     const maxMessagesOptions = [
         { value: 10000, label: '10,000' },
         { value: 100000, label: '100,000' },
@@ -366,17 +378,6 @@
         if (count >= 1000000) return `≈ ${(count / 1000000).toFixed(1)}M ${unit}`;
         if (count >= 1000) return `≈ ${(count / 1000).toFixed(0)}K ${unit}`;
         return `≈ ${count} ${unit}`;
-    }
-
-    function estimateRateForDays(days: number): string {
-        if (days === 0) return '';
-        // At various rates, how many messages
-        const perDay10 = 10 * 86400;
-        const perDay100 = 100 * 86400;
-        const total10 = perDay10 * days;
-        const total100 = perDay100 * days;
-        const fmt = (n: number) => n >= 1000000 ? `${(n/1000000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}K` : `${n}`;
-        return `${fmt(total10)} – ${fmt(total100)} msgs @ 10–100 msg/s`;
     }
 
     function formatSize(mb: number): string {
@@ -555,25 +556,10 @@
                                class="readonly-input" />
                     </div>
 
-                    <div class="form-group-with-hint">
-                        <div class="form-group">
-                            <label for="settings-retention">{$_('settings.retentionDays')}</label>
-                            <select id="settings-retention" bind:value={retentionDays}
-                                    on:change={onStorageFieldChange}>
-                                {#each retentionOptions as opt}
-                                    <option value={opt.value}>
-                                        {opt.value === 0
-                                            ? $_('settings.unlimited')
-                                            : `${opt.label} ${$_('settings.days')}`}
-                                    </option>
-                                {/each}
-                            </select>
-                        </div>
-                        {#if retentionDays > 0}
-                            <span class="hint">{estimateRateForDays(retentionDays)}</span>
-                        {/if}
-                    </div>
-
+                    <RetentionSettings bind:retentionDays bind:retentionAlign bind:cleanup bind:compaction
+                                       {maxMessages} stats={storageStats}
+                                       on:change={onStorageFieldChange}>
+                    <svelte:fragment slot="limits">
                     <div class="form-group-with-hint">
                         <div class="form-group">
                             <label for="settings-maxmsg">{$_('settings.maxMessages')}</label>
@@ -607,6 +593,9 @@
                             <span class="hint">{estimateMessagesForSize(maxDbSize, $_('settings.messagesApprox'))}</span>
                         {/if}
                     </div>
+
+                    </svelte:fragment>
+                    </RetentionSettings>
 
                     <div class="encryption-section">
                         <h4>{$_('encryption.title')}</h4>

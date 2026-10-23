@@ -125,3 +125,29 @@ func TestEncryption_ClosingEncryptsTheEnginesOwnDatabase(t *testing.T) {
 		}
 	}
 }
+
+// The storage settings arrive from the window without the encryption flag,
+// which only EnableEncryption and DisableEncryption set. Saving them cleared
+// it, and the database was then left in the clear when closed.
+func TestEncryption_SurvivesAChangeOfStorageSettings(t *testing.T) {
+	dir := t.TempDir()
+	e := New(storage.NewConfigStoreAt(dir))
+	if err := e.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EnableEncryption("correct horse battery"); err != nil {
+		t.Fatal(err)
+	}
+	e.SetStorageConfig(models.StorageConfig{Enabled: true, RetentionDays: 30})
+	if !e.GetStorageConfig().EncryptionEnabled {
+		t.Error("changing the retention turned encryption off")
+	}
+	e.Close()
+	dbPath := storage.DBPathIn(dir)
+	if _, err := os.Stat(dbPath + ".enc"); err != nil {
+		t.Fatalf("the database was not encrypted: %v", err)
+	}
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Fatalf("the database was left in the clear: %v", err)
+	}
+}

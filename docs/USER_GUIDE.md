@@ -269,6 +269,64 @@ Switch to the **Dashboard** view using the sidebar navigation. The dashboard dis
 
 Statistics are updated every second while the server is running.
 
+## Keeping the History
+
+**Settings > Storage** sets how long messages stay in the history and what happens to the disk
+space they took. The defaults need no attention: old messages go every few minutes, and their
+space goes back to the disk as they do.
+
+### How long
+
+- **Keep messages for**: 1, 7, 30, 90, 180 or 365 days, unlimited, or any number of days with
+  *Custom…*.
+- **Max messages** and **Max database size** cap the history whatever its age. They protect the
+  disk, so they apply at all times, even with a scheduled cleanup.
+- **Keep whole** moves the age limit back to the start of its day, its week (from Monday) or its
+  month. With 90 days and whole months, the oldest month in the history is always complete, which
+  is what a monthly report needs.
+
+### When
+
+**Clean up** sets when messages past their age go:
+
+- **Continuously** (the default): every five minutes, a little at a time.
+- **Every day**, **every week** or **every month**, at a time of day on the machine's clock. A run
+  missed while SyslogStudio was off happens at the next start.
+
+Between two scheduled runs the history keeps older messages, up to one more day, week or month:
+the forecast below counts them.
+
+### Disk space
+
+SQLite keeps the space of deleted messages for new ones; **Disk space** sets when the file itself
+shrinks:
+
+- **Give it back as it goes** (the default): a little at a time after each cleanup.
+- **Compact after each scheduled cleanup**: the whole database is rewritten after each run.
+- **Only with the Compact button**: the file keeps its largest size until you press *Compact*.
+
+Messages keep arriving through all of this:
+
+- Cleanups work in small steps that the writes of new messages pass between.
+- A full compaction holds those writes for its duration, between a few seconds and half a minute
+  on a million messages depending on the disk, and the arriving messages wait in memory meanwhile.
+- Memory holds up to 200,000 waiting messages, about a hundred seconds at 2,000 a second. Only a
+  full compaction of a very large database at a high rate could outlast that; giving space back
+  as it goes, the default, never rewrites the whole database.
+
+A database created by an earlier version is switched to giving space back once, in the
+background, the first time it is opened: one compaction, under the same rule.
+
+### Where the database is heading
+
+Under the settings, the forecast says what they mean at the rate messages actually arrive:
+
+- messages and megabytes a day;
+- the size the retention or a limit holds the database at, and in how many days it gets there;
+- or, when nothing limits it, how fast it grows;
+- free space on the disk, and when it would run out at this rate;
+- the last cleanup — when, how many messages, how much space went back — and the next one.
+
 ## Running in the Background
 
 SyslogStudio can keep receiving with its window closed, in two ways, both set up in
