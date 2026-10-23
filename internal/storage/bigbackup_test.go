@@ -160,16 +160,19 @@ func TestBigBackup(t *testing.T) {
 	outDir := filepath.Join(dir, "big-backups")
 	os.RemoveAll(outDir)
 	start = time.Now()
-	f, err := backup.Write(snap, outDir, time.Now(), false, backup.Lock{Master: master, Slots: []vault.Slot{slot}}, "bench", nil, nil)
-	if err != nil {
+	sealed := filepath.Join(outDir, backup.Name(time.Now(), false, true))
+	if err := os.MkdirAll(outDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	report("encrypt and read back: %s, backup %.0f MB", time.Since(start).Round(time.Millisecond), f.SizeMB)
+	if err := backup.Seal(snap, sealed, backup.Lock{Master: master, Slots: []vault.Slot{slot}}, "bench", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	report("encrypt and read back: %s, backup %.0f MB", time.Since(start).Round(time.Millisecond), fileMB(sealed))
 
 	restored := filepath.Join(dir, "big-backup.restore.db")
 	removeAll(restored)
 	start = time.Now()
-	if _, err := backup.Open(f.Path, backup.Credentials{Password: "big backup password"}, restored, nil); err != nil {
+	if _, err := backup.Open(sealed, backup.Credentials{Password: "big backup password"}, restored, nil); err != nil {
 		t.Fatal(err)
 	}
 	report("open (decrypt): %s", time.Since(start).Round(time.Millisecond))

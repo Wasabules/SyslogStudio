@@ -2,6 +2,7 @@ package vault
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -207,6 +208,29 @@ func readPrelude(r io.Reader) (Header, []byte, error) {
 		return Header{}, nil, fmt.Errorf("%w: bad chunk size", ErrNotVault)
 	}
 	return h, append(fixed, head...), nil
+}
+
+// PeekReader wraps r so that PeekHeader can read what a vault stream says
+// about itself without consuming it: Decrypt then reads it from the start.
+func PeekReader(r io.Reader) *bufio.Reader {
+	return bufio.NewReaderSize(r, len(magic)+4+maxHeader)
+}
+
+// PeekHeader is ReadHeader of a PeekReader, leaving it where it was.
+func PeekHeader(br *bufio.Reader) (Header, error) {
+	fixed, err := br.Peek(len(magic) + 4)
+	if err != nil || !IsVault(fixed) {
+		return Header{}, ErrNotVault
+	}
+	size := binary.BigEndian.Uint32(fixed[len(magic):])
+	if size > maxHeader {
+		return Header{}, ErrNotVault
+	}
+	prelude, err := br.Peek(len(magic) + 4 + int(size))
+	if err != nil {
+		return Header{}, ErrTruncated
+	}
+	return ReadHeader(bytes.NewReader(prelude))
 }
 
 // ReadHeader reads what a vault file says about itself, without decrypting it.

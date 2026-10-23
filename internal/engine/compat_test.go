@@ -410,12 +410,9 @@ func TestWriteVaultFixture(t *testing.T) {
 	if _, err := e.SetRecoveryKey(keyPub); err != nil {
 		t.Fatal(err)
 	}
-	backupDir := filepath.Join(t.TempDir(), "backups")
-	if err := e.SetBackupConfig(models.BackupConfig{Dir: backupDir}); err != nil {
-		t.Fatal(err)
-	}
+	setBackupDir(t, e)
 	bk := backupNow(t, e)
-	if err := e.SetBackupConfig(models.BackupConfig{}); err != nil {
+	if err := e.DeleteBackupDestination(bk.Destination); err != nil {
 		t.Fatal(err)
 	}
 	e.Close()
@@ -508,7 +505,7 @@ func TestCompat_VaultV1BackupOpensAndRestores(t *testing.T) {
 		if err := e.UnlockDatabase(m.Password); err != nil {
 			return err
 		}
-		return e.RestoreBackup(path, "", key)
+		return e.RestoreBackup(models.BackupRef{Path: path}, "", key)
 	})
 
 	const other = "another installation's password"
@@ -516,7 +513,7 @@ func TestCompat_VaultV1BackupOpensAndRestores(t *testing.T) {
 	if err := e.EnableEncryption(other); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.RestoreBackup(path, m.Password, nil); err != nil {
+	if err := e.RestoreBackup(models.BackupRef{Path: path}, m.Password, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.Close()
@@ -549,9 +546,7 @@ func TestCompat_V171BackupAfterUpgrade(t *testing.T) {
 		if err := e.UnlockDatabase(m.Password); err != nil {
 			return err
 		}
-		if err := e.SetBackupConfig(models.BackupConfig{Dir: filepath.Join(t.TempDir(), "backups")}); err != nil {
-			return err
-		}
+		setBackupDir(t, e)
 		bk = backupNow(t, e)
 		return nil
 	})
@@ -562,7 +557,7 @@ func TestCompat_V171BackupAfterUpgrade(t *testing.T) {
 		if err := e.UnlockDatabase(m.Password); err != nil {
 			return err
 		}
-		return e.RestoreBackup(bk.Path, m.Password, nil)
+		return e.RestoreBackup(models.BackupRef{Path: bk.Path}, m.Password, nil)
 	})
 }
 

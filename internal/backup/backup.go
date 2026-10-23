@@ -1,23 +1,24 @@
-// Package backup writes copies of the database to a folder of the user's
-// choosing, lists them, and opens them again.
+// Package backup makes copies of the database, sends them where the user
+// said — folders and servers — and opens them again.
 //
-// A copy is encrypted the way the database is: in the vault format, with the
-// master secret, and carrying its own locks — the password's and the
-// recovery key's — so that it opens on its own, on another machine, after the
-// installation is gone. A database that is not encrypted is copied locked to
-// the recovery key alone if there is one, in the clear otherwise.
+// A copy is encrypted the way the database is, here, before it goes
+// anywhere: in the vault format, with the master secret, and carrying its own
+// locks — the password's and the recovery key's — so that it opens on its
+// own, on another machine, after the installation is gone. A server only ever
+// stores what it cannot read. A database that is not encrypted is copied
+// locked to the recovery key alone if there is one, in the clear otherwise.
 //
 // Only files named like the copies made here are listed, and only those are
-// ever deleted: the folder may hold anything else.
+// ever deleted: a folder or a server may hold anything else.
 package backup
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +35,8 @@ const (
 	// safetySuffix marks the copy made just before a restore.
 	safetySuffix = "-before-restore"
 	stampLayout  = "20060102-150405"
+	// partExt is a copy on its way: renamed once whole.
+	partExt = ".part"
 )
 
 // ErrWrongCredentials is a copy the password or key given does not open.
@@ -110,6 +113,12 @@ func parseName(name string) (at time.Time, safety, ok bool) {
 	return at, safety, true
 }
 
+// IsName says whether name is that of a copy made here.
+func IsName(name string) bool {
+	_, _, ok := parseName(name)
+	return ok
+}
+
 // Progress reports how far a step is, from 0 to 1.
 type Progress func(fraction float64)
 
@@ -121,34 +130,23 @@ func scaled(p Progress, total int64) func(int64) {
 	}
 }
 
-// Write copies the database snapshot at src into dir, locked with lock, and
-// reads it back: a copy that would not open is not left behind as if it
-// would. The file appears whole or not at all. encrypt and verify report
-// their progress.
-func Write(src, dir string, at time.Time, safety bool, lock Lock, app string, encrypt, verify Progress) (models.BackupFile, error) {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return models.BackupFile{}, err
-	}
+// Seal makes the copy of the database snapshot at src: dst, a file on this
+// machine, locked with lock, and read back — a copy that would not open is
+// not sent anywhere as if it would. dst appears whole or not at all.
+func Seal(src, dst string, lock Lock, app string, encrypt, verify Progress) error {
 	size := fileSize(src)
-	dst := filepath.Join(dir, Name(at, safety, lock.Master != ""))
-	if _, err := os.Stat(dst); err == nil {
-		return models.BackupFile{}, fmt.Errorf("%s already exists", filepath.Base(dst))
-	}
 	if lock.Master == "" {
-		if err := copyFile(src, dst, scaled(encrypt, size)); err != nil {
-			return models.BackupFile{}, err
-		}
-	} else {
-		h := vault.Header{Kind: vault.KindBackup, Slots: lock.Slots, App: app}
-		if err := vault.EncryptFile(src, dst, lock.Master, h, scaled(encrypt, size)); err != nil {
-			return models.BackupFile{}, err
-		}
-		if _, err := vault.Verify(dst, lock.Master, scaled(verify, size)); err != nil {
-			os.Remove(dst)
-			return models.BackupFile{}, fmt.Errorf("the backup did not read back: %w", err)
-		}
+		return copyFile(src, dst, scaled(encrypt, size))
 	}
-	return Describe(dst)
+	h := vault.Header{Kind: vault.KindBackup, Slots: lock.Slots, App: app}
+	if err := vault.EncryptFile(src, dst, lock.Master, h, scaled(encrypt, size)); err != nil {
+		return err
+	}
+	if _, err := vault.Verify(dst, lock.Master, scaled(verify, size)); err != nil {
+		os.Remove(dst)
+		return fmt.Errorf("the backup did not read back: %w", err)
+	}
+	return nil
 }
 
 func copyFile(src, dst string, progress func(int64)) error {
@@ -191,21 +189,20 @@ func Describe(path string) (models.BackupFile, error) {
 	if err != nil {
 		return models.BackupFile{}, err
 	}
-	at, safety, named := parseName(filepath.Base(path))
-	f := models.BackupFile{
-		Name: filepath.Base(path), Path: path, SizeMB: float64(fi.Size()) / (1 << 20),
-		SafetyCopy: safety, Lock: models.BackupLockNone,
+	f := fromName(filepath.Base(path), fi.Size(), fi.ModTime())
+	f.Path = path
+	in, err := os.Open(path)
+	if err != nil {
+		return f, err
 	}
-	if named {
-		f.Created = at.Format(time.RFC3339)
-	} else {
-		f.Created = fi.ModTime().Format(time.RFC3339)
-	}
-	if vault.IsVaultFile(path) {
-		h, err := vault.ReadFileHeader(path)
-		if err != nil {
-			return f, err
-		}
+	defer in.Close()
+	return describe(f, vault.PeekReader(in))
+}
+
+// describe fills in what opens the copy br starts, from its header, leaving
+// br where it was.
+func describe(f models.BackupFile, br *bufio.Reader) (models.BackupFile, error) {
+	if h, err := vault.PeekHeader(br); err == nil {
 		if h.Kind != vault.KindBackup {
 			return f, ErrNotBackup
 		}
@@ -214,73 +211,26 @@ func Describe(path string) (models.BackupFile, error) {
 			f.Created = h.Created
 		}
 		return f, nil
+	} else if !errors.Is(err, vault.ErrNotVault) {
+		return f, err
 	}
-	if !isSQLite(path) {
+	head, err := br.Peek(16)
+	if err != nil || string(head) != "SQLite format 3\x00" {
 		return f, ErrNotBackup
 	}
+	f.Lock = models.BackupLockNone
 	return f, nil
 }
 
-func isSQLite(path string) bool {
-	in, err := os.Open(path)
-	if err != nil {
-		return false
+// fromName is what a copy's name and size say about it.
+func fromName(name string, size int64, modTime time.Time) models.BackupFile {
+	f := models.BackupFile{Name: name, SizeMB: float64(size) / (1 << 20), Lock: models.BackupLockUnknown}
+	if at, safety, ok := parseName(name); ok {
+		f.Created, f.SafetyCopy = at.Format(time.RFC3339), safety
+	} else if !modTime.IsZero() {
+		f.Created = modTime.Format(time.RFC3339)
 	}
-	defer in.Close()
-	head := make([]byte, 16)
-	_, err = io.ReadFull(in, head)
-	return err == nil && string(head) == "SQLite format 3\x00"
-}
-
-// List lists the copies made here that dir holds, newest first.
-func List(dir string) ([]models.BackupFile, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var out []models.BackupFile
-	for _, ent := range entries {
-		if ent.IsDir() {
-			continue
-		}
-		if _, _, ok := parseName(ent.Name()); !ok {
-			continue
-		}
-		if f, err := Describe(filepath.Join(dir, ent.Name())); err == nil {
-			out = append(out, f)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name > out[j].Name })
-	return out, nil
-}
-
-// Prune deletes the oldest of the scheduled and on-demand copies in dir
-// beyond keep, and says which. The copies made before a restore are left to
-// the user: they are what undoes it.
-func Prune(dir string, keep int) ([]string, error) {
-	if keep < 1 {
-		keep = models.DefaultBackupKeep
-	}
-	files, err := List(dir)
-	if err != nil {
-		return nil, err
-	}
-	var removed []string
-	kept := 0
-	for _, f := range files {
-		if f.SafetyCopy {
-			continue
-		}
-		if kept < keep {
-			kept++
-			continue
-		}
-		if err := os.Remove(f.Path); err != nil {
-			return removed, err
-		}
-		removed = append(removed, f.Name)
-	}
-	return removed, nil
+	return f
 }
 
 // Credentials open a copy: its password, or the recovery key's file.
@@ -296,11 +246,32 @@ func Open(path string, cred Credentials, dst string, progress Progress) (models.
 	if err != nil {
 		return f, err
 	}
-	size := fileSize(path)
-	if f.Lock == models.BackupLockNone {
-		return f, copyFile(path, dst, scaled(progress, size))
+	in, err := os.Open(path)
+	if err != nil {
+		return f, err
 	}
-	h, err := vault.ReadFileHeader(path)
+	defer in.Close()
+	_, err = Unseal(in, fileSize(path), cred, dst, progress)
+	return f, err
+}
+
+// Unseal writes the database the copy read from r holds to dst, a plain
+// SQLite file, which appears only once all of it has authenticated: a copy
+// can be opened as it arrives from a server. size, if known, drives
+// progress. It says what opened the copy.
+func Unseal(r io.Reader, size int64, cred Credentials, dst string, progress Progress) (models.BackupFile, error) {
+	br := vault.PeekReader(r)
+	f, err := describe(models.BackupFile{}, br)
+	if err != nil {
+		return f, err
+	}
+	if f.Lock == models.BackupLockNone {
+		return f, vault.WriteAtomically(dst, func(w io.Writer) error {
+			_, err := io.Copy(w, &progressReader{r: br, progress: scaled(progress, size)})
+			return err
+		})
+	}
+	h, err := vault.PeekHeader(br)
 	if err != nil {
 		return f, err
 	}
@@ -308,10 +279,10 @@ func Open(path string, cred Credentials, dst string, progress Progress) (models.
 	if err != nil {
 		return f, err
 	}
-	if _, err := vault.DecryptFile(path, dst, master, scaled(progress, size)); err != nil {
-		return f, err
-	}
-	return f, nil
+	return f, vault.WriteAtomically(dst, func(w io.Writer) error {
+		_, err := vault.Decrypt(w, br, master, scaled(progress, size))
+		return err
+	})
 }
 
 func unlock(slots []vault.Slot, cred Credentials) (string, error) {
@@ -331,4 +302,12 @@ func unlock(slots []vault.Slot, cred Credentials) (string, error) {
 		return "", ErrWrongCredentials
 	}
 	return master, err
+}
+
+// DescribeName is what a copy's name alone says about it: when it was made.
+func DescribeName(name string) (models.BackupFile, error) {
+	if !IsName(name) {
+		return models.BackupFile{}, ErrNotBackup
+	}
+	return fromName(name, 0, time.Time{}), nil
 }

@@ -212,11 +212,23 @@ func (s *Switch) SetBackupConfig(cfg models.BackupConfig) error {
 	return s.Current().SetBackupConfig(cfg)
 }
 
+func (s *Switch) SaveBackupDestination(d models.BackupDestination) (models.BackupDestination, error) {
+	return s.Current().SaveBackupDestination(d)
+}
+
+func (s *Switch) DeleteBackupDestination(id string) error {
+	return s.Current().DeleteBackupDestination(id)
+}
+
+func (s *Switch) TestBackupDestination(d models.BackupDestination) models.BackupDestinationCheck {
+	return s.Current().TestBackupDestination(d)
+}
+
 func (s *Switch) GetBackupStatus() models.BackupStatus {
 	return s.Current().GetBackupStatus()
 }
 
-func (s *Switch) ListBackups() ([]models.BackupFile, error) {
+func (s *Switch) ListBackups() models.BackupListing {
 	return s.Current().ListBackups()
 }
 
@@ -224,8 +236,8 @@ func (s *Switch) BackupNow() error {
 	return s.Current().BackupNow()
 }
 
-func (s *Switch) RestoreBackup(path string, password string, keyFile []byte) error {
-	return s.Current().RestoreBackup(path, password, keyFile)
+func (s *Switch) RestoreBackup(ref models.BackupRef, password string, keyFile []byte) error {
+	return s.Current().RestoreBackup(ref, password, keyFile)
 }
 
 func (s *Switch) StartSimulator(cfg models.SimulatorConfig) error {
