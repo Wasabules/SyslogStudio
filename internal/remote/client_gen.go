@@ -290,16 +290,33 @@ func (c *Client) SetBackupConfig(cfg models.BackupConfig) error {
 	return err
 }
 
+func (c *Client) SaveBackupDestination(d models.BackupDestination) (models.BackupDestination, error) {
+	var r0 models.BackupDestination
+	err := c.call("SaveBackupDestination", []any{d}, &r0)
+	return r0, err
+}
+
+func (c *Client) DeleteBackupDestination(id string) error {
+	err := c.call("DeleteBackupDestination", []any{id})
+	return err
+}
+
+func (c *Client) TestBackupDestination(d models.BackupDestination) models.BackupDestinationCheck {
+	var r0 models.BackupDestinationCheck
+	c.logLost("TestBackupDestination", c.call("TestBackupDestination", []any{d}, &r0))
+	return r0
+}
+
 func (c *Client) GetBackupStatus() models.BackupStatus {
 	var r0 models.BackupStatus
 	c.logLost("GetBackupStatus", c.call("GetBackupStatus", []any{}, &r0))
 	return r0
 }
 
-func (c *Client) ListBackups() ([]models.BackupFile, error) {
-	var r0 []models.BackupFile
-	err := c.call("ListBackups", []any{}, &r0)
-	return r0, err
+func (c *Client) ListBackups() models.BackupListing {
+	var r0 models.BackupListing
+	c.logLost("ListBackups", c.call("ListBackups", []any{}, &r0))
+	return r0
 }
 
 func (c *Client) BackupNow() error {
@@ -307,8 +324,8 @@ func (c *Client) BackupNow() error {
 	return err
 }
 
-func (c *Client) RestoreBackup(path string, password string, keyFile []byte) error {
-	err := c.call("RestoreBackup", []any{path, password, keyFile})
+func (c *Client) RestoreBackup(ref models.BackupRef, password string, keyFile []byte) error {
+	err := c.call("RestoreBackup", []any{ref, password, keyFile})
 	return err
 }
 
@@ -456,4 +473,11 @@ func (c *Client) InboxBatch(id string) ([]byte, error) {
 func (c *Client) InboxAck(id string) error {
 	err := c.call("InboxAck", []any{id})
 	return err
+}
+
+func (c *Client) BackupDestinationAccess(id string) (models.BackupDestination, models.BackupAccess, error) {
+	var r0 models.BackupDestination
+	var r1 models.BackupAccess
+	err := c.call("BackupDestinationAccess", []any{id}, &r0, &r1)
+	return r0, r1, err
 }

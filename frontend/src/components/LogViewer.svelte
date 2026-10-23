@@ -512,8 +512,8 @@
 
     // A backup opened or closed: the history is another database now.
     let prevView = '';
-    $: if ($logViewMode === 'history' && ($backupView.path || '') !== prevView) {
-        prevView = $backupView.path || '';
+    $: if ($logViewMode === 'history' && ($backupView.open ? JSON.stringify($backupView.ref) : '') !== prevView) {
+        prevView = $backupView.open ? JSON.stringify($backupView.ref) : '';
         if (isGrouped) loadHistoryGroups();
         else loadHistoryPage(1);
     }

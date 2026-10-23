@@ -83,13 +83,20 @@ func (b sealedBackend) GetBackupConfig() models.BackupConfig { return b.store.Ge
 func (b sealedBackend) SetBackupConfig(cfg models.BackupConfig) error {
 	return b.store.SetBackupConfig(cfg)
 }
-func (b sealedBackend) GetBackupStatus() models.BackupStatus { return b.store.GetBackupStatus() }
-func (b sealedBackend) ListBackups() ([]models.BackupFile, error) {
-	return b.store.ListBackups()
+func (b sealedBackend) SaveBackupDestination(d models.BackupDestination) (models.BackupDestination, error) {
+	return b.store.SaveBackupDestination(d)
 }
-func (b sealedBackend) BackupNow() error { return b.store.BackupNow() }
-func (b sealedBackend) RestoreBackup(path, password string, keyFile []byte) error {
-	return b.store.RestoreBackup(path, password, keyFile)
+func (b sealedBackend) DeleteBackupDestination(id string) error {
+	return b.store.DeleteBackupDestination(id)
+}
+func (b sealedBackend) TestBackupDestination(d models.BackupDestination) models.BackupDestinationCheck {
+	return b.store.TestBackupDestination(d)
+}
+func (b sealedBackend) GetBackupStatus() models.BackupStatus { return b.store.GetBackupStatus() }
+func (b sealedBackend) ListBackups() models.BackupListing    { return b.store.ListBackups() }
+func (b sealedBackend) BackupNow() error                     { return b.store.BackupNow() }
+func (b sealedBackend) RestoreBackup(ref models.BackupRef, password string, keyFile []byte) error {
+	return b.store.RestoreBackup(ref, password, keyFile)
 }
 
 // sealedPair is the connection and the database to collect between, while

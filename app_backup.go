@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -53,6 +54,15 @@ func (a *App) SelectBackupFile() (string, error) {
 		Title: "Open a backup",
 		Filters: []wailsRuntime.FileFilter{
 			{DisplayName: "SyslogStudio backups (*.ssbackup, *.db)", Pattern: "*" + backup.Ext + ";*" + backup.PlainExt},
+			{DisplayName: "All Files", Pattern: "*.*"},
+		},
+	})
+}
+
+func (a *App) SelectSSHKeyFile() (string, error) {
+	return wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Select the SSH private key",
+		Filters: []wailsRuntime.FileFilter{
 			{DisplayName: "All Files", Pattern: "*.*"},
 		},
 	})
@@ -130,24 +140,76 @@ func (a *App) UnlockWithRecoveryKeyFile(path string) error {
 	return a.UnlockWithRecoveryKey(data)
 }
 
-// RestoreBackupFile restores the copy at path, opened with password or the
-// recovery key in the file at keyPath.
-func (a *App) RestoreBackupFile(path, password, keyPath string) error {
+// RestoreBackupFile restores the copy ref names, opened with password or
+// the recovery key in the file at keyPath.
+func (a *App) RestoreBackupFile(ref models.BackupRef, password, keyPath string) error {
 	key, err := readKeyFile(keyPath)
 	if err != nil {
 		return err
 	}
-	return a.Backend.RestoreBackup(path, password, key)
+	return a.Backend.RestoreBackup(ref, password, key)
+}
+
+// withKeyFile puts the SSH private key in the file at keyPath into the
+// form's write-only secret: read here, it never passes through the
+// interface.
+func withKeyFile(d models.BackupDestination, keyPath string) (models.BackupDestination, error) {
+	if keyPath == "" {
+		return d, nil
+	}
+	key, err := readKeyFile(keyPath)
+	if err != nil {
+		return d, err
+	}
+	d.Secret = string(key)
+	return d, nil
+}
+
+// SaveBackupDestinationForm saves a destination as the form has it, with
+// the SSH key in the file at keyPath if one was chosen.
+func (a *App) SaveBackupDestinationForm(d models.BackupDestination, keyPath string) (models.BackupDestination, error) {
+	d, err := withKeyFile(d, keyPath)
+	if err != nil {
+		return models.BackupDestination{}, err
+	}
+	return a.Backend.SaveBackupDestination(d)
+}
+
+// TestBackupDestinationForm tests a destination as the form has it.
+func (a *App) TestBackupDestinationForm(d models.BackupDestination, keyPath string) models.BackupDestinationCheck {
+	d, err := withKeyFile(d, keyPath)
+	if err != nil {
+		return models.BackupDestinationCheck{Error: err.Error()}
+	}
+	return a.Backend.TestBackupDestination(d)
+}
+
+// backupOwner is the engine that keeps the backups: the service's, or the
+// window's own when it keeps the database — alone, or for a service that
+// seals.
+func (a *App) backupOwner() interface {
+	BackupDestinationAccess(id string) (models.BackupDestination, models.BackupAccess, error)
+} {
+	a.link.mu.Lock()
+	defer a.link.mu.Unlock()
+	switch {
+	case a.link.sealed && a.link.store != nil:
+		return a.link.store
+	case a.link.client != nil:
+		return a.link.client
+	}
+	return a.engine
 }
 
 func (a *App) viewPath() string {
 	return filepath.Join(a.prefs.Dir(), viewFile)
 }
 
-// OpenBackup opens the copy at path to be read, with password or the
+// OpenBackup opens the copy ref names to be read, with password or the
 // recovery key in the file at keyPath: the History shows it until
-// CloseBackup.
-func (a *App) OpenBackup(path, password, keyPath string) (models.BackupView, error) {
+// CloseBackup. A copy on a server is read as it arrives, by this process:
+// nothing of it passes through a service.
+func (a *App) OpenBackup(ref models.BackupRef, password, keyPath string) (models.BackupView, error) {
 	key, err := readKeyFile(keyPath)
 	if err != nil {
 		return models.BackupView{}, err
@@ -155,14 +217,42 @@ func (a *App) OpenBackup(path, password, keyPath string) (models.BackupView, err
 	a.CloseBackup()
 	dst := a.viewPath()
 	os.Remove(dst)
-	f, err := backup.Open(path, backup.Credentials{Password: password, KeyFile: key}, dst, func(p float64) {
+
+	var src io.ReadCloser
+	var size int64
+	name, where := ref.Name, ""
+	if ref.Destination != "" {
+		d, access, err := a.backupOwner().BackupDestinationAccess(ref.Destination)
+		if err != nil {
+			return models.BackupView{}, err
+		}
+		if src, size, err = backup.Fetch(context.Background(), d, access, ref.Name); err != nil {
+			return models.BackupView{}, err
+		}
+		where = d.Name
+	} else {
+		if src, err = os.Open(ref.Path); err != nil {
+			return models.BackupView{}, err
+		}
+		if fi, err := os.Stat(ref.Path); err == nil {
+			size = fi.Size()
+		}
+		name = filepath.Base(ref.Path)
+	}
+	f, err := backup.Unseal(src, size, backup.Credentials{Password: password, KeyFile: key}, dst, func(p float64) {
 		if a.ctx != nil {
 			wailsRuntime.EventsEmit(a.ctx, "backup:openProgress", p*100)
 		}
 	})
+	src.Close()
 	if err != nil {
 		os.Remove(dst)
 		return models.BackupView{}, err
+	}
+	if f.Created == "" {
+		if described, err := backup.DescribeName(name); err == nil {
+			f.Created = described.Created
+		}
 	}
 	store, err := storage.OpenSnapshot(dst)
 	if err != nil {
@@ -171,13 +261,13 @@ func (a *App) OpenBackup(path, password, keyPath string) (models.BackupView, err
 	}
 	count, oldest, newest := store.Span()
 	info := models.BackupView{
-		Open: true, Name: f.Name, Path: path, Created: f.Created,
+		Open: true, Ref: ref, Name: name, Destination: where, Created: f.Created,
 		Messages: count, Oldest: oldest, Newest: newest,
 	}
 	a.view.mu.Lock()
 	a.view.store, a.view.info = store, info
 	a.view.mu.Unlock()
-	slog.Info("backup opened for reading", "file", path, "messages", count)
+	slog.Info("backup opened for reading", "file", name, "from", where, "messages", count)
 	return info, nil
 }
 

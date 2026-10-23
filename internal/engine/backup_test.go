@@ -34,32 +34,50 @@ func openEngine(t *testing.T, msgs []models.SyslogMessage) (*Engine, string) {
 	return e, dir
 }
 
-// backupNow runs BackupNow and waits for it, as the window does.
-func backupNow(t *testing.T, e *Engine) models.BackupFile {
+// waitBackup waits for the copy that runs to finish.
+func waitBackup(t *testing.T, e *Engine) {
 	t.Helper()
-	before := e.GetBackupStatus().LastAt
-	if err := e.BackupNow(); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(60 * time.Second)
 	for e.GetBackupStatus().Running {
 		if time.Now().After(deadline) {
 			t.Fatal("the backup did not finish")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	st := e.GetBackupStatus()
-	if st.LastError != "" {
-		t.Fatalf("the backup failed: %s", st.LastError)
+}
+
+// backupNow runs BackupNow and waits for it, as the window does, then
+// returns the newest copy listed — the first destination's.
+func backupNow(t *testing.T, e *Engine) models.BackupFile {
+	t.Helper()
+	if err := e.BackupNow(); err != nil {
+		t.Fatal(err)
 	}
-	if st.LastAt == before && before != "" {
-		t.Fatal("no new backup was recorded")
+	waitBackup(t, e)
+	for _, d := range e.GetBackupStatus().Destinations {
+		if d.LastError != "" {
+			t.Fatalf("the backup to %s failed: %s", d.Name, d.LastError)
+		}
 	}
-	files, err := e.ListBackups()
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no backup listed (%v)", err)
+	listing := e.ListBackups()
+	for _, p := range listing.Problems {
+		t.Fatalf("%s could not be listed: %s", p.Name, p.Error)
 	}
-	return files[0]
+	for _, f := range listing.Files {
+		if !f.SafetyCopy {
+			return f
+		}
+	}
+	t.Fatal("no backup listed")
+	return models.BackupFile{}
+}
+
+// refOf names a listed copy.
+func refOf(f models.BackupFile) models.BackupRef {
+	if f.Destination == "" {
+		return models.BackupRef{Path: f.Path}
+	}
+	return models.BackupRef{Destination: f.Destination, Name: f.Name}
 }
 
 // backupHolds opens the copy at path with cred and says how many messages it
@@ -79,10 +97,11 @@ func backupHolds(t *testing.T, path string, cred backup.Credentials) (int64, err
 	return n, nil
 }
 
+// setBackupDir adds a folder destination, and says the folder.
 func setBackupDir(t *testing.T, e *Engine) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "backups")
-	if err := e.SetBackupConfig(models.BackupConfig{Dir: dir}); err != nil {
+	if _, err := e.SaveBackupDestination(models.BackupDestination{Name: "disk", Kind: models.BackupToFolder, Enabled: true, Path: dir}); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -195,24 +214,21 @@ func TestBackup_RestoreKeepsASafetyCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := e.RestoreBackup(f.Path, "not the password", nil); err == nil {
+	if err := e.RestoreBackup(refOf(f), "not the password", nil); err == nil {
 		t.Fatal("a restore went ahead with a wrong password")
 	}
 	if n, _, _ := e.logStore.Span(); n != 50 {
 		t.Fatalf("a refused restore changed the database: %d messages", n)
 	}
 
-	if err := e.RestoreBackup(f.Path, backupPassword, nil); err != nil {
+	if err := e.RestoreBackup(refOf(f), backupPassword, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.logStore.WaitReady()
 	if n, _, _ := e.logStore.Span(); n != 30 {
 		t.Fatalf("after the restore the database holds %d messages, want the backup's 30", n)
 	}
-	files, err := e.ListBackups()
-	if err != nil {
-		t.Fatal(err)
-	}
+	files := e.ListBackups().Files
 	var safety *models.BackupFile
 	for i := range files {
 		if files[i].SafetyCopy {
@@ -245,39 +261,51 @@ func TestBackup_RestoreKeepsASafetyCopy(t *testing.T) {
 }
 
 // A copy owed by the schedule is made up once the application runs again —
-// once the database is unlocked — and a failed one is retried an hour later.
+// once the database is unlocked — and one that failed to a destination is
+// retried an hour later, for that destination.
 func TestBackup_ScheduleCatchesUp(t *testing.T) {
 	e, _ := openEngine(t, nil)
-	dir := filepath.Join(t.TempDir(), "backups")
-	cfg := models.BackupConfig{Enabled: true, Dir: dir, Schedule: models.CleanupSchedule{Every: models.CleanupDaily, At: "03:00"}}
-	if err := e.SetBackupConfig(cfg); err != nil {
+	setBackupDir(t, e)
+	id := e.GetBackupConfig().Destinations[0].ID
+	if err := e.SetBackupConfig(models.BackupConfig{Enabled: true, Schedule: models.CleanupSchedule{Every: models.CleanupDaily, At: "03:00"}}); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
 	prev := storage.PreviousRun(e.GetBackupConfig().Schedule, now)
 	at := func(d time.Duration) string { return prev.Add(d).Format(time.RFC3339) }
+	due := func(e *Engine) bool { return len(e.dueDestinations(now)) > 0 }
+	set := func(ds destState) {
+		e.updateBackupState(func(st *backupState) {
+			st.Since = at(-48 * time.Hour)
+			st.Destinations[id] = ds
+		})
+	}
 
-	if e.backupDue(now) {
+	if due(e) {
 		t.Error("a schedule just set owes a backup at once")
 	}
-	e.saveBackupState(backupState{Since: at(-48 * time.Hour)})
-	if !e.backupDue(now) {
+	set(destState{})
+	if !due(e) {
 		t.Error("a missed backup is not made up")
 	}
-	e.saveBackupState(backupState{Since: at(-48 * time.Hour), LastAt: at(time.Minute)})
-	if e.backupDue(now) {
+	set(destState{Since: at(time.Minute)})
+	if due(e) {
+		t.Error("a destination added after the run owes it")
+	}
+	set(destState{LastAt: at(time.Minute)})
+	if due(e) {
 		t.Error("a backup already made is owed again")
 	}
-	e.saveBackupState(backupState{Since: at(-48 * time.Hour), LastFailAt: now.Add(-10 * time.Minute).Format(time.RFC3339)})
-	if e.backupDue(now) && now.Sub(prev) > 10*time.Minute {
+	set(destState{LastFailAt: now.Add(-10 * time.Minute).Format(time.RFC3339)})
+	if due(e) && now.Sub(prev) > 10*time.Minute {
 		t.Error("a failed backup is retried at once")
 	}
-	e.saveBackupState(backupState{Since: at(-48 * time.Hour), LastFailAt: now.Add(-2 * time.Hour).Format(time.RFC3339)})
-	if now.Sub(prev) > 2*time.Hour && !e.backupDue(now) {
+	set(destState{LastFailAt: now.Add(-2 * time.Hour).Format(time.RFC3339)})
+	if now.Sub(prev) > 2*time.Hour && !due(e) {
 		t.Error("a failed backup is not retried an hour later")
 	}
 
-	e.saveBackupState(backupState{Since: at(-48 * time.Hour)})
+	set(destState{})
 	if err := e.EnableEncryption(backupPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -287,13 +315,13 @@ func TestBackup_ScheduleCatchesUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer locked.Close()
-	if locked.backupDue(now) {
+	if due(locked) {
 		t.Error("a locked database owes a backup")
 	}
 	if err := locked.UnlockDatabase(backupPassword); err != nil {
 		t.Fatal(err)
 	}
-	if !locked.backupDue(now) {
+	if !due(locked) {
 		t.Error("the missed backup is not owed once the database is unlocked")
 	}
 }
@@ -306,13 +334,19 @@ func TestBackup_UnwritableFolderIsRefused(t *testing.T) {
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetBackupConfig(models.BackupConfig{Enabled: true, Dir: file}); err == nil {
+	folder := func(path string) models.BackupDestination {
+		return models.BackupDestination{Kind: models.BackupToFolder, Enabled: true, Path: path}
+	}
+	if _, err := e.SaveBackupDestination(folder(file)); err == nil {
 		t.Error("a file was accepted as the backup folder")
 	}
-	if err := e.SetBackupConfig(models.BackupConfig{Enabled: true}); !errors.Is(err, ErrNoBackupDir) {
-		t.Errorf("backups were turned on without a folder: %v", err)
-	}
-	if err := e.SetBackupConfig(models.BackupConfig{Dir: "relative/dir"}); err == nil {
+	if _, err := e.SaveBackupDestination(folder("relative/dir")); err == nil {
 		t.Error("a relative folder was accepted")
+	}
+	if err := e.SetBackupConfig(models.BackupConfig{Enabled: true}); !errors.Is(err, ErrNoDestination) {
+		t.Errorf("backups were turned on with nowhere to go: %v", err)
+	}
+	if err := e.BackupNow(); !errors.Is(err, ErrNoDestination) {
+		t.Errorf("a backup started with nowhere to go: %v", err)
 	}
 }

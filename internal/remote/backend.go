@@ -93,10 +93,13 @@ type Backend interface {
 	// Backups
 	GetBackupConfig() models.BackupConfig
 	SetBackupConfig(cfg models.BackupConfig) error
+	SaveBackupDestination(d models.BackupDestination) (models.BackupDestination, error)
+	DeleteBackupDestination(id string) error
+	TestBackupDestination(d models.BackupDestination) models.BackupDestinationCheck
 	GetBackupStatus() models.BackupStatus
-	ListBackups() ([]models.BackupFile, error)
+	ListBackups() models.BackupListing
 	BackupNow() error
-	RestoreBackup(path, password string, keyFile []byte) error
+	RestoreBackup(ref models.BackupRef, password string, keyFile []byte) error
 
 	// Simulator
 	StartSimulator(cfg models.SimulatorConfig) error
@@ -154,4 +157,9 @@ type Host interface {
 	InboxBatches() ([]models.InboxBatch, error)
 	InboxBatch(id string) ([]byte, error)
 	InboxAck(id string) error
+
+	// BackupDestinationAccess is a backup destination and what signs in to
+	// it, for the window to read a backup itself: with its user's rights,
+	// and without sending the copy through the service.
+	BackupDestinationAccess(id string) (models.BackupDestination, models.BackupAccess, error)
 }

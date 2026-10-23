@@ -37,9 +37,13 @@ export function CreateRecoveryKey():Promise<models.RecoveryKeyInfo>;
 
 export function DeleteAlertRule(arg1:string):Promise<boolean>;
 
+export function DeleteBackupDestination(arg1:string):Promise<void>;
+
 export function DeleteNotifyRoute(arg1:string):Promise<void>;
 
 export function DeleteNotifySink(arg1:string):Promise<void>;
+
+export function DescribeBackup(arg1:string):Promise<models.BackupFile>;
 
 export function DisableEncryption(arg1:string):Promise<void>;
 
@@ -157,11 +161,11 @@ export function IsTrayAvailable():Promise<boolean>;
 
 export function IsUnlockedByRecoveryKey():Promise<boolean>;
 
-export function ListBackups():Promise<Array<models.BackupFile>>;
+export function ListBackups():Promise<models.BackupListing>;
 
 export function LoadPersistedCA():Promise<void>;
 
-export function OpenBackup(arg1:string,arg2:string,arg3:string):Promise<models.BackupView>;
+export function OpenBackup(arg1:models.BackupRef,arg2:string,arg3:string):Promise<models.BackupView>;
 
 export function OpenURL(arg1:string):Promise<void>;
 
@@ -177,11 +181,15 @@ export function RemoveRecoveryKey():Promise<void>;
 
 export function ResetEncryptionPassword(arg1:string):Promise<void>;
 
-export function RestoreBackup(arg1:string,arg2:string,arg3:Array<number>):Promise<void>;
+export function RestoreBackup(arg1:models.BackupRef,arg2:string,arg3:Array<number>):Promise<void>;
 
-export function RestoreBackupFile(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function RestoreBackupFile(arg1:models.BackupRef,arg2:string,arg3:string):Promise<void>;
 
 export function RevealWindow():Promise<void>;
+
+export function SaveBackupDestination(arg1:models.BackupDestination):Promise<models.BackupDestination>;
+
+export function SaveBackupDestinationForm(arg1:models.BackupDestination,arg2:string):Promise<models.BackupDestination>;
 
 export function SaveNotifyRoute(arg1:notify.Route):Promise<void>;
 
@@ -204,6 +212,8 @@ export function SelectKeyFile():Promise<string>;
 export function SelectLogFile():Promise<string>;
 
 export function SelectRecoveryKeyFile():Promise<string>;
+
+export function SelectSSHKeyFile():Promise<string>;
 
 export function SetAutoStartListeners(arg1:boolean):Promise<void>;
 
@@ -236,6 +246,10 @@ export function StopServer():Promise<void>;
 export function StopSimulator():Promise<void>;
 
 export function StopSystemService():Promise<void>;
+
+export function TestBackupDestination(arg1:models.BackupDestination):Promise<models.BackupDestinationCheck>;
+
+export function TestBackupDestinationForm(arg1:models.BackupDestination,arg2:string):Promise<models.BackupDestinationCheck>;
 
 export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
 

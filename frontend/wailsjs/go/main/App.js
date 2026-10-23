@@ -66,12 +66,20 @@ export function DeleteAlertRule(arg1) {
   return window['go']['main']['App']['DeleteAlertRule'](arg1);
 }
 
+export function DeleteBackupDestination(arg1) {
+  return window['go']['main']['App']['DeleteBackupDestination'](arg1);
+}
+
 export function DeleteNotifyRoute(arg1) {
   return window['go']['main']['App']['DeleteNotifyRoute'](arg1);
 }
 
 export function DeleteNotifySink(arg1) {
   return window['go']['main']['App']['DeleteNotifySink'](arg1);
+}
+
+export function DescribeBackup(arg1) {
+  return window['go']['main']['App']['DescribeBackup'](arg1);
 }
 
 export function DisableEncryption(arg1) {
@@ -358,6 +366,14 @@ export function RevealWindow() {
   return window['go']['main']['App']['RevealWindow']();
 }
 
+export function SaveBackupDestination(arg1) {
+  return window['go']['main']['App']['SaveBackupDestination'](arg1);
+}
+
+export function SaveBackupDestinationForm(arg1, arg2) {
+  return window['go']['main']['App']['SaveBackupDestinationForm'](arg1, arg2);
+}
+
 export function SaveNotifyRoute(arg1) {
   return window['go']['main']['App']['SaveNotifyRoute'](arg1);
 }
@@ -400,6 +416,10 @@ export function SelectLogFile() {
 
 export function SelectRecoveryKeyFile() {
   return window['go']['main']['App']['SelectRecoveryKeyFile']();
+}
+
+export function SelectSSHKeyFile() {
+  return window['go']['main']['App']['SelectSSHKeyFile']();
 }
 
 export function SetAutoStartListeners(arg1) {
@@ -464,6 +484,14 @@ export function StopSimulator() {
 
 export function StopSystemService() {
   return window['go']['main']['App']['StopSystemService']();
+}
+
+export function TestBackupDestination(arg1) {
+  return window['go']['main']['App']['TestBackupDestination'](arg1);
+}
+
+export function TestBackupDestinationForm(arg1, arg2) {
+  return window['go']['main']['App']['TestBackupDestinationForm'](arg1, arg2);
 }
 
 export function TestNotifySink(arg1) {

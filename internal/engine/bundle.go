@@ -4,10 +4,12 @@ package engine
 // application to the system service it installs.
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"SyslogStudio/internal/backup"
 	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
@@ -48,6 +50,12 @@ type Bundle struct {
 	// receives for the holder of the matching private key, and keep no
 	// database. Unset, it stores in a database in the clear.
 	InboxPublicKey []byte `json:"inboxPublicKey,omitempty"`
+
+	// Backup is when copies are made and where they go, for an engine that
+	// keeps a database of its own: its destinations carry their credential
+	// in Secret, as the sinks do. A sealing engine keeps no database, and
+	// the backups stay with the window's.
+	Backup *models.BackupConfig `json:"backup,omitempty"`
 }
 
 // ExportBundle describes this engine for another one to adopt.
@@ -86,6 +94,17 @@ func (e *Engine) ExportBundle() (Bundle, error) {
 			return Bundle{}, err
 		}
 	}
+
+	cfg := e.loadBackupConfig()
+	for i, d := range cfg.Destinations {
+		a := e.accessFor(d)
+		blob, _ := json.Marshal(a)
+		cfg.Destinations[i].Secret, cfg.Destinations[i].Passphrase, cfg.Destinations[i].HasSecret = "", "", false
+		if a != (models.BackupAccess{}) {
+			cfg.Destinations[i].Secret = string(blob)
+		}
+	}
+	b.Backup = &cfg
 	return b, nil
 }
 
@@ -176,6 +195,23 @@ func (e *Engine) ImportBundle(b Bundle) error {
 		sink.HasSecret = false
 		keep[sink.ID] = true
 		sinks = append(sinks, sink)
+	}
+	// Backups follow to an engine that keeps a database: what it receives is
+	// what they copy. A sealing one has none to copy.
+	if b.Backup != nil && len(b.InboxPublicKey) == 0 {
+		cfg := *b.Backup
+		for i, d := range cfg.Destinations {
+			if d.Secret != "" {
+				if err := e.secretStore.Set(d.ID, backup.AccessKey(d), d.Secret); err != nil {
+					return fmt.Errorf("store the credential for %q: %w", d.Name, err)
+				}
+			}
+			cfg.Destinations[i].Secret, cfg.Destinations[i].Passphrase, cfg.Destinations[i].HasSecret = "", "", false
+			keep[d.ID] = true
+		}
+		e.configStore.SaveBackup(cfg)
+	} else {
+		e.backupSecretIDs(keep)
 	}
 	if err := e.secretStore.Prune(keep); err != nil {
 		return fmt.Errorf("drop credentials of removed destinations: %w", err)

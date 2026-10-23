@@ -305,6 +305,8 @@ func (e *Engine) reconfigureNotify() {
 		for _, s := range sinks {
 			keep[s.ID] = true
 		}
+		// The store holds the backup destinations' credentials too.
+		e.backupSecretIDs(keep)
 		if err := e.secretStore.Prune(keep); err != nil {
 			slog.Warn("could not prune orphaned credentials", "error", err)
 		}
