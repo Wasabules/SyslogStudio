@@ -31,45 +31,43 @@ func CertFingerprint(cert *x509.Certificate) string {
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(sum[:])
 }
 
-// ftpsConfig trusts what the system trusts, and otherwise only the
-// certificate the user pinned: a NAS's own certificate is the common case,
-// and refusing it would push people to plain FTP.
+// ftpsConfig trusts what the system trusts, as any TLS client does. A
+// certificate it refuses is named (see unwrapTLS) for the user to pin — a
+// NAS's own is the common case, and refusing it outright would push people
+// to plain FTP — and only then is the system's check set aside, for the
+// pinned certificate alone.
 func ftpsConfig(d models.BackupDestination) *tls.Config {
-	return &tls.Config{
+	cfg := &tls.Config{
 		ServerName: d.Host,
 		MinVersion: tls.VersionTLS12,
 		// Data connections resume the control connection's session, which
 		// many servers require (vsftpd's require_ssl_reuse).
 		ClientSessionCache: tls.NewLRUClientSessionCache(4),
-		// Verified below, by VerifyConnection: trusted chain, or the pin.
-		InsecureSkipVerify: true,
-		VerifyConnection: func(cs tls.ConnectionState) error {
-			if len(cs.PeerCertificates) == 0 {
-				return errors.New("the server presented no certificate")
-			}
-			leaf := cs.PeerCertificates[0]
-			if cs.DidResume {
-				// Resumed from a session whose certificate was checked.
-				return nil
-			}
-			inter := x509.NewCertPool()
-			for _, c := range cs.PeerCertificates[1:] {
-				inter.AddCert(c)
-			}
-			if _, err := leaf.Verify(x509.VerifyOptions{DNSName: d.Host, Intermediates: inter}); err == nil {
-				return nil
-			}
-			fp := CertFingerprint(leaf)
-			detail := leaf.Subject.String()
-			switch {
-			case d.CertPin == "":
-				return &UnknownServerError{Fingerprint: fp, Detail: detail}
-			case fp != d.CertPin:
-				return &ChangedServerError{Pinned: d.CertPin, Fingerprint: fp, Detail: detail}
-			}
-			return nil
-		},
 	}
+	if d.CertPin == "" {
+		return cfg
+	}
+	// Checked by VerifyConnection instead: the chain the system trusts, or
+	// the certificate pinned.
+	cfg.InsecureSkipVerify = d.CertPin != ""
+	cfg.VerifyConnection = func(cs tls.ConnectionState) error {
+		if len(cs.PeerCertificates) == 0 {
+			return errors.New("the server presented no certificate")
+		}
+		leaf := cs.PeerCertificates[0]
+		inter := x509.NewCertPool()
+		for _, c := range cs.PeerCertificates[1:] {
+			inter.AddCert(c)
+		}
+		if _, err := leaf.Verify(x509.VerifyOptions{DNSName: d.Host, Intermediates: inter}); err == nil {
+			return nil
+		}
+		if fp := CertFingerprint(leaf); fp != d.CertPin {
+			return &ChangedServerError{Pinned: d.CertPin, Fingerprint: fp, Detail: leaf.Subject.String()}
+		}
+		return nil
+	}
+	return cfg
 }
 
 func dialFTP(ctx context.Context, d models.BackupDestination, a models.BackupAccess) (Target, error) {
@@ -135,6 +133,12 @@ func unwrapTLS(err error) error {
 	var unknown *UnknownServerError
 	if errors.As(err, &unknown) {
 		return unknown
+	}
+	// A certificate the system does not trust, met for the first time.
+	var refused *tls.CertificateVerificationError
+	if errors.As(err, &refused) && len(refused.UnverifiedCertificates) > 0 {
+		leaf := refused.UnverifiedCertificates[0]
+		return &UnknownServerError{Fingerprint: CertFingerprint(leaf), Detail: leaf.Subject.String()}
 	}
 	var changed *ChangedServerError
 	if errors.As(err, &changed) {
