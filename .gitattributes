@@ -20,3 +20,4 @@
 
 # Files as released versions wrote them: compared byte for byte, never normalised.
 **/testdata/compat/** binary
+internal/vault/testdata/** binary
