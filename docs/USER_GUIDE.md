@@ -164,19 +164,54 @@ Enter an application name string. Messages whose app name contains the entered t
 
 Enter an IP address or partial IP string. Messages whose source IP contains the entered text (case-insensitive) will be displayed.
 
-### Text Search
+### Search
 
-Enter a search term to filter messages by their content. The search checks both the parsed message and the raw message text.
+The search box looks in each message's text and in its raw line. The button beside it switches
+between three modes. Each mode finds the same messages in the live view, in the history and in an
+export.
 
-#### Regex Mode
+#### Text mode (`Aa`)
 
-Toggle the **Regex** option to interpret the search field as a regular expression. This allows advanced patterns such as:
+The words as typed, in that order, the last one possibly unfinished:
+
+- `connection ref` finds "Connection refused".
+- Case, accents and the punctuation between words do not matter: `192.168.1` finds 192.168.1.10.
+- A word is found from its beginning: `onnection` finds nothing. Use Regex mode for that.
+- A search with no letter or digit in it, such as `->`, is looked for exactly as typed.
+
+#### FTS mode (`FTS`)
+
+Words combined with operators:
+
+- `error timeout` or `error AND timeout`: both words, anywhere in the message.
+- `error OR timeout`: either word.
+- `error NOT timeout`: the first word without the second. NOT excludes from what comes before it,
+  so it cannot start a search.
+- `(error OR refused) NOT disk`: parentheses group operators.
+- `"connection refused"`: these words, in this order.
+- `time*`: any word starting with "time".
+- `NEAR(error timeout, 5)`: both words, at most 5 words apart. Without a distance, 10.
+
+Operators work in any case. To search for the word "or" itself, quote it: `"or"`.
+
+#### Regex mode (`.*`)
+
+A regular expression in Go's syntax, without regard to case. For example:
 
 - `error|warning` -- matches messages containing "error" or "warning"
 - `^Failed` -- matches messages starting with "Failed"
 - `\d{3}\.\d{3}\.\d{3}\.\d{3}` -- matches IP address patterns
 
-If the regex is invalid, it is silently ignored and no filtering is applied for that field.
+#### How words are compared
+
+Words are split the way the history's full-text index (SQLite FTS5) splits them:
+
+- letters and digits make words, and anything else separates them;
+- case does not matter;
+- an accent on a Latin letter does not matter either: `délai` finds "delai".
+
+A search that cannot be read is not applied, and a note under the box says why. That covers an
+unclosed quote, an operator with nothing after it and an invalid regular expression.
 
 ### Date Range
 

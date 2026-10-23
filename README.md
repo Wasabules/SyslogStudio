@@ -137,7 +137,8 @@ starts with the computer, before anyone signs in, and that the window then drive
 
 - **Live view** — an in-memory ring buffer of the last 10 000 messages, updating as they arrive
 - **History** — server-side paginated queries over the database, as far back as your retention
-- **Three search modes** — substring, SQLite FTS5 full-text, and Go regular expressions
+- **Three search modes** — words, full-text with AND/OR/NOT/NEAR, and Go regular expressions,
+  finding the same messages in the live view and in the history
 - **Filter, sort and group** by severity, facility, host, application, source IP or time range
 - **Explicit timezones** — follow the machine, pin to UTC, or name a zone; the column header
   says which one it is showing
@@ -232,12 +233,22 @@ starts with the computer, before anyone signs in, and that the window then drive
 
 | Mode | Button | Syntax | Example |
 |------|--------|--------|---------|
-| Text | `Aa` | substring | `connection refused` |
-| FTS | `FTS` | SQLite FTS5 | `error OR fail OR timeout` |
+| Text | `Aa` | these words in this order, the last one possibly unfinished | `connection ref` |
+| FTS | `FTS` | words with AND, OR, NOT, NEAR | `error OR fail OR timeout` |
 | Regex | `.*` | Go regular expressions | `(error\|fail)\s+.*timeout` |
 
-FTS accepts `error fail` (both), `error OR fail`, `error NOT debug`,
-`"connection refused"` (phrase), `err*` (prefix) and `NEAR(error timeout, 5)`.
+FTS accepts:
+- `error fail` (both);
+- `error OR fail` (either);
+- `error NOT debug` (the first without the second);
+- `(error OR fail) NOT debug` (grouping);
+- `"connection refused"` (phrase);
+- `err*` (prefix);
+- `NEAR(error timeout, 5)` (at most 5 words apart).
+
+Operators work in any case. A search is compiled once, in Go, and the live view, the history and
+exports all apply that same compiled search, so they find the same messages. A search that does
+not compile is not applied, and the window says why.
 
 ---
 

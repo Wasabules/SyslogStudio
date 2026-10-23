@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/search"
 
 	_ "modernc.org/sqlite"
 )
@@ -619,21 +619,12 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 		pageSize = 100
 	}
 
-	where, args := buildWhereClause(opts.Filter)
+	plan := search.Compile(opts.Filter.Search, opts.Filter.SearchMode)
+	where, args := buildWhereClause(opts.Filter, &plan)
 	orderBy := buildOrderClause(opts.SortField, opts.SortDir)
 
-	// Regex search requires post-query filtering
-	useRegexFilter := opts.Filter.SearchMode == "regex" && opts.Filter.Search != ""
-	var regexFilter *regexp.Regexp
-	if useRegexFilter {
-		var err error
-		regexFilter, err = models.SafeCompileRegex(opts.Filter.Search)
-		if err != nil {
-			useRegexFilter = false // invalid regex, skip
-		}
-	}
-
-	if useRegexFilter {
+	// A regex is applied after the query, in Go: SQLite has no REGEXP.
+	if plan.NeedsScan() {
 		// Two-pass approach for performance:
 		// Pass 1: scan only id + message + raw_message (lightweight) -> collect matching IDs
 		// Pass 2: fetch full rows only for the current page
@@ -661,7 +652,7 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 				continue
 			}
 			scanned++
-			if regexFilter.MatchString(msg) || regexFilter.MatchString(rawMsg) {
+			if plan.Match(msg, rawMsg) {
 				matchedIDs = append(matchedIDs, id)
 			}
 			if ls.emitter != nil && scanned%5000 == 0 {
@@ -781,7 +772,8 @@ func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string)
 		return nil
 	}
 
-	where, args := buildWhereClause(filter)
+	plan := search.Compile(filter.Search, filter.SearchMode)
+	where, args := buildWhereClause(filter, &plan)
 	query := "SELECT " + col + ", COUNT(*) FROM messages" + where + " GROUP BY " + col + " ORDER BY COUNT(*) DESC"
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -803,30 +795,9 @@ func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string)
 	return groups
 }
 
-// ftsEscapeQuery converts a user search string into a safe FTS5 query.
-// Each word becomes a prefix search term, joined with AND.
-// e.g. "connection refused" -> "connection* AND refused*"
-func ftsEscapeQuery(input string) string {
-	words := strings.Fields(input)
-	if len(words) == 0 {
-		return ""
-	}
-	escaped := make([]string, len(words))
-	for i, w := range words {
-		// Remove FTS5 special characters
-		clean := strings.NewReplacer(
-			"\"", "", "'", "", "(", "", ")", "",
-			"*", "", ":", "", "^", "", "{", "", "}", "",
-		).Replace(w)
-		if clean == "" {
-			clean = w
-		}
-		escaped[i] = "\"" + clean + "\"" + "*"
-	}
-	return strings.Join(escaped, " AND ")
-}
-
-func buildWhereClause(filter models.FilterCriteria) (string, []interface{}) {
+// buildWhereClause turns a filter into SQL, its search compiled into plan; a
+// plan that needs a scan is left for the caller to apply to the rows.
+func buildWhereClause(filter models.FilterCriteria, plan *search.Plan) (string, []interface{}) {
 	var conditions []string
 	var args []interface{}
 
@@ -860,21 +831,14 @@ func buildWhereClause(filter models.FilterCriteria) (string, []interface{}) {
 		conditions = append(conditions, "source_ip LIKE ?")
 		args = append(args, "%"+filter.SourceIP+"%")
 	}
-	if filter.Search != "" && filter.SearchMode != "regex" {
-		if filter.SearchMode == "fts" {
-			// FTS advanced mode: pass query directly to FTS5 (user writes OR, AND, NOT, "phrases", prefix*)
-			conditions = append(conditions, "rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
-			args = append(args, filter.Search)
-		} else {
-			// Text mode: auto-escape for safe FTS5 search
-			ftsQuery := ftsEscapeQuery(filter.Search)
-			if ftsQuery != "" {
-				conditions = append(conditions, "rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
-				args = append(args, ftsQuery)
-			}
-		}
+	if match := plan.FTS5(); match != "" {
+		conditions = append(conditions, "rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
+		args = append(args, match)
+	} else if plan.Active() && plan.Literal != "" {
+		// No word to look up in the index: read the text itself.
+		conditions = append(conditions, "(instr(lower(message), ?) > 0 OR instr(lower(raw_message), ?) > 0)")
+		args = append(args, plan.Literal, plan.Literal)
 	}
-	// Regex search is applied post-query in Go (SQLite doesn't support REGEXP)
 	if filter.DateFrom != "" {
 		conditions = append(conditions, "timestamp >= ?")
 		args = append(args, filter.DateFrom)

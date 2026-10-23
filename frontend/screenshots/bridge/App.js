@@ -24,6 +24,7 @@
 
 import './runtime.js';
 import { isDemo, override, delayed } from './scene.js';
+import { words, planMatcher } from '../../src/lib/search';
 import {
   MESSAGES, STATS, SERVER_CONFIG, SERVER_STATUS,
   ALERT_RULES, ALERT_HISTORY,
@@ -82,19 +83,39 @@ function refuse(name) {
   return Promise.reject(new Error(DEMO_ONLY[name]));
 }
 
+/**
+ * Compile a search as internal/search does, closely enough for a page with no
+ * Go behind it: the text mode exactly — it is one run of words — and the FTS
+ * mode as words joined by AND and OR, without quotes, parentheses or NOT. The
+ * application compiles every query in Go; only the demo needs this.
+ */
+function compileDemoSearch(query, mode) {
+  const q = (query || '').trim();
+  if (!q) return { mode };
+  if (mode === 'regex') return { mode, pattern: query };
+  if (mode === 'fts') {
+    const any = q.split(/\s+or\s+/i).map((part) => ({
+      op: 'and',
+      kids: part.split(/\s+(?:and\s+)?/i)
+        .map((w) => ({ op: 'words', words: words(w), prefix: w.endsWith('*') }))
+        .filter((n) => n.words.length),
+    })).filter((n) => n.kids.length);
+    return any.length ? { mode, root: { op: 'or', kids: any } } : { mode };
+  }
+  const ws = words(q);
+  return ws.length ? { mode, root: { op: 'words', words: ws, prefix: true } } : { mode, literal: q.toLowerCase() };
+}
+
 /** Filter the fixture the way the backend's FilterCriteria would. */
 function applyFilter(list, criteria) {
   if (!criteria) return list;
-  const text = (criteria.searchText || '').toLowerCase();
+  const search = criteria.search ? planMatcher(compileDemoSearch(criteria.search, criteria.searchMode)) : null;
   return list.filter((m) => {
     if (criteria.minSeverity !== undefined && criteria.minSeverity !== null
       && m.severity > criteria.minSeverity) return false;
     if (criteria.hostname && !m.hostname.includes(criteria.hostname)) return false;
     if (criteria.appName && !m.appName.includes(criteria.appName)) return false;
-    if (text) {
-      const hay = `${m.message} ${m.hostname} ${m.appName} ${m.sourceIP}`.toLowerCase();
-      if (!hay.includes(text)) return false;
-    }
+    if (search && !search({ message: m.message || '', rawMessage: m.rawMessage || '' })) return false;
     return true;
   });
 }
@@ -118,6 +139,7 @@ const HANDLERS = {
 
   // messages
   GetMessages: (criteria) => Promise.resolve(clone(applyFilter(messages, criteria))),
+  CompileSearch: (query, mode) => Promise.resolve(compileDemoSearch(query, mode)),
   ClearMessages: () => { messages = []; return Promise.resolve(null); },
   GetStats: () => Promise.resolve(clone(STATS)),
   ExportLogs: () => refuse('ExportLogs'),
@@ -330,7 +352,7 @@ if (typeof window !== 'undefined') {
 
 export const {
   StartServer, StopServer, GetServerStatus, GetDefaultConfig, GetLocalIPs, GetNetworkInterfaces,
-  GetMessages, ClearMessages, GetStats, ExportLogs, QueryMessages, QueryMessageGroups,
+  GetMessages, CompileSearch, ClearMessages, GetStats, ExportLogs, QueryMessages, QueryMessageGroups,
   SelectLogFile, PreviewLogFile, ImportLogFile, GetImportFormat,
   GetAlertRules, AddAlertRule, UpdateAlertRule, DeleteAlertRule, GetAlertHistory, ClearAlertHistory,
   GetNotifyRoutes, GetNotifySinks, SaveNotifyRoute, DeleteNotifyRoute, SaveNotifySink,

@@ -46,6 +46,10 @@ export function CompactDatabase() {
   return window['go']['main']['App']['CompactDatabase']();
 }
 
+export function CompileSearch(arg1, arg2) {
+  return window['go']['main']['App']['CompileSearch'](arg1, arg2);
+}
+
 export function DeleteAlertRule(arg1) {
   return window['go']['main']['App']['DeleteAlertRule'](arg1);
 }

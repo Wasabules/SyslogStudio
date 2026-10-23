@@ -1,5 +1,7 @@
 import { writable, readable, derived } from 'svelte/store';
 import type { Readable } from 'svelte/store';
+import { planMatcher, type SearchPlan } from './search';
+import { compileSearch } from './api';
 
 export interface SyslogMessage {
     id: string;
@@ -181,6 +183,31 @@ export const filter = writable<FilterCriteria>({
     dateTo: '',
 });
 
+/**
+ * The search, compiled by Go into the plan the history and an export apply
+ * too: the window never reads a query itself, so the live view finds what they
+ * find. Recompiled whenever the search or its mode changes; an answer that
+ * arrives after a newer question is dropped.
+ */
+export const searchPlan = writable<SearchPlan | null>(null);
+
+let compiling = 0;
+let compiledKey = '';
+filter.subscribe(f => {
+    const mode = f.searchMode || 'text';
+    const key = JSON.stringify([mode, f.search]);
+    if (key === compiledKey) return;
+    compiledKey = key;
+    const ticket = ++compiling;
+    if (!f.search.trim()) {
+        searchPlan.set(null);
+        return;
+    }
+    compileSearch(f.search, mode)
+        .then(plan => { if (ticket === compiling) searchPlan.set(plan); })
+        .catch(() => { if (ticket === compiling) searchPlan.set(null); });
+});
+
 export const selectedMessage = writable<SyslogMessage | null>(null);
 
 /**
@@ -278,7 +305,7 @@ export interface GroupSummary {
 }
 
 // Pre-compute filter values once per filter change to avoid recalculating per message
-function buildFilterFn($filter: FilterCriteria): (msg: SyslogMessage) => boolean {
+function buildFilterFn($filter: FilterCriteria, plan: SearchPlan | null): (msg: SyslogMessage) => boolean {
     const hasSev = $filter.severities.length > 0;
     const sevSet = hasSev ? new Set($filter.severities) : null;
     const hasFac = $filter.facilities.length > 0;
@@ -290,18 +317,7 @@ function buildFilterFn($filter: FilterCriteria): (msg: SyslogMessage) => boolean
     let toTs = $filter.dateTo ? new Date($filter.dateTo).getTime() : NaN;
     if (!isNaN(toTs) && $filter.dateTo.length <= 10) toTs += 86400000 - 1;
 
-    let searchRegex: RegExp | null = null;
-    let searchWords: string[] = [];
-    const mode = $filter.searchMode || 'text';
-    if ($filter.search) {
-        if (mode === 'regex') {
-            try { searchRegex = new RegExp($filter.search, 'i'); } catch {}
-        } else if (mode === 'fts') {
-            // FTS mode in live: split OR terms and do client-side matching
-            searchWords = $filter.search.split(/\s+OR\s+/i).map(w => w.replace(/['"*]/g, '').toLowerCase().trim()).filter(Boolean);
-        }
-    }
-    const searchLower = $filter.search?.toLowerCase() || '';
+    const search = $filter.search ? planMatcher(plan) : null;
 
     return (msg: SyslogMessage): boolean => {
         if (sevSet && !sevSet.has(msg.severity)) return false;
@@ -311,19 +327,7 @@ function buildFilterFn($filter: FilterCriteria): (msg: SyslogMessage) => boolean
         if (srcLower && !msg.sourceIP.toLowerCase().includes(srcLower)) return false;
         if (!isNaN(fromTs) && new Date(msg.timestamp).getTime() < fromTs) return false;
         if (!isNaN(toTs) && new Date(msg.timestamp).getTime() > toTs) return false;
-        if ($filter.search) {
-            const msgLower = msg.message.toLowerCase();
-            const rawLower = msg.rawMessage.toLowerCase();
-            if (mode === 'regex') {
-                if (searchRegex && !searchRegex.test(msg.message) && !searchRegex.test(msg.rawMessage)) return false;
-            } else if (mode === 'fts' && searchWords.length > 0) {
-                // Match any of the OR terms (client-side approximation of FTS5)
-                const found = searchWords.some(w => msgLower.includes(w) || rawLower.includes(w));
-                if (!found) return false;
-            } else {
-                if (!msgLower.includes(searchLower) && !rawLower.includes(searchLower)) return false;
-            }
-        }
+        if (search && !search(msg)) return false;
         return true;
     };
 }
@@ -380,11 +384,13 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
         let f: FilterCriteria = { severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', searchMode: 'text' as SearchMode, dateFrom: '', dateTo: '' };
         let sc: SortColumn = '';
         let sd: SortDir = 'desc';
+        let plan: SearchPlan | null = null;
         messages.subscribe(v => { msgs = v; })();
         filter.subscribe(v => { f = v; })();
+        searchPlan.subscribe(v => { plan = v; })();
         sortColumn.subscribe(v => { sc = v; })();
         sortDirection.subscribe(v => { sd = v; })();
-        const fn = buildFilterFn(f);
+        const fn = buildFilterFn(f, plan);
         let result = msgs.filter(fn);
         const cmp = buildSortComparator(sc, sd);
         if (cmp) result = [...result].sort(cmp);
@@ -403,6 +409,7 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
 
     const unsub1 = messages.subscribe(() => scheduleRecalc());
     const unsub2 = filter.subscribe(() => scheduleRecalc());
+    const unsubPlan = searchPlan.subscribe(() => scheduleRecalc());
     const unsub3 = sortColumn.subscribe(() => scheduleRecalc());
     const unsub4 = sortDirection.subscribe(() => scheduleRecalc());
     // Releasing rebuilds immediately: waiting out the throttle would leave the
@@ -410,7 +417,7 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
     const unsub5 = frozen.subscribe(isFrozen => { if (!isFrozen) scheduleRecalc(); });
 
     return () => {
-        unsub1(); unsub2(); unsub3(); unsub4(); unsub5();
+        unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsubPlan();
         if (timer) clearTimeout(timer);
     };
 });

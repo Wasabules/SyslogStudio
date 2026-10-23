@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
     "demo": "node ../tools/demo.mjs",
     "screenshots": "node ../tools/screenshots.mjs"
   },

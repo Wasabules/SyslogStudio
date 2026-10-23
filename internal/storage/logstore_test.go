@@ -180,9 +180,9 @@ func TestLogStore_SearchModes(t *testing.T) {
 	}
 }
 
-// A malformed FTS query must not take the process down: FTS5 rejects it and the
-// store reports no rows.
-func TestLogStore_MalformedFTSQueryIsSurvivable(t *testing.T) {
+// A malformed FTS query never reaches FTS5: it does not compile, so it is not
+// applied — as in the live view, where the window says why.
+func TestLogStore_MalformedFTSQueryIsNotApplied(t *testing.T) {
 	ls := newTestStore(t, models.StorageConfig{})
 	seed(t, ls, testMessage(0, "alpha", "sshd", "hello", models.SevError))
 	<-ls.ftsReadyCh
@@ -192,8 +192,43 @@ func TestLogStore_MalformedFTSQueryIsSurvivable(t *testing.T) {
 		Page:     1,
 		PageSize: 10,
 	})
-	if len(res.Messages) != 0 {
-		t.Errorf("malformed FTS query returned %d rows, want 0", len(res.Messages))
+	if res.Total != 1 {
+		t.Errorf("malformed FTS query left %d rows, want the 1 it does not filter", res.Total)
+	}
+}
+
+// Issue #77: the history read "error or timeout" as three words that must all
+// be there, and the live view read "error timeout" as one string. Both now
+// apply the same compiled plan; internal/search holds the full set of cases.
+func TestLogStore_SearchAsTheLiveViewDoes(t *testing.T) {
+	ls := newTestStore(t, models.StorageConfig{})
+	seed(t, ls,
+		testMessage(0, "alpha", "app", "disk error on sda", models.SevError),
+		testMessage(1, "alpha", "app", "request timeout", models.SevError),
+		testMessage(2, "alpha", "app", "error: timeout while connecting to 192.168.1.10", models.SevError),
+		testMessage(3, "alpha", "app", "value -> next", models.SevError),
+	)
+	<-ls.ftsReadyCh
+
+	for _, tt := range []struct {
+		search, mode string
+		want         int
+	}{
+		{"error timeout", "fts", 1},
+		{"error or timeout", "fts", 3},
+		{`"error" OR "timeout"`, "fts", 3},
+		{"error not timeout", "fts", 1},
+		{"192.168.1.10", "fts", 1},
+		{"error timeout", "text", 1},
+		{"->", "text", 1},
+	} {
+		res := ls.QueryMessages(models.QueryOptions{
+			Filter: models.FilterCriteria{Search: tt.search, SearchMode: tt.mode},
+			Page:   1, PageSize: 10,
+		})
+		if res.Total != tt.want {
+			t.Errorf("%s %q: %d rows, want %d", tt.mode, tt.search, res.Total, tt.want)
+		}
 	}
 }
 
