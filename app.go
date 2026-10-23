@@ -46,6 +46,8 @@ type App struct {
 	// bg is how this run started and what that still owes: listeners to
 	// start, a window to hide again.
 	bg backgroundState
+	// view is a backup opened to be read.
+	view backupViewer
 }
 
 // NewApp creates a new App application struct.
@@ -80,11 +82,14 @@ func newAppIn(cs *storage.ConfigStore) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.updater.SetContext(ctx)
+	// A backup left open to be read when the window last closed abruptly.
+	removeView(a.viewPath())
 	a.startLink()
 }
 
 // shutdown is called when the app is closing.
 func (a *App) shutdown(ctx context.Context) {
+	a.CloseBackup()
 	a.stopLink()
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"SyslogStudio/internal/backup"
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
@@ -38,6 +39,10 @@ type compatManifest struct {
 	SinkID      string   `json:"sinkId"`
 	SinkSecret  string   `json:"sinkSecret"`
 	InboxPublic []byte   `json:"inboxPublic"`
+	// From the vault format on: the recovery key's file, and a backup made
+	// of the installation, both beside it in the fixture.
+	RecoveryKey string `json:"recoveryKey,omitempty"`
+	Backup      string `json:"backup,omitempty"`
 }
 
 func compatMessages() []models.SyslogMessage {
@@ -133,6 +138,9 @@ func copyFixture(t *testing.T, version string) (string, compatManifest) {
 	}
 	var m compatManifest
 	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(src, ent.Name()))
 		if err != nil {
 			t.Fatal(err)
@@ -347,4 +355,226 @@ func TestCompat_V171InterruptedRotationRecovers(t *testing.T) {
 	if err := probe.readableWith(master); err != nil {
 		t.Errorf("not everything was written under the new master secret: %v", err)
 	}
+}
+
+// --- the vault format -------------------------------------------------------
+//
+// testdata/compat/vault-v1 is an installation as the version that brought the
+// keyring, the recovery key and backups left it: encrypted, with a recovery
+// key, and a backup made of it under backups/. Written once with
+//
+//	SYSLOGSTUDIO_WRITE_VAULT_COMPAT=testdata/compat/vault-v1 go test -run TestWriteVaultFixture ./internal/engine
+//
+// and never rewritten: every later version must open the installation, with
+// its password and with its recovery key, and open and restore the backup.
+
+const vaultFixture = "vault-v1"
+
+func TestWriteVaultFixture(t *testing.T) {
+	out := os.Getenv("SYSLOGSTUDIO_WRITE_VAULT_COMPAT")
+	if out == "" {
+		t.Skip("set SYSLOGSTUDIO_WRITE_VAULT_COMPAT to the directory to write")
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Fatalf("%s exists: a fixture is never rewritten", out)
+	}
+	dir := t.TempDir()
+	e := New(storage.NewConfigStoreAt(dir))
+	if err := e.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	msgs := compatMessages()
+	if err := e.StoreCollected(msgs); err != nil {
+		t.Fatal(err)
+	}
+	ca, err := e.GenerateCA(models.DefaultCertOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := notify.SinkConfig{ID: "sink-compat", Name: "compat", Kind: notify.SinkWebhook, Enabled: false,
+		Webhook: notify.WebhookSinkConfig{URL: "https://example.invalid/hook"}, Secret: "compat-token-1234"}
+	if err := e.SaveNotifySink(sink); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EnableEncryption(compatPassword); err != nil {
+		t.Fatal(err)
+	}
+	pub, err := e.PrepareInbox()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyFile, keyPub, _, err := vault.GenerateRecoveryKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.SetRecoveryKey(keyPub); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := filepath.Join(t.TempDir(), "backups")
+	if err := e.SetBackupConfig(models.BackupConfig{Dir: backupDir}); err != nil {
+		t.Fatal(err)
+	}
+	bk := backupNow(t, e)
+	if err := e.SetBackupConfig(models.BackupConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	e.Close()
+
+	m := compatManifest{
+		Version: "vault format 1", Password: compatPassword,
+		CASerial: ca.SerialNumber, SinkID: sink.ID, SinkSecret: sink.Secret, InboxPublic: pub,
+		RecoveryKey: "recovery.key", Backup: bk.Name,
+	}
+	for _, msg := range msgs {
+		m.MessageIDs = append(m.MessageIDs, msg.ID)
+	}
+	if err := os.MkdirAll(filepath.Join(out, "backups"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, ent := range entries {
+		name := ent.Name()
+		if ent.IsDir() || name == "lock" || filepath.Ext(name) == ".lock" || name == backupStateFile {
+			continue
+		}
+		copyFile(t, filepath.Join(dir, name), filepath.Join(out, name))
+	}
+	copyFile(t, bk.Path, filepath.Join(out, "backups", bk.Name))
+	if err := os.WriteFile(filepath.Join(out, m.RecoveryKey), keyFile, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest, _ := json.MarshalIndent(m, "", "  ")
+	if err := os.WriteFile(filepath.Join(out, "manifest.json"), append(manifest, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func copyFile(t *testing.T, from, to string) {
+	t.Helper()
+	data, err := os.ReadFile(from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("fixture file %s (%d bytes)", filepath.Base(to), len(data))
+}
+
+func fixtureFile(t *testing.T, version string, parts ...string) string {
+	t.Helper()
+	return filepath.Join(append([]string{"testdata", "compat", version}, parts...)...)
+}
+
+func fixtureKey(t *testing.T, version string, m compatManifest) []byte {
+	t.Helper()
+	key, err := os.ReadFile(fixtureFile(t, version, m.RecoveryKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
+// The installation opens with its password and with its recovery key, again
+// and again, whatever this version writes back.
+func TestCompat_VaultV1InstallationOpens(t *testing.T) {
+	dir, m := copyFixture(t, vaultFixture)
+	key := fixtureKey(t, vaultFixture, m)
+	byPassword := func(e *Engine) error { return e.UnlockDatabase(m.Password) }
+	byKey := func(e *Engine) error { return e.UnlockWithRecoveryKey(key) }
+	checkCompat(t, dir, m, byPassword)
+	checkCompat(t, dir, m, byKey)
+	checkCompat(t, dir, m, byPassword)
+	checkCompat(t, dir, m, byKey)
+}
+
+// The backup opens on its own, with the password or the recovery key, and
+// restores — into the installation it came from, and into another one,
+// encrypted with another password, which then keeps it under its own.
+func TestCompat_VaultV1BackupOpensAndRestores(t *testing.T) {
+	m := loadManifest(t, vaultFixture)
+	path := fixtureFile(t, vaultFixture, "backups", m.Backup)
+	key := fixtureKey(t, vaultFixture, m)
+	for name, cred := range map[string]backup.Credentials{
+		"password": {Password: m.Password}, "recovery key": {KeyFile: key},
+	} {
+		if n, err := backupHolds(t, path, cred); err != nil || n != int64(len(m.MessageIDs)) {
+			t.Errorf("the backup opened with the %s holds %d messages (%v), want %d", name, n, err, len(m.MessageIDs))
+		}
+	}
+
+	dir, _ := copyFixture(t, vaultFixture)
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockDatabase(m.Password); err != nil {
+			return err
+		}
+		return e.RestoreBackup(path, "", key)
+	})
+
+	const other = "another installation's password"
+	e, otherDir := openEngine(t, nil)
+	if err := e.EnableEncryption(other); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.RestoreBackup(path, m.Password, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.Close()
+	again := New(storage.NewConfigStoreAt(otherDir))
+	if err := again.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	defer again.Close()
+	if err := again.UnlockDatabase(other); err != nil {
+		t.Fatalf("the installation a backup was restored into does not open with its own password: %v", err)
+	}
+	again.logStore.WaitReady()
+	res := again.QueryMessages(models.QueryOptions{Page: 1, PageSize: 500, SortField: "timestamp", SortDir: "asc"})
+	if res.Total != len(m.MessageIDs) {
+		t.Fatalf("the restored database holds %d messages, want %d", res.Total, len(m.MessageIDs))
+	}
+	for i, msg := range res.Messages {
+		if msg.ID != m.MessageIDs[i] {
+			t.Fatalf("restored message %d is %s, want %s", i, msg.ID, m.MessageIDs[i])
+		}
+	}
+}
+
+// An installation encrypted by v1.7.1 is backed up by this version: the
+// backup opens with v1.7.1's password, and restores into the installation.
+func TestCompat_V171BackupAfterUpgrade(t *testing.T) {
+	dir, m := copyFixture(t, "v1.7.1")
+	var bk models.BackupFile
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockDatabase(m.Password); err != nil {
+			return err
+		}
+		if err := e.SetBackupConfig(models.BackupConfig{Dir: filepath.Join(t.TempDir(), "backups")}); err != nil {
+			return err
+		}
+		bk = backupNow(t, e)
+		return nil
+	})
+	if n, err := backupHolds(t, bk.Path, backup.Credentials{Password: m.Password}); err != nil || n != int64(len(m.MessageIDs)) {
+		t.Fatalf("the backup of a v1.7.1 installation holds %d messages (%v)", n, err)
+	}
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockDatabase(m.Password); err != nil {
+			return err
+		}
+		return e.RestoreBackup(bk.Path, m.Password, nil)
+	})
+}
+
+func loadManifest(t *testing.T, version string) compatManifest {
+	t.Helper()
+	data, err := os.ReadFile(fixtureFile(t, version, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m compatManifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
 }

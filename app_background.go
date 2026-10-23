@@ -177,6 +177,20 @@ func (a *App) UnlockDatabase(password string) error {
 	if err := a.Backend.UnlockDatabase(password); err != nil {
 		return err
 	}
+	a.afterUnlock()
+	return nil
+}
+
+// UnlockWithRecoveryKey is UnlockDatabase with the recovery key's file.
+func (a *App) UnlockWithRecoveryKey(keyFile []byte) error {
+	if err := a.Backend.UnlockWithRecoveryKey(keyFile); err != nil {
+		return err
+	}
+	a.afterUnlock()
+	return nil
+}
+
+func (a *App) afterUnlock() {
 	a.autoStart()
 	// The key that opens what a service sealed came with the unlock.
 	a.pokeCollect()
@@ -188,7 +202,6 @@ func (a *App) UnlockDatabase(password string) error {
 	if back && a.IsTrayAvailable() {
 		a.HideToBackground()
 	}
-	return nil
 }
 
 // StartServer starts the listeners and, for each one that did not open because

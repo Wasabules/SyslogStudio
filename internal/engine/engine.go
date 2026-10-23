@@ -13,6 +13,7 @@ package engine
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/inbox"
@@ -55,6 +56,9 @@ type Engine struct {
 	// unlockedByKey says the recovery key, not the password, unlocked this
 	// session: the password may then be replaced without being known.
 	unlockedByKey bool
+
+	// bk runs the copies of the database.
+	bk backups
 
 	// releaseDir gives the data directory back. openErr is why Open could not
 	// claim it: the engine then runs without its database and refuses to
@@ -190,6 +194,13 @@ func (e *Engine) Open(emitter event.EventEmitter) error {
 			slog.Warn("failed to load the inbox key", "error", err)
 		}
 	}
+	// Copies left behind by an interrupted backup or restore: the database
+	// in the clear, which has no business staying there.
+	removeDB(filepath.Join(e.DataDir(), snapshotFile))
+	removeDB(filepath.Join(e.DataDir(), restoreFile))
+	if e.logStore != nil {
+		e.startBackups()
+	}
 	return nil
 }
 
@@ -215,6 +226,8 @@ func (e *Engine) Close() {
 	if e.inbox != nil {
 		e.inbox.Close()
 	}
+	// A copy that runs is stopped: it would hold the database open.
+	e.stopBackups()
 	if e.logStore != nil {
 		e.logStore.Close()
 	}

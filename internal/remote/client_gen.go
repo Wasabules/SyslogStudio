@@ -246,6 +246,72 @@ func (c *Client) ChangeEncryptionPassword(oldPassword string, newPassword string
 	return err
 }
 
+func (c *Client) GetRecoveryKey() models.RecoveryKeyInfo {
+	var r0 models.RecoveryKeyInfo
+	c.logLost("GetRecoveryKey", c.call("GetRecoveryKey", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) SetRecoveryKey(pub []byte) (models.RecoveryKeyInfo, error) {
+	var r0 models.RecoveryKeyInfo
+	err := c.call("SetRecoveryKey", []any{pub}, &r0)
+	return r0, err
+}
+
+func (c *Client) RemoveRecoveryKey() error {
+	err := c.call("RemoveRecoveryKey", []any{})
+	return err
+}
+
+func (c *Client) UnlockWithRecoveryKey(keyFile []byte) error {
+	err := c.call("UnlockWithRecoveryKey", []any{keyFile})
+	return err
+}
+
+func (c *Client) IsUnlockedByRecoveryKey() bool {
+	var r0 bool
+	c.logLost("IsUnlockedByRecoveryKey", c.call("IsUnlockedByRecoveryKey", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) ResetEncryptionPassword(newPassword string) error {
+	err := c.call("ResetEncryptionPassword", []any{newPassword})
+	return err
+}
+
+func (c *Client) GetBackupConfig() models.BackupConfig {
+	var r0 models.BackupConfig
+	c.logLost("GetBackupConfig", c.call("GetBackupConfig", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) SetBackupConfig(cfg models.BackupConfig) error {
+	err := c.call("SetBackupConfig", []any{cfg})
+	return err
+}
+
+func (c *Client) GetBackupStatus() models.BackupStatus {
+	var r0 models.BackupStatus
+	c.logLost("GetBackupStatus", c.call("GetBackupStatus", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) ListBackups() ([]models.BackupFile, error) {
+	var r0 []models.BackupFile
+	err := c.call("ListBackups", []any{}, &r0)
+	return r0, err
+}
+
+func (c *Client) BackupNow() error {
+	err := c.call("BackupNow", []any{})
+	return err
+}
+
+func (c *Client) RestoreBackup(path string, password string, keyFile []byte) error {
+	err := c.call("RestoreBackup", []any{path, password, keyFile})
+	return err
+}
+
 func (c *Client) StartSimulator(cfg models.SimulatorConfig) error {
 	err := c.call("StartSimulator", []any{cfg})
 	return err
