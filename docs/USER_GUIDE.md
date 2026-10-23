@@ -356,19 +356,52 @@ The recovery key works with encryption off too: backups are then encrypted, and 
 
 ## Backups
 
-**Settings > Backups** copies the database to another folder: another disk, a network share.
+**Settings > Backups** copies the database to one or more **destinations**. Each backup is made
+once, encrypted on this computer, then sent to every destination: a server only ever stores what it
+cannot read.
 
-- **Folder**: where the copies go. The folder is tested when you choose it.
+### Destinations
+
+**Add a destination…** offers four kinds:
+
+| Kind | What it is |
+|---|---|
+| **Folder** | Another disk, a USB drive, or a network share or NFS export mounted on this machine. |
+| **SFTP** | A server reached over SSH, signing in with a password or an SSH key (and its passphrase). |
+| **FTPS** | An FTP server over TLS: explicit (AUTH TLS, usually port 21) or implicit (usually port 990). |
+| **FTP** | An FTP server in the clear. |
+
+- **Test the connection** writes a small file, lists the folder and deletes the file. Saving a
+  server tests it first.
+- The first connection to a server shows its **fingerprint**: the SSH key's, or, for FTPS, the
+  certificate's when the system does not trust it (a NAS's own certificate). Compare it with the one
+  the server's administrator gives you, or the one the NAS shows, and **Trust and save** only if
+  they match. From then on, a server presenting anything else is refused: if it was reinstalled or
+  its certificate renewed, edit the destination and trust the new identity.
+- **FTP** sends the password in the clear: anyone on the network between this computer and the
+  server can read it, sign in with it, and delete or replace what is there. The backups themselves
+  stay encrypted. The destination is only saved once you acknowledge this; prefer SFTP or FTPS,
+  which most NAS offer.
+- Passwords and keys are kept like the routing destinations' credentials: never shown again,
+  encrypted with the database when it is, and only ever sent to the server they were given for —
+  moving a destination to another server or account means typing its password again.
+- **Keep**: how many backups each destination keeps; the oldest go beyond that. SyslogStudio only
+  deletes the files it made (`syslogstudio-….ssbackup` or `.db`).
+- A destination can be turned off without being deleted. Deleting one leaves the backups already
+  there where they are.
+
+### When
+
 - **Back up automatically**: every day, every week or every month, at a time of day. A backup
-  missed while SyslogStudio was off is made at the next start, once the database is unlocked. A
-  backup that fails, because a disk is unplugged or a share unreachable, is tried again an hour
-  later.
-- **Keep**: how many backups are kept; the oldest go beyond that. SyslogStudio only deletes the
-  files it made (`syslogstudio-….ssbackup` or `.db`), never the copies made before a restore.
-- **Back up now** makes one at once.
+  missed while SyslogStudio was off is made at the next start, once the database is unlocked.
+- A destination that fails — a disk unplugged, a server unreachable — is tried again an hour later,
+  without holding up the others.
+- A destination added is served from the next scheduled backup on. **Back up now** makes one at
+  once, for every destination.
 
 Messages keep arriving during a backup: the copy is the database as it was when the backup
-started. Each backup is read back once written, so a backup listed is a backup that opens.
+started. Each backup is read back before it is sent, and checked once it has arrived: read back in
+full in a folder, its size on a server.
 
 What opens a backup:
 
@@ -382,7 +415,8 @@ What opens a backup:
 ### Opening a backup
 
 **Open** in the list, or **Open a backup file…** for a backup from elsewhere, asks for its
-password or recovery key, then shows the backup in the **History**. A banner says so; the live
+password or recovery key, then shows the backup in the **History**. A backup on a server is read
+as it arrives, by the window itself. A banner says so; the live
 view and the database are untouched. **Close the backup** returns the History to the database.
 
 ### Restoring
@@ -390,18 +424,20 @@ view and the database are untouched. **Close the backup** returns the History to
 **Restore…** replaces the database with a backup:
 
 1. The backup is opened first: a wrong password changes nothing.
-2. The database as it is is copied beside the other backups, as
-   `syslogstudio-…-before-restore.ssbackup` (in a `backups` folder of the data directory if no
-   backup folder is set). Restoring that copy undoes the restore.
+2. The database as it is is copied on this computer, as
+   `syslogstudio-…-before-restore.ssbackup` in a `backups` folder of the data directory, listed
+   under **Before a restore**. Restoring that copy undoes the restore; these copies are never
+   deleted automatically.
 3. The database is replaced. Messages that arrive meanwhile wait in memory and go to the restored
    database.
 
 The retention applies to the restored database: messages older than it are deleted at the next
 cleanup. To read old messages, open the backup instead of restoring it.
 
-With the system service, backups are made by the service, under its own account: the folder has
-to be one that account can write to. With the sealed inbox, the backups are those of your own
-database.
+With the system service, backups are made by the service, under its own account: a folder has
+to be one that account can write to — a server destination avoids the question. Installing the
+service hands it the destinations, credentials included. With the sealed inbox, the backups are
+those of your own database, and stay with the window.
 
 ## Running in the Background
 

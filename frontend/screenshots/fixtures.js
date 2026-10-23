@@ -601,12 +601,20 @@ function backupName(d, safety = false) {
 
 export const BACKUP_DIR = 'E:\\Backups\\SyslogStudio';
 
-/** Every night at three, a week kept, to a second disk. */
+/** Every night at three, to a second disk and to the office NAS over SFTP. */
+export const BACKUP_DESTINATIONS = [
+  { id: 'dest-disk', name: 'Second disk', kind: 'folder', enabled: true, keep: 7, path: BACKUP_DIR, hasSecret: false },
+  {
+    id: 'dest-nas', name: 'Office NAS', kind: 'sftp', enabled: true, keep: 30, path: 'backups/syslogstudio',
+    host: 'nas.example.lan', port: 22, user: 'syslog-backup', auth: 'key',
+    hostKey: 'SHA256:q4Fv3ue0lVJ8bQmUuJ2rZ0QeG8VwYb5w2a3Hc7xT1Ns', hasSecret: true,
+  },
+];
+
 export const BACKUP_CONFIG = {
   enabled: true,
-  dir: BACKUP_DIR,
   schedule: { every: 'daily', at: '03:00' },
-  keep: 7,
+  destinations: BACKUP_DESTINATIONS,
 };
 
 /** The database is not encrypted in the fixtures, its backups are: by the recovery key. */
@@ -616,21 +624,38 @@ export const RECOVERY_KEY = {
   created: new Date(NOW.getTime() - 41 * 86400_000).toISOString(),
 };
 
-export const BACKUP_FILES = [0, 1, 2, 3].map((daysAgo, i) => {
-  const d = backupNight(daysAgo);
-  return {
-    name: backupName(d), path: `${BACKUP_DIR}\\${backupName(d)}`,
-    sizeMB: 302.4 - i * 9.7, created: d.toISOString(), lock: 'key', keyId: RECOVERY_KEY.id, app: 'v1.8.0',
-  };
-});
+function backupsAt(dest, nights) {
+  return nights.map((daysAgo, i) => {
+    const d = backupNight(daysAgo);
+    const name = backupName(d);
+    return {
+      name, destination: dest.id, destinationName: dest.name,
+      path: dest.kind === 'folder' ? `${dest.path}\\${name}` : undefined,
+      sizeMB: 302.4 - i * 9.7, created: d.toISOString(), lock: 'key', keyId: RECOVERY_KEY.id, app: 'v1.8.0',
+    };
+  });
+}
+
+export const BACKUP_FILES = [
+  ...backupsAt(BACKUP_DESTINATIONS[0], [0, 1, 2, 3]),
+  ...backupsAt(BACKUP_DESTINATIONS[1], [0, 1, 2]),
+];
+
+export const BACKUP_LISTING = { files: BACKUP_FILES, problems: [] };
 
 export const BACKUP_STATUS = {
   running: false,
   percent: 0,
-  lastAt: new Date(backupNight(0).getTime() + 18_400).toISOString(),
-  lastFile: BACKUP_FILES[0].name,
-  lastSizeMB: BACKUP_FILES[0].sizeMB,
-  lastTookMs: 18_400,
   next: backupNight(-1).toISOString(),
   lock: 'key',
+  destinations: [
+    {
+      id: 'dest-disk', name: 'Second disk', lastAt: new Date(backupNight(0).getTime() + 18_400).toISOString(),
+      lastFile: BACKUP_FILES[0].name, lastSizeMB: BACKUP_FILES[0].sizeMB, lastTookMs: 18_400,
+    },
+    {
+      id: 'dest-nas', name: 'Office NAS', lastAt: new Date(backupNight(0).getTime() + 41_200).toISOString(),
+      lastFile: BACKUP_FILES[0].name, lastSizeMB: BACKUP_FILES[0].sizeMB, lastTookMs: 41_200,
+    },
+  ],
 };

@@ -1,39 +1,47 @@
 <script lang="ts">
-    // Copies of the database: where they go, when, how many are kept, what
-    // opens them — and the copies themselves, to open in the History or to
-    // restore.
+    // Copies of the database: where they go — every destination gets each
+    // copy — when, what opens them, and the copies themselves, to open in the
+    // History or to restore.
     import { onMount } from 'svelte';
     import { _, locale } from 'svelte-i18n';
     import { activeZone, formatInZone } from '../lib/timezone';
     import { toastError, toastSuccess } from '../lib/toast';
     import {
-        backupNow, backupStatus, describeBackup, errorText, getBackupConfig, listBackups,
-        selectBackupDir, selectBackupFile, setBackupConfig, sizeText,
+        backupNow, backupStatus, deleteDestination, describeBackup, errorText, getBackupConfig, listBackups,
+        saveDestination, selectBackupFile, setBackupConfig, sizeText, targetText,
     } from '../lib/backup';
-    import type { BackupConfig, BackupFile } from '../lib/backup';
+    import type { BackupConfig, BackupDestination, BackupFile, BackupListing } from '../lib/backup';
     import type { CleanupSchedule } from '../lib/stores';
     import BackupOpenDialog from './BackupOpenDialog.svelte';
+    import BackupDestinationEditor from './BackupDestinationEditor.svelte';
 
     /** Called once a backup is open in the History: Settings closes. */
     export let onViewed: () => void = () => {};
     /** Set while a dialog of this tab is open, so Escape closes it first. */
     export let overlayOpen = false;
 
-    let cfg: BackupConfig = { enabled: false, dir: '', schedule: { every: 'daily', at: '03:00' }, keep: 7 };
-    let files: BackupFile[] = [];
+    let cfg: BackupConfig = { enabled: false, schedule: { every: 'daily', at: '03:00' }, destinations: [] };
+    let listing: BackupListing = { files: [] };
+    let listing_loading = false;
     let error = '';
     let dialog: { file: BackupFile; mode: 'view' | 'restore' } | null = null;
-    $: overlayOpen = dialog !== null;
-
-    const KEEP = [3, 7, 14, 30, 60, 90];
+    let editing: { dest: BackupDestination | null } | null = null;
+    $: overlayOpen = dialog !== null || editing !== null;
+    $: destinations = cfg.destinations || [];
 
     onMount(async () => {
-        try { cfg = await getBackupConfig(); } catch { /* defaults */ }
+        await reload();
         await refresh();
     });
 
+    async function reload() {
+        try { cfg = await getBackupConfig(); } catch { /* defaults */ }
+    }
+
     async function refresh() {
-        try { files = (await listBackups()) || []; } catch (e) { files = []; }
+        listing_loading = true;
+        try { listing = (await listBackups()) || { files: [] }; } catch { listing = { files: [] }; }
+        listing_loading = false;
     }
 
     // The list follows a copy as it lands.
@@ -42,20 +50,19 @@
         const s = $backupStatus;
         if (wasRunning && !s.running) {
             refresh();
-            const failed = !!s.lastError && (!s.lastAt || Date.parse(s.lastFailAt || '') >= Date.parse(s.lastAt));
-            if (failed) toastError($_('backup.error', { values: { error: s.lastError } }));
-            else if (s.lastFile) toastSuccess($_('backup.done', { values: { name: s.lastFile } }));
+            for (const d of s.destinations || []) {
+                const failed = !!d.lastError && (!d.lastAt || Date.parse(d.lastFailAt || '') >= Date.parse(d.lastAt));
+                if (failed) toastError($_('backup.errorAt', { values: { name: d.name, error: d.lastError } }));
+            }
         }
         wasRunning = s.running;
     }
 
-    /** Saves next; false, with the reason shown, when it was refused. */
-    async function save(next: BackupConfig): Promise<boolean> {
+    async function saveSchedule(next: BackupConfig): Promise<boolean> {
         error = '';
         try {
             await setBackupConfig(next);
-            cfg = next;
-            await refresh();
+            cfg = { ...cfg, enabled: next.enabled, schedule: next.schedule };
             return true;
         } catch (e) {
             error = errorText(e);
@@ -65,18 +72,11 @@
 
     async function setEnabled(box: HTMLInputElement) {
         // A refusal leaves the box as it is saved, not as it was clicked.
-        if (!(await save({ ...cfg, enabled: box.checked }))) box.checked = cfg.enabled;
-    }
-
-    async function chooseDir() {
-        try {
-            const dir = await selectBackupDir();
-            if (dir) await save({ ...cfg, dir });
-        } catch (e) { error = errorText(e); }
+        if (!(await saveSchedule({ ...cfg, enabled: box.checked }))) box.checked = cfg.enabled;
     }
 
     function setSchedule(patch: Partial<CleanupSchedule>) {
-        save({ ...cfg, schedule: { ...cfg.schedule, ...patch } });
+        saveSchedule({ ...cfg, schedule: { ...cfg.schedule, ...patch } });
     }
 
     async function runNow() {
@@ -107,9 +107,43 @@
         if (viewed) onViewed();
     }
 
+    async function saved() {
+        editing = null;
+        await reload();
+        await refresh();
+    }
+
+    async function toggle(d: BackupDestination) {
+        try {
+            await saveDestination({ ...d, enabled: !d.enabled });
+            await reload();
+        } catch (e) { error = errorText(e); }
+    }
+
+    async function remove(d: BackupDestination) {
+        if (!confirm($_('backup.dest.deleteConfirm', { values: { name: d.name } }))) return;
+        try {
+            await deleteDestination(d.id);
+            await reload();
+            await refresh();
+        } catch (e) { error = errorText(e); }
+    }
+
     $: every = cfg.schedule?.every || 'daily';
     $: weekdays = [0, 1, 2, 3, 4, 5, 6].map(d =>
         new Intl.DateTimeFormat($locale || 'en', { weekday: 'long' }).format(new Date(2026, 0, 4 + d)));
+    $: statusOf = Object.fromEntries(($backupStatus.destinations || []).map(d => [d.id, d]));
+
+    // The copies, grouped by where they are: each destination in turn, then
+    // those made before a restore, on this machine.
+    $: groups = [
+        ...destinations.map(d => ({
+            key: d.id, title: d.name,
+            files: listing.files.filter(f => f.destination === d.id),
+            problem: listing.problems?.find(p => p.destination === d.id)?.error,
+        })),
+        { key: '', title: $_('backup.safetyGroup'), files: listing.files.filter(f => !f.destination), problem: undefined },
+    ].filter(g => g.files.length > 0 || g.problem);
 
     function when(iso: string | undefined, zone: string): string {
         return iso ? formatInZone(iso, zone) || iso : '';
@@ -119,27 +153,58 @@
         both: 'backup.lockBoth', password: 'backup.lockPassword', key: 'backup.lockKey', none: 'backup.lockNone',
     };
     const LOCK_LABEL: Record<string, string> = {
-        both: 'backup.lockLabelBoth', password: 'backup.lockLabelPassword', key: 'backup.lockLabelKey', none: 'backup.lockLabelNone',
+        both: 'backup.lockLabelBoth', password: 'backup.lockLabelPassword', key: 'backup.lockLabelKey',
+        none: 'backup.lockLabelNone', '': 'backup.lockLabelUnknown',
+    };
+    const KIND_LABEL: Record<string, string> = {
+        folder: 'backup.dest.kindFolder', sftp: 'SFTP', ftps: 'FTPS', ftp: 'FTP',
     };
     const PHASES: Record<string, string> = {
         snapshot: 'backup.phaseSnapshot', encrypt: 'backup.phaseEncrypt', verify: 'backup.phaseVerify',
-        open: 'backup.phaseOpen', restore: 'backup.phaseRestore',
+        upload: 'backup.phaseUpload', open: 'backup.phaseOpen', restore: 'backup.phaseRestore',
     };
+    const kindLabel = (k: string) => (KIND_LABEL[k] || k).includes('.') ? $_(KIND_LABEL[k]) : KIND_LABEL[k];
 </script>
 
 <div class="backups">
     <p class="intro">{$_('backup.intro')}</p>
 
-    <div class="form-group">
-        <label for="bk-dir">{$_('backup.folder')}</label>
-        <input id="bk-dir" type="text" readonly class="readonly-input" value={cfg.dir}
-               placeholder={$_('backup.noFolder')} title={cfg.dir} />
-        <button class="action-btn" on:click={chooseDir}>{$_('backup.choose')}</button>
+    <div class="section-head">
+        <h4>{$_('backup.dest.title')}</h4>
+        <button class="action-btn" on:click={() => (editing = { dest: null })}>{$_('backup.dest.add')}</button>
     </div>
+    {#if destinations.length === 0}
+        <p class="muted">{$_('backup.dest.none')}</p>
+    {:else}
+        <div class="list">
+            {#each destinations as d (d.id)}
+                {@const st = statusOf[d.id]}
+                <div class="row" class:disabled={!d.enabled}>
+                    <span class="kind" class:warn-kind={d.kind === 'ftp'}>{kindLabel(d.kind)}</span>
+                    <div class="what">
+                        <span class="date">{d.name}</span>
+                        <span class="meta mono" title={targetText(d)}>{targetText(d)}</span>
+                        {#if st?.lastError && (!st.lastAt || Date.parse(st.lastFailAt || '') >= Date.parse(st.lastAt))}
+                            <span class="meta bad">{$_('backup.failed', { values: { when: when(st.lastFailAt, $activeZone), error: st.lastError } })}</span>
+                        {:else if st?.lastAt}
+                            <span class="meta good">{$_('backup.last', { values: {
+                                when: when(st.lastAt, $activeZone), size: sizeText(st.lastSizeMB || 0),
+                                seconds: (((st.lastTookMs || 0) / 1000)).toFixed(1) } })}</span>
+                        {/if}
+                    </div>
+                    <label class="switch" title={$_('backup.dest.enabled')}>
+                        <input type="checkbox" checked={d.enabled} on:change={() => toggle(d)} />
+                    </label>
+                    <button class="action-btn" on:click={() => (editing = { dest: d })}>{$_('backup.dest.edit')}</button>
+                    <button class="action-btn danger" on:click={() => remove(d)}>{$_('backup.dest.delete')}</button>
+                </div>
+            {/each}
+        </div>
+    {/if}
 
     <div class="form-group checkbox-group">
         <label>
-            <input type="checkbox" checked={cfg.enabled} disabled={!cfg.dir}
+            <input type="checkbox" checked={cfg.enabled} disabled={destinations.length === 0}
                    on:change={e => setEnabled(e.currentTarget)} />
             {$_('backup.auto')}
         </label>
@@ -172,42 +237,22 @@
         </div>
     {/if}
 
-    <div class="form-group-with-hint">
-        <div class="form-group">
-            <label for="bk-keep">{$_('backup.keep')}</label>
-            <select id="bk-keep" value={cfg.keep || 7}
-                    on:change={e => save({ ...cfg, keep: Number(e.currentTarget.value) })}>
-                {#each KEEP as n}<option value={n}>{$_('backup.keepCopies', { values: { count: n } })}</option>{/each}
-            </select>
-        </div>
-        <span class="hint">{$_('backup.keepHint')}</span>
-    </div>
-
     <p class="lock" class:warn={$backupStatus.lock === 'none'}>{$_(LOCK_TEXT[$backupStatus.lock] || LOCK_TEXT.none)}</p>
 
     <div class="panel">
         {#if $backupStatus.running}
             <div class="progress">
-                <span class="phase">{$backupStatus.phase && PHASES[$backupStatus.phase] ? $_(PHASES[$backupStatus.phase]) : ''}</span>
+                <span class="phase">
+                    {$backupStatus.phase && PHASES[$backupStatus.phase] ? $_(PHASES[$backupStatus.phase], { values: { name: $backupStatus.target || '' } }) : ''}
+                </span>
                 <div class="track"><div class="fill" style="width: {Math.round($backupStatus.percent)}%"></div></div>
             </div>
-        {/if}
-        {#if $backupStatus.lastAt}
-            <p>{$_('backup.last', { values: {
-                when: when($backupStatus.lastAt, $activeZone),
-                size: sizeText($backupStatus.lastSizeMB || 0),
-                seconds: ((($backupStatus.lastTookMs || 0) / 1000)).toFixed(1) } })}</p>
-        {:else}
-            <p>{$_('backup.lastNone')}</p>
-        {/if}
-        {#if $backupStatus.lastError}
-            <p class="warn">{$_('backup.failed', { values: { when: when($backupStatus.lastFailAt, $activeZone), error: $backupStatus.lastError } })}</p>
         {/if}
         {#if $backupStatus.next}
             <p class="muted">{$_('backup.next', { values: { when: when($backupStatus.next, $activeZone) } })}</p>
         {/if}
         <div class="buttons">
-            <button class="action-btn primary" on:click={runNow} disabled={!cfg.dir || $backupStatus.running}>
+            <button class="action-btn primary" on:click={runNow} disabled={destinations.length === 0 || $backupStatus.running}>
                 {$_('backup.now')}
             </button>
             <button class="action-btn" on:click={openFile}>{$_('backup.openFile')}</button>
@@ -216,31 +261,45 @@
 
     {#if error}<div class="error">{error}</div>{/if}
 
-    <h4>{$_('backup.list')}</h4>
-    {#if files.length === 0}
+    <div class="section-head">
+        <h4>{$_('backup.list')}</h4>
+        <button class="action-btn" on:click={refresh} disabled={listing_loading}>{$_('backup.refresh')}</button>
+    </div>
+    {#if listing_loading && groups.length === 0}
+        <p class="muted">{$_('backup.listing')}</p>
+    {:else if groups.length === 0}
         <p class="muted">{$_('backup.listEmpty')}</p>
     {:else}
-        <div class="list">
-            {#each files as f (f.path)}
-                <div class="row">
-                    <div class="what">
-                        <span class="date">{when(f.created, $activeZone)}</span>
-                        <span class="meta">
-                            {sizeText(f.sizeMB)} · {$_(LOCK_LABEL[f.lock] || LOCK_LABEL.none)}
-                            {#if f.safetyCopy}<span class="tag">{$_('backup.safety')}</span>{/if}
-                        </span>
-                    </div>
-                    <button class="action-btn" on:click={() => (dialog = { file: f, mode: 'view' })}>{$_('backup.open')}</button>
-                    <button class="action-btn danger" on:click={() => (dialog = { file: f, mode: 'restore' })}
-                            disabled={$backupStatus.running}>{$_('backup.restore')}</button>
+        {#each groups as g (g.key)}
+            <div class="group-title">{g.title}</div>
+            {#if g.problem}<p class="meta bad">{$_('backup.unreachable', { values: { error: g.problem } })}</p>{/if}
+            {#if g.files.length > 0}
+                <div class="list">
+                    {#each g.files as f (f.destination + '/' + (f.path || f.name))}
+                        <div class="row">
+                            <div class="what">
+                                <span class="date">{when(f.created, $activeZone)}</span>
+                                <span class="meta">
+                                    {sizeText(f.sizeMB)} · {$_(LOCK_LABEL[f.lock] ?? LOCK_LABEL[''])}
+                                    {#if f.safetyCopy}<span class="tag">{$_('backup.safety')}</span>{/if}
+                                </span>
+                            </div>
+                            <button class="action-btn" on:click={() => (dialog = { file: f, mode: 'view' })}>{$_('backup.open')}</button>
+                            <button class="action-btn danger" on:click={() => (dialog = { file: f, mode: 'restore' })}
+                                    disabled={$backupStatus.running}>{$_('backup.restore')}</button>
+                        </div>
+                    {/each}
                 </div>
-            {/each}
-        </div>
+            {/if}
+        {/each}
     {/if}
 </div>
 
 {#if dialog}
     <BackupOpenDialog file={dialog.file} mode={dialog.mode} onClose={() => (dialog = null)} onDone={dialogDone} />
+{/if}
+{#if editing}
+    <BackupDestinationEditor dest={editing.dest} onClose={() => (editing = null)} onSaved={saved} />
 {/if}
 
 <style>
@@ -255,6 +314,14 @@
         font-size: 12px;
         color: var(--text-secondary);
         line-height: 1.5;
+    }
+
+    .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 4px;
     }
 
     .form-group {
@@ -288,16 +355,6 @@
         font-size: 12px;
     }
 
-    #bk-dir {
-        flex: 1;
-        min-width: 0;
-        text-overflow: ellipsis;
-    }
-
-    .readonly-input {
-        color: var(--text-secondary);
-    }
-
     .form-group > select:first-of-type {
         flex: 1;
     }
@@ -323,19 +380,6 @@
         color: var(--text-secondary);
     }
 
-    .form-group-with-hint {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .hint {
-        font-size: 10px;
-        color: var(--text-muted);
-        padding-left: 172px;
-        font-style: italic;
-    }
-
     .lock {
         margin: 0;
         font-size: 12px;
@@ -353,20 +397,13 @@
         gap: 4px;
     }
 
-    .panel p {
-        margin: 0;
-        font-size: 12px;
-        color: var(--text-primary);
-        line-height: 1.5;
-    }
-
     .warn {
         color: var(--danger) !important;
         font-weight: 600;
     }
 
     .muted {
-        color: var(--text-secondary) !important;
+        color: var(--text-secondary);
         font-size: 12px;
         margin: 0;
     }
@@ -409,10 +446,19 @@
     }
 
     h4 {
-        margin: 4px 0 0 0;
+        margin: 0;
         font-size: 12px;
         font-weight: 600;
         color: var(--text-primary);
+    }
+
+    .group-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-top: 2px;
     }
 
     .list {
@@ -435,6 +481,28 @@
         border-bottom: none;
     }
 
+    .row.disabled .what {
+        opacity: 0.55;
+    }
+
+    .kind {
+        flex: 0 0 auto;
+        min-width: 52px;
+        text-align: center;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .kind.warn-kind {
+        color: var(--danger);
+        border-color: var(--danger);
+    }
+
     .what {
         flex: 1;
         min-width: 0;
@@ -451,6 +519,24 @@
     .meta {
         font-size: 11px;
         color: var(--text-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .meta.bad {
+        color: var(--danger);
+        white-space: normal;
+        margin: 0;
+    }
+
+    .meta.good {
+        color: var(--text-secondary);
+        white-space: normal;
+    }
+
+    .mono {
+        font-family: var(--font-mono, monospace);
     }
 
     .tag {
@@ -460,6 +546,12 @@
         background: var(--warning-bg);
         color: var(--warning);
         font-size: 10px;
+    }
+
+    .switch {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
     }
 
     .action-btn {

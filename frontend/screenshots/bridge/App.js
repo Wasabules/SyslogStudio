@@ -34,7 +34,7 @@ import {
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
   BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK,
-  BACKUP_CONFIG, BACKUP_STATUS, BACKUP_FILES, RECOVERY_KEY,
+  BACKUP_CONFIG, BACKUP_STATUS, BACKUP_FILES, BACKUP_LISTING, RECOVERY_KEY,
 } from '../fixtures.js';
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -63,6 +63,7 @@ const DEMO_ONLY = {
   SelectBackupDir: 'Choosing a folder needs a native dialog, which a web page does not have.',
   SelectBackupFile: 'Choosing a file needs a native dialog, which a web page does not have.',
   SelectRecoveryKeyFile: 'Choosing a file needs a native dialog, which a web page does not have.',
+  SelectSSHKeyFile: 'Choosing a file needs a native dialog, which a web page does not have.',
   CreateRecoveryKey: 'A recovery key is saved to a file of your choosing, which a web page cannot write.',
   OpenBackup: 'There is no backup behind the demo to open — this one runs entirely in your browser.',
   RestoreBackupFile: 'There is no database behind the demo to restore into.',
@@ -276,9 +277,31 @@ const HANDLERS = {
 
   // backups
   GetBackupConfig: () => Promise.resolve(clone(backupConfig)),
-  SetBackupConfig: (cfg) => { backupConfig = { ...backupConfig, ...cfg }; return Promise.resolve(null); },
+  SetBackupConfig: (cfg) => {
+    backupConfig = { ...backupConfig, enabled: cfg.enabled, schedule: cfg.schedule };
+    return Promise.resolve(null);
+  },
+  SaveBackupDestinationForm: (dest) => {
+    // Kept in the page, as the alert rules are: the credential is dropped,
+    // write-only here as in the product.
+    const { secret, passphrase, ...rest } = dest;
+    const saved = { ...rest, id: dest.id || nextId('dest'), hasSecret: Boolean(secret) || dest.hasSecret };
+    const list = backupConfig.destinations || [];
+    backupConfig = {
+      ...backupConfig,
+      destinations: list.some((d) => d.id === saved.id) ? list.map((d) => (d.id === saved.id ? saved : d)) : [...list, saved],
+    };
+    return Promise.resolve(clone(saved));
+  },
+  TestBackupDestinationForm: () => delayed('TestBackupDestinationForm', isDemo()
+    ? { ok: false, error: 'A web page cannot reach a server. The desktop application tests the connection and sends the backups.' }
+    : { ok: true }),
+  DeleteBackupDestination: (id) => {
+    backupConfig = { ...backupConfig, destinations: (backupConfig.destinations || []).filter((d) => d.id !== id) };
+    return Promise.resolve(null);
+  },
   GetBackupStatus: () => Promise.resolve(clone(BACKUP_STATUS)),
-  ListBackups: () => Promise.resolve(clone(BACKUP_FILES)),
+  ListBackups: () => Promise.resolve(clone(BACKUP_LISTING)),
   BackupNow: () => delayed('BackupNow', null),
   SelectBackupDir: () => refuse('SelectBackupDir'),
   SelectBackupFile: () => refuse('SelectBackupFile'),

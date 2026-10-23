@@ -10,7 +10,7 @@
     import { activeView, logViewMode } from '../lib/stores';
     import { toastSuccess } from '../lib/toast';
     import {
-        backupStatus, errorText, openBackup, restoreBackup, selectRecoveryKeyFile, sizeText,
+        backupStatus, errorText, openBackup, refOf, restoreBackup, selectRecoveryKeyFile, sizeText,
     } from '../lib/backup';
     import type { BackupFile } from '../lib/backup';
 
@@ -29,7 +29,8 @@
     let openPercent = 0;
 
     $: needsSecret = file.lock !== 'none';
-    $: canChoose = file.lock === 'both';
+    // A copy on a server not made here says what opens it only once read.
+    $: canChoose = file.lock === 'both' || file.lock === '';
     $: ready = !needsSecret || (useKey ? !!keyPath : !!password);
     $: keyName = keyPath.split(/[\\/]/).pop() || '';
     $: percent = mode === 'restore' ? $backupStatus.percent : openPercent;
@@ -64,12 +65,12 @@
         const key = needsSecret && useKey ? keyPath : '';
         try {
             if (mode === 'view') {
-                await openBackup(file.path, secret, key);
+                await openBackup(refOf(file), secret, key);
                 $activeView = 'logs';
                 $logViewMode = 'history';
                 toastSuccess($_('backup.opened'));
             } else {
-                await restoreBackup(file.path, secret, key);
+                await restoreBackup(refOf(file), secret, key);
                 toastSuccess($_('backup.restored'));
             }
             password = '';
@@ -95,7 +96,8 @@
             <span class="name mono">{file.name}</span>
             <span class="meta">
                 {$_('backup.made', { values: { when: formatInZone(file.created, $activeZone) || file.created } })}
-                · {sizeText(file.sizeMB)}
+                {#if file.destinationName}· {file.destinationName}{/if}
+                {#if file.sizeMB > 0}· {sizeText(file.sizeMB)}{/if}
                 {#if file.app}· {$_('backup.madeBy', { values: { version: file.app } })}{/if}
             </span>
         </div>

@@ -11,9 +11,14 @@
     let restoring: BackupFile | null = null;
 
     async function restore() {
-        if (!$backupView.path) return;
+        const ref = $backupView.ref;
+        if (!ref) return;
         try {
-            restoring = await describeBackup($backupView.path);
+            restoring = ref.path
+                ? await describeBackup(ref.path)
+                // At a destination: what opens it is asked for, both ways.
+                : { name: ref.name || '', destination: ref.destination, destinationName: $backupView.destination,
+                    created: $backupView.created || '', sizeMB: 0, lock: '' };
         } catch (e) {
             toastError(errorText(e));
         }
