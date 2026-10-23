@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,6 +302,41 @@ func TestLogStore_RetentionByAge(t *testing.T) {
 	}
 	if res.Messages[0].ID != "msg-new" {
 		t.Errorf("survivor = %q, want msg-new", res.Messages[0].ID)
+	}
+}
+
+// SQLite does not give back the space of deleted rows: the file keeps its size
+// and the pages go on a free list for later inserts. Measured by the file, a
+// database over its cap stayed over it after every trim, so each pass deleted
+// another tenth of the history until nothing was left.
+func TestLogStore_RetentionBySizeStopsOnceUnderTheCap(t *testing.T) {
+	ls := newTestStore(t, models.StorageConfig{MaxSizeMB: 1})
+	<-ls.ftsReadyCh
+	text := strings.Repeat("payload ", 80)
+	var msgs []models.SyslogMessage
+	for i := 0; i < 3000; i++ {
+		msgs = append(msgs, testMessage(i, "host", "app", fmt.Sprintf("%s%d", text, i), models.SevInformational))
+	}
+	seed(t, ls, msgs...)
+
+	ls.runCleanup()
+	kept := ls.GetStats().MessageCount
+	if kept == 0 || kept >= 3000 {
+		t.Fatalf("%d messages left after trimming to 1 MB, want some but not all", kept)
+	}
+	if used := ls.usedBytes(ls.handle()); used > 1<<20 {
+		t.Fatalf("%d bytes in use after the trim, want at most the 1 MB cap", used)
+	}
+
+	// The file is as large as before, and must not count as being over.
+	ls.runCleanup()
+	if again := ls.GetStats().MessageCount; again != kept {
+		t.Fatalf("a second pass under the cap deleted %d more messages", kept-again)
+	}
+	// The oldest go first.
+	res := ls.QueryMessages(models.QueryOptions{Page: 1, PageSize: 1, SortField: "timestamp", SortDir: "desc"})
+	if len(res.Messages) != 1 || res.Messages[0].ID != "msg-0000" {
+		t.Fatalf("the newest message did not survive: %+v", res.Messages)
 	}
 }
 
