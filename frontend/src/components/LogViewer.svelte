@@ -4,10 +4,11 @@
     import { filteredMessages, selectedMessage, autoScroll, logViewMode, historyResult, filter,
              stats, serverStatus, sortColumn, sortDirection, groupBy, dbStatsVersion, messages,
              frozen, newSinceFreeze, pickedIDs, pickAnchor, clearPicked, activeView } from '../lib/stores';
-    import type { SyslogMessage, SortColumn as SortCol, GroupBy as GroupByType, MessageGroup } from '../lib/stores';
+    import type { SyslogMessage, SortColumn as SortCol, GroupBy as GroupByType, MessageGroup, FilterCriteria } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
     import { queryMessages, getStorageStats, queryMessageGroups } from '../lib/api';
+    import { groupMessages } from '../lib/search';
     import { _ } from 'svelte-i18n';
     import {
         columnWidths, columnOrder, visibleColumns, hiddenColumns, widthVars,
@@ -118,32 +119,11 @@
         groups = buildGroups($filteredMessages, $groupBy);
     }
 
+    // Grouped as the history groups: the key as it is ("" for the messages
+    // without one), biggest first, then by name — see lib/search.ts.
     function buildGroups(msgs: SyslogMessage[], field: GroupByType): MessageGroup[] {
         if (!field) return [];
-        const map = new Map<string, SyslogMessage[]>();
-        for (const msg of msgs) {
-            const key = getGroupKey(msg, field);
-            if (!map.has(key)) map.set(key, []);
-            map.get(key)!.push(msg);
-        }
-        return [...map.entries()]
-            .map(([key, messages]) => ({
-                key,
-                count: messages.length,
-                expanded: expandedState.get(key) ?? false,
-                messages,
-            }))
-            .sort((a, b) => b.count - a.count);
-    }
-
-    function getGroupKey(msg: SyslogMessage, field: GroupByType): string {
-        switch (field) {
-            case 'severity': return msg.severityLabel || 'Unknown';
-            case 'hostname': return msg.hostname || 'unknown';
-            case 'appName': return msg.appName || 'unknown';
-            case 'sourceIP': return msg.sourceIP || 'unknown';
-            default: return 'unknown';
-        }
+        return groupMessages(msgs, field).map(g => ({ ...g, expanded: expandedState.get(g.key) ?? false }));
     }
 
     function toggleGroup(key: string) {
@@ -446,9 +426,9 @@
         try {
             const summaries = await queryMessageGroups($filter, $groupBy);
             groups = (summaries || []).map(s => ({
-                key: s.key || 'unknown',
+                key: s.key,
                 count: s.count,
-                expanded: expandedState.get(s.key || 'unknown') ?? false,
+                expanded: expandedState.get(s.key) ?? false,
                 messages: [],
             }));
             // Reload messages for groups that were expanded
@@ -461,15 +441,10 @@
         finally { loadingHistory = false; }
     }
 
-    function buildGroupFilter(groupKey: string): any {
-        const gf = { ...$filter } as any;
-        switch ($groupBy) {
-            case 'severity': gf.severities = [getSeverityValue(groupKey)]; break;
-            case 'hostname': gf.hostname = groupKey; break;
-            case 'appName': gf.appName = groupKey; break;
-            case 'sourceIP': gf.sourceIP = groupKey; break;
-        }
-        return gf;
+    // Exactly the group's messages: its key, not every field containing it —
+    // the group "web" is not also web-01's.
+    function buildGroupFilter(groupKey: string): FilterCriteria {
+        return { ...$filter, groupField: $groupBy, groupKey };
     }
 
     async function loadGroupMessages(g: MessageGroup) {
@@ -489,9 +464,6 @@
 
     const SEVERITY_BY_LABEL: Record<string, number> = { 'Emergency': 0, 'Alert': 1, 'Critical': 2, 'Error': 3, 'Warning': 4, 'Notice': 5, 'Info': 6, 'Debug': 7 };
 
-    function getSeverityValue(label: string): number {
-        return SEVERITY_BY_LABEL[label] ?? -1;
-    }
 
     // `mode` is a parameter rather than a $groupBy read, for the same reason as
     // estimateMessagesForSize in Settings: the markup expression is what Svelte
@@ -814,7 +786,7 @@
                          on:keydown={e => e.key === 'Enter' && ($logViewMode === 'history' ? expandHistoryGroup(g) : toggleGroup(g.key))}>
                         <span class="group-chevron">{g.expanded ? '\u25BC' : '\u25B6'}</span>
                         <span class="group-dot" style="background: {groupColor(g.key, $groupBy)}"></span>
-                        <span class="group-label" style="color: {groupColor(g.key, $groupBy)}">{g.key}</span>
+                        <span class="group-label" style="color: {groupColor(g.key, $groupBy)}">{g.key || 'unknown'}</span>
                         <span class="group-count">({g.count.toLocaleString()})</span>
                         <span class="group-bar" style="background: {groupColor(g.key, $groupBy)}; opacity: 0.15; width: {Math.min(g.count / (groups[0]?.count || 1) * 100, 100)}%"></span>
                     </div>

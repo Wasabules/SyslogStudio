@@ -265,9 +265,9 @@ func initSchema(db *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_timestamp ON messages(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_severity ON messages(severity);
-	CREATE INDEX IF NOT EXISTS idx_hostname ON messages(hostname);
-	CREATE INDEX IF NOT EXISTS idx_app_name ON messages(app_name);
-	CREATE INDEX IF NOT EXISTS idx_source_ip ON messages(source_ip);
+	CREATE INDEX IF NOT EXISTS idx_hostname_nocase ON messages(hostname COLLATE NOCASE);
+	CREATE INDEX IF NOT EXISTS idx_app_name_nocase ON messages(app_name COLLATE NOCASE);
+	CREATE INDEX IF NOT EXISTS idx_source_ip_nocase ON messages(source_ip COLLATE NOCASE);
 
 	CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 		message, raw_message,
@@ -308,6 +308,7 @@ func (ls *LogStore) rebuildFTS() {
 	if db == nil {
 		return
 	}
+	migrateSortIndexes(db)
 
 	var msgCount int64
 	db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
@@ -575,35 +576,6 @@ func (ls *LogStore) trimToSize(db *sql.DB, limit int64) {
 	}
 }
 
-var allowedSortFields = map[string]string{
-	"timestamp": "timestamp",
-	"severity":  "severity",
-	"hostname":  "hostname",
-	"appName":   "app_name",
-	"sourceIP":  "source_ip",
-	"protocol":  "protocol",
-	"message":   "message",
-}
-
-var allowedGroupFields = map[string]string{
-	"severity": "severity_label",
-	"hostname": "hostname",
-	"appName":  "app_name",
-	"sourceIP": "source_ip",
-}
-
-func buildOrderClause(sortField, sortDir string) string {
-	col, ok := allowedSortFields[sortField]
-	if !ok {
-		col = "timestamp"
-	}
-	dir := "DESC"
-	if sortDir == "asc" {
-		dir = "ASC"
-	}
-	return " ORDER BY " + col + " " + dir
-}
-
 // QueryMessages returns a paginated, filtered, sorted result set.
 func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 	page := opts.Page
@@ -619,8 +591,9 @@ func (ls *LogStore) QueryMessages(opts models.QueryOptions) models.PagedResult {
 		pageSize = 100
 	}
 
-	plan := search.Compile(opts.Filter.Search, opts.Filter.SearchMode)
-	where, args := buildWhereClause(opts.Filter, &plan)
+	f := search.CompileFilter(opts.Filter)
+	plan := &f.Plan
+	where, args := buildWhereClause(&f)
 	orderBy := buildOrderClause(opts.SortField, opts.SortDir)
 
 	// A regex is applied after the query, in Go: SQLite has no REGEXP.
@@ -767,14 +740,17 @@ func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string)
 	if db == nil {
 		return nil
 	}
-	col, ok := allowedGroupFields[groupField]
+	col, ok := groupColumns[groupField]
 	if !ok {
 		return nil
 	}
 
-	plan := search.Compile(filter.Search, filter.SearchMode)
-	where, args := buildWhereClause(filter, &plan)
-	query := "SELECT " + col + ", COUNT(*) FROM messages" + where + " GROUP BY " + col + " ORDER BY COUNT(*) DESC"
+	f := search.CompileFilter(filter)
+	where, args := buildWhereClause(&f)
+	// Biggest first, then by name, as the live view orders its groups. A
+	// regex is not applied here: counting would mean reading every row.
+	query := "SELECT " + col + ", COUNT(*) FROM messages" + where + " GROUP BY " + col +
+		" ORDER BY COUNT(*) DESC, " + col + " COLLATE NOCASE, " + col
 	rows, err := db.Query(query, args...)
 	if err != nil {
 		slog.Error("log store: group query failed", "error", err)
@@ -785,73 +761,13 @@ func (ls *LogStore) QueryGroups(filter models.FilterCriteria, groupField string)
 	var groups []models.GroupSummary
 	for rows.Next() {
 		var g models.GroupSummary
+		// The key as it is, "" included: it is what picks the group's
+		// messages when the group is opened.
 		if err := rows.Scan(&g.Key, &g.Count); err == nil {
-			if g.Key == "" {
-				g.Key = "unknown"
-			}
 			groups = append(groups, g)
 		}
 	}
 	return groups
-}
-
-// buildWhereClause turns a filter into SQL, its search compiled into plan; a
-// plan that needs a scan is left for the caller to apply to the rows.
-func buildWhereClause(filter models.FilterCriteria, plan *search.Plan) (string, []interface{}) {
-	var conditions []string
-	var args []interface{}
-
-	if len(filter.Severities) > 0 {
-		placeholders := make([]string, len(filter.Severities))
-		for i, s := range filter.Severities {
-			placeholders[i] = "?"
-			args = append(args, s)
-		}
-		conditions = append(conditions, "severity IN ("+strings.Join(placeholders, ",")+")")
-	}
-
-	if len(filter.Facilities) > 0 {
-		placeholders := make([]string, len(filter.Facilities))
-		for i, f := range filter.Facilities {
-			placeholders[i] = "?"
-			args = append(args, f)
-		}
-		conditions = append(conditions, "facility IN ("+strings.Join(placeholders, ",")+")")
-	}
-
-	if filter.Hostname != "" {
-		conditions = append(conditions, "hostname LIKE ?")
-		args = append(args, "%"+filter.Hostname+"%")
-	}
-	if filter.AppName != "" {
-		conditions = append(conditions, "app_name LIKE ?")
-		args = append(args, "%"+filter.AppName+"%")
-	}
-	if filter.SourceIP != "" {
-		conditions = append(conditions, "source_ip LIKE ?")
-		args = append(args, "%"+filter.SourceIP+"%")
-	}
-	if match := plan.FTS5(); match != "" {
-		conditions = append(conditions, "rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
-		args = append(args, match)
-	} else if plan.Active() && plan.Literal != "" {
-		// No word to look up in the index: read the text itself.
-		conditions = append(conditions, "(instr(lower(message), ?) > 0 OR instr(lower(raw_message), ?) > 0)")
-		args = append(args, plan.Literal, plan.Literal)
-	}
-	if filter.DateFrom != "" {
-		conditions = append(conditions, "timestamp >= ?")
-		args = append(args, filter.DateFrom)
-	}
-	if filter.DateTo != "" {
-		conditions = append(conditions, "timestamp <= ?")
-		args = append(args, filter.DateTo)
-	}
-
-	if len(conditions) == 0 {
-		return "", nil
-	}
-	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
 // GetStats returns storage statistics.

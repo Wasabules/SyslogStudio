@@ -240,6 +240,8 @@ export namespace models {
 	    searchMode?: string;
 	    dateFrom?: string;
 	    dateTo?: string;
+	    groupField?: string;
+	    groupKey?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FilterCriteria(source);
@@ -256,6 +258,8 @@ export namespace models {
 	        this.searchMode = source["searchMode"];
 	        this.dateFrom = source["dateFrom"];
 	        this.dateTo = source["dateTo"];
+	        this.groupField = source["groupField"];
+	        this.groupKey = source["groupKey"];
 	    }
 	}
 	export class GroupSummary {
@@ -1406,6 +1410,7 @@ export namespace search {
 	    words?: string[];
 	    prefix?: boolean;
 	    kids?: Node[];
+	    distance?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Node(source);
@@ -1417,6 +1422,7 @@ export namespace search {
 	        this.words = source["words"];
 	        this.prefix = source["prefix"];
 	        this.kids = this.convertValues(source["kids"], Node);
+	        this.distance = source["distance"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

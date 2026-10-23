@@ -1,6 +1,6 @@
 import { writable, readable, derived } from 'svelte/store';
 import type { Readable } from 'svelte/store';
-import { planMatcher, type SearchPlan } from './search';
+import { filterMatcher, sortMessages, type SearchPlan } from './search';
 import { compileSearch } from './api';
 
 export interface SyslogMessage {
@@ -95,8 +95,12 @@ export interface FilterCriteria {
     sourceIP: string;
     search: string;
     searchMode: SearchMode;
+    /** Instants (RFC 3339): dateFrom included, dateTo excluded. */
     dateFrom: string;
     dateTo: string;
+    /** One group, exactly as grouping made it: the history opening a group. */
+    groupField?: string;
+    groupKey?: string;
 }
 
 export interface AlertRule {
@@ -304,66 +308,8 @@ export interface GroupSummary {
     count: number;
 }
 
-// Pre-compute filter values once per filter change to avoid recalculating per message
-function buildFilterFn($filter: FilterCriteria, plan: SearchPlan | null): (msg: SyslogMessage) => boolean {
-    const hasSev = $filter.severities.length > 0;
-    const sevSet = hasSev ? new Set($filter.severities) : null;
-    const hasFac = $filter.facilities.length > 0;
-    const facSet = hasFac ? new Set($filter.facilities) : null;
-    const hostLower = $filter.hostname?.toLowerCase() || '';
-    const appLower = $filter.appName?.toLowerCase() || '';
-    const srcLower = $filter.sourceIP?.toLowerCase() || '';
-    const fromTs = $filter.dateFrom ? new Date($filter.dateFrom).getTime() : NaN;
-    let toTs = $filter.dateTo ? new Date($filter.dateTo).getTime() : NaN;
-    if (!isNaN(toTs) && $filter.dateTo.length <= 10) toTs += 86400000 - 1;
-
-    const search = $filter.search ? planMatcher(plan) : null;
-
-    return (msg: SyslogMessage): boolean => {
-        if (sevSet && !sevSet.has(msg.severity)) return false;
-        if (facSet && !facSet.has(msg.facility)) return false;
-        if (hostLower && !msg.hostname.toLowerCase().includes(hostLower)) return false;
-        if (appLower && !msg.appName.toLowerCase().includes(appLower)) return false;
-        if (srcLower && !msg.sourceIP.toLowerCase().includes(srcLower)) return false;
-        if (!isNaN(fromTs) && new Date(msg.timestamp).getTime() < fromTs) return false;
-        if (!isNaN(toTs) && new Date(msg.timestamp).getTime() > toTs) return false;
-        if (search && !search(msg)) return false;
-        return true;
-    };
-}
-
 // Throttled derived store: recalculates at most every 150ms
 const FILTER_THROTTLE_MS = 150;
-
-function compareIDs(a: string, b: string): number {
-    const na = Number(a);
-    const nb = Number(b);
-    if (a !== '' && b !== '' && Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-    return a.localeCompare(b);
-}
-
-function buildSortComparator(col: SortColumn, dir: SortDir): ((a: SyslogMessage, b: SyslogMessage) => number) | null {
-    if (!col) return null;
-    const mult = dir === 'asc' ? 1 : -1;
-    switch (col) {
-        case 'timestamp': return (a, b) => mult * (new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-        case 'severity': return (a, b) => mult * (a.severity - b.severity);
-        case 'protocol': return (a, b) => mult * a.protocol.localeCompare(b.protocol);
-        case 'sourceIP': return (a, b) => mult * a.sourceIP.localeCompare(b.sourceIP);
-        case 'hostname': return (a, b) => mult * a.hostname.localeCompare(b.hostname);
-        case 'appName': return (a, b) => mult * a.appName.localeCompare(b.appName);
-        case 'message': return (a, b) => mult * a.message.localeCompare(b.message);
-        case 'facility': return (a, b) => mult * (a.facility - b.facility);
-        case 'version': return (a, b) => mult * ((a.version ?? 0) - (b.version ?? 0));
-        case 'receivedAt': return (a, b) =>
-            mult * (new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime());
-        // A process id is a number written as text, so 9 must not sort after
-        // 10; anything that is not a number falls back to comparing the text.
-        case 'procID': return (a, b) => mult * compareIDs(a.procID, b.procID);
-        case 'msgID': return (a, b) => mult * compareIDs(a.msgID, b.msgID);
-        default: return null;
-    }
-}
 
 export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessage[]>([], (set) => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -390,10 +336,10 @@ export const filteredMessages: Readable<SyslogMessage[]> = readable<SyslogMessag
         searchPlan.subscribe(v => { plan = v; })();
         sortColumn.subscribe(v => { sc = v; })();
         sortDirection.subscribe(v => { sd = v; })();
-        const fn = buildFilterFn(f, plan);
-        let result = msgs.filter(fn);
-        const cmp = buildSortComparator(sc, sd);
-        if (cmp) result = [...result].sort(cmp);
+        // The criteria, the sorting and their meanings are the history's:
+        // see lib/search.ts.
+        let result = msgs.filter(filterMatcher(f, plan));
+        if (sc) result = sortMessages(result, sc, sd);
         set(result);
         pending = false;
     }

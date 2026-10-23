@@ -417,13 +417,13 @@ func (s *SyslogServer) GetMessages(filter models.FilterCriteria) []models.Syslog
 	defer s.mu.RUnlock()
 
 	result := make([]models.SyslogMessage, 0, s.count)
-	plan := search.Compile(filter.Search, filter.SearchMode)
+	f := search.CompileFilter(filter)
 
 	// Read from oldest to newest
 	for i := 0; i < s.count; i++ {
 		idx := (s.head - s.count + i + len(s.messages)) % len(s.messages)
 		msg := s.messages[idx]
-		if matches(msg, filter, &plan) {
+		if f.Match(msg) {
 			result = append(result, msg)
 		}
 	}
@@ -882,70 +882,4 @@ func (s *SyslogServer) runStatsEmitter(ctx context.Context) {
 func (s *SyslogServer) emitStatus() {
 	status := s.GetStatus()
 	s.emitter.Emit("syslog:status", status)
-}
-
-// matches checks if a message matches the given filter criteria, its search
-// compiled once into plan for the whole buffer.
-func matches(msg models.SyslogMessage, filter models.FilterCriteria, plan *search.Plan) bool {
-	if len(filter.Severities) > 0 {
-		found := false
-		for _, sev := range filter.Severities {
-			if int(msg.Severity) == sev {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	if len(filter.Facilities) > 0 {
-		found := false
-		for _, fac := range filter.Facilities {
-			if int(msg.Facility) == fac {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	if filter.Hostname != "" {
-		if !strings.Contains(strings.ToLower(msg.Hostname), strings.ToLower(filter.Hostname)) {
-			return false
-		}
-	}
-
-	if filter.AppName != "" {
-		if !strings.Contains(strings.ToLower(msg.AppName), strings.ToLower(filter.AppName)) {
-			return false
-		}
-	}
-
-	if filter.SourceIP != "" {
-		if !strings.Contains(strings.ToLower(msg.SourceIP), strings.ToLower(filter.SourceIP)) {
-			return false
-		}
-	}
-
-	// Date range filter
-	if from, ok := models.ParseFilterDate(filter.DateFrom); ok {
-		if msg.Timestamp.Before(from) {
-			return false
-		}
-	}
-	if to, ok := models.ParseFilterDate(filter.DateTo); ok {
-		// If only date is given (no time part), include the whole day
-		if to.Hour() == 0 && to.Minute() == 0 && to.Second() == 0 {
-			to = to.Add(24*time.Hour - time.Nanosecond)
-		}
-		if msg.Timestamp.After(to) {
-			return false
-		}
-	}
-
-	return plan.Match(msg.Message, msg.RawMessage)
 }

@@ -131,6 +131,9 @@ Use the **Clear** function to empty the log buffer. This removes all messages fr
 
 The **Filter Bar** provides several ways to narrow down the displayed messages. All filters are applied together (logical AND).
 
+Every filter, sort and grouping below means the same thing in the live view, in the history and in
+an export: the same messages, in the same order.
+
 ### Severity Filter
 
 Select one or more severity levels to display only messages at those levels. The severity levels are:
@@ -152,17 +155,14 @@ When no severities are selected, all severity levels are shown.
 
 Select one or more facilities to filter by the source subsystem. Common facilities include kern, user, mail, daemon, auth, syslog, cron, and local0 through local7. When no facilities are selected, all are shown.
 
-### Hostname Filter
+### Hostname, App Name and Source IP Filters
 
-Enter a hostname string. Messages whose hostname contains the entered text (case-insensitive) will be displayed.
+Enter part of a hostname, an application name or an IP address. Messages whose field contains the
+entered text are displayed:
 
-### App Name Filter
-
-Enter an application name string. Messages whose app name contains the entered text (case-insensitive) will be displayed.
-
-### Source IP Filter
-
-Enter an IP address or partial IP string. Messages whose source IP contains the entered text (case-insensitive) will be displayed.
+- Case does not matter, and neither does an accent on a Latin letter: `cafe` finds `CAFÉ-01`.
+- Everything else counts as typed, spaces included. `web_01` finds `web_01` and not `web-01`, and
+  `50%` is a percent sign, not a wildcard.
 
 ### Search
 
@@ -215,7 +215,27 @@ unclosed quote, an operator with nothing after it and an invalid regular express
 
 ### Date Range
 
-Set a **From** and/or **To** date to restrict messages to a specific time window. You can enter a date (YYYY-MM-DD) or a full datetime. When only a date is provided for the "To" field, the entire day is included.
+Set a **From** and/or **To** time to restrict messages to a time window:
+
+- **From** is included, and **To** includes its whole minute: from 22:30 to 22:33 keeps 22:33:59.
+- Times are read in the zone the list is displayed in (Settings > Timezone), and the boxes follow
+  when that zone changes.
+- The window stands for the same instants in every view, whatever zone the service or the machine
+  is in.
+
+### Sorting and Grouping
+
+Click a column header to sort by it, and again to reverse.
+
+- Text sorts without regard to case.
+- Numbers sort as numbers, process and message ids included: numeric ids first, then the others.
+- Messages that tie keep the order they arrived in.
+
+**Group by** gathers messages by severity, hostname, application or source IP:
+
+- the biggest groups come first, then by name;
+- a group holds exactly the messages whose field is its name: `web` does not take in `web-01`;
+- messages without a value are grouped under *unknown*.
 
 ## Exporting Logs
 

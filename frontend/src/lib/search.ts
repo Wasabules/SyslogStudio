@@ -250,10 +250,242 @@ export function planMatcher(plan: SearchPlan | null | undefined): ((msg: Searcha
         return msg => re.test(msg.message) || re.test(msg.rawMessage);
     }
     if (plan.literal) {
-        const lit = plan.literal;
-        return msg => msg.message.toLowerCase().includes(lit) || msg.rawMessage.toLowerCase().includes(lit);
+        const contains = containsMatcher(plan.literal);
+        return msg => contains(msg.message) || contains(msg.rawMessage);
     }
     if (!plan.root) return null;
     const test = compileNode(plan.root);
     return msg => test(msg, prepare(msg));
+}
+
+// ---------------------------------------------------------------------------
+// The other criteria, sorting and grouping: internal/search/filter.go and the
+// log store's query.go, held to internal/search/testdata/filters.json.
+
+/** The fields the filters, sorting and grouping read. */
+export interface Filterable extends Searchable {
+    timestamp: string;
+    receivedAt: string;
+    severity: number;
+    severityLabel: string;
+    facility: number;
+    hostname: string;
+    appName: string;
+    procID: string;
+    msgID: string;
+    sourceIP: string;
+    protocol: string;
+    version?: number;
+}
+
+export interface Criteria {
+    severities: number[];
+    facilities: number[];
+    hostname: string;
+    appName: string;
+    sourceIP: string;
+    search: string;
+    dateFrom: string;
+    dateTo: string;
+    groupField?: string;
+    groupKey?: string;
+}
+
+const foldedChars = new Map<number, string>();
+
+/**
+ * Text as the field boxes compare it — Fold in filter.go: lowercase, without
+ * the accents words() takes off Latin letters, and otherwise as it is.
+ */
+export function foldText(text: string): string {
+    if (!NON_ASCII.test(text)) return text.toLowerCase();
+    let out = '';
+    for (const ch of text) {
+        const cp = ch.codePointAt(0)!;
+        let f = foldedChars.get(cp);
+        if (f === undefined) {
+            f = isAccent(cp) ? '' : cp < 0x80 ? ch.toLowerCase() : fold(ch);
+            foldedChars.set(cp, f);
+        }
+        out += f;
+    }
+    return out;
+}
+
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
+
+// Whether text, folded, contains needle (already folded). A plain search
+// with "i" finds an ASCII needle exactly where folding would in ASCII text —
+// JavaScript's "i" without "u" folds no other letter into ASCII — and
+// whatever it finds elsewhere folding finds too; only the text it misses that
+// holds something beyond ASCII needs folding.
+function containsMatcher(needle: string): (text: string) => boolean {
+    if (NON_ASCII.test(needle)) return text => foldText(text).includes(needle);
+    const re = new RegExp(needle.replace(REGEX_SPECIALS, '\\$&'), 'i');
+    return text => re.test(text) || (NON_ASCII.test(text) && foldText(text).includes(needle));
+}
+
+// A bound of the time range: its instant and how long it stands for. The
+// window sends instants; a bare date or time — a filter saved before it did —
+// is the machine's wall clock, for that whole day, minute or second.
+const WALL = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([zZ]|[+-]\d{2}:\d{2})$/;
+
+function bound(s: string | undefined): [number, number] {
+    if (!s) return [NaN, 0];
+    if (RFC3339.test(s)) return [Date.parse(s), 0];
+    const m = WALL.exec(s);
+    if (!m) return [NaN, 0];
+    const [y, mo, d, h = 0, mi = 0, sec = 0] = m.slice(1).map(v => (v === undefined ? undefined : Number(v))) as number[];
+    const t = new Date(y, mo - 1, d, h, mi, sec);
+    // Out-of-range parts roll over in JavaScript; Go refuses them.
+    if (t.getFullYear() !== y || t.getMonth() !== mo - 1 || t.getDate() !== d
+        || t.getHours() !== h || t.getMinutes() !== mi || t.getSeconds() !== sec) return [NaN, 0];
+    return [t.getTime(), m[6] !== undefined ? 1000 : m[4] !== undefined ? 60_000 : 86_400_000];
+}
+
+/** The time range a filter keeps, as [from, to) in milliseconds; NaN is open. */
+export function timeRange(c: Pick<Criteria, 'dateFrom' | 'dateTo'>): [number, number] {
+    const [from] = bound(c.dateFrom);
+    const [to, span] = bound(c.dateTo);
+    return [from, to + span];
+}
+
+/** What a message is grouped by: the field as it is, without folding. */
+export function groupKey(m: Filterable, field: string): string {
+    switch (field) {
+        case 'severity': return m.severityLabel;
+        case 'hostname': return m.hostname;
+        case 'appName': return m.appName;
+        case 'sourceIP': return m.sourceIP;
+    }
+    return '';
+}
+
+/** The whole filter, compiled once for the many messages it is put to. */
+export function filterMatcher(c: Criteria, plan: SearchPlan | null): (m: Filterable) => boolean {
+    const sev = c.severities?.length ? new Set(c.severities) : null;
+    const fac = c.facilities?.length ? new Set(c.facilities) : null;
+    const fields: [keyof Filterable, (text: string) => boolean][] = [];
+    for (const [key, typed] of [['hostname', c.hostname], ['appName', c.appName], ['sourceIP', c.sourceIP]] as const) {
+        const needle = typed ? foldText(typed) : '';
+        if (needle) fields.push([key, containsMatcher(needle)]);
+    }
+    const [from, to] = timeRange(c);
+    const group = c.groupField || '';
+    const search = c.search ? planMatcher(plan) : null;
+    return m => {
+        if (sev && !sev.has(m.severity)) return false;
+        if (fac && !fac.has(m.facility)) return false;
+        for (const [key, contains] of fields) {
+            if (!contains(m[key] as string)) return false;
+        }
+        if (!isNaN(from) || !isNaN(to)) {
+            const t = Date.parse(m.timestamp);
+            if (t < from || t >= to) return false;
+        }
+        if (group && groupKey(m, group) !== (c.groupKey ?? '')) return false;
+        return !search || search(m);
+    };
+}
+
+/**
+ * SQLite's NOCASE, which the history sorts text by: code point by code point,
+ * the ASCII letters folded. UTF-16 orders like code points but for the
+ * characters past U+FFFF, which must come after all the others.
+ */
+export function compareText(a: string, b: string): number {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+        let x = a.charCodeAt(i);
+        let y = b.charCodeAt(i);
+        if (x === y) continue;
+        if (x >= 0x41 && x <= 0x5a) x += 32;
+        if (y >= 0x41 && y <= 0x5a) y += 32;
+        if (x === y) continue;
+        const sx = x >= 0xd800 && x <= 0xdfff;
+        const sy = y >= 0xd800 && y <= 0xdfff;
+        if (sx !== sy) return sx ? 1 : -1;
+        return x - y;
+    }
+    return a.length - b.length;
+}
+
+// As compareText, without the folding: the order of SQLite's BINARY.
+function compareExact(a: string, b: string): number {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+        const x = a.charCodeAt(i);
+        const y = b.charCodeAt(i);
+        if (x === y) continue;
+        const sx = x >= 0xd800 && x <= 0xdfff;
+        const sy = y >= 0xd800 && y <= 0xdfff;
+        if (sx !== sy) return sx ? 1 : -1;
+        return x - y;
+    }
+    return a.length - b.length;
+}
+
+const DIGITS = /^[0-9]+$/;
+
+// Process and message ids: numbers first, as numbers of any length, then text.
+function compareID(a: string, b: string): number {
+    const na = DIGITS.test(a);
+    const nb = DIGITS.test(b);
+    if (na !== nb) return na ? -1 : 1;
+    if (na) {
+        const x = a.replace(/^0+/, '');
+        const y = b.replace(/^0+/, '');
+        if (x.length !== y.length) return x.length - y.length;
+        if (x !== y) return x < y ? -1 : 1;
+    }
+    return compareText(a, b);
+}
+
+/** The columns both views sort by, and how. */
+export const SORTERS: Record<string, (a: Filterable, b: Filterable) => number> = {
+    timestamp: (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+    receivedAt: (a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt),
+    severity: (a, b) => a.severity - b.severity,
+    facility: (a, b) => a.facility - b.facility,
+    version: (a, b) => (a.version ?? 0) - (b.version ?? 0),
+    hostname: (a, b) => compareText(a.hostname, b.hostname),
+    appName: (a, b) => compareText(a.appName, b.appName),
+    sourceIP: (a, b) => compareText(a.sourceIP, b.sourceIP),
+    protocol: (a, b) => compareText(a.protocol, b.protocol),
+    message: (a, b) => compareText(a.message, b.message),
+    procID: (a, b) => compareID(a.procID, b.procID),
+    msgID: (a, b) => compareID(a.msgID, b.msgID),
+};
+
+/**
+ * Messages in order of arrival, sorted by a column as the history sorts it.
+ * Ties keep their order of arrival, in the same direction — the history's
+ * rowid — so the list is reversed before a stable sort when descending.
+ */
+export function sortMessages<T extends Filterable>(msgs: T[], field: string, dir: 'asc' | 'desc'): T[] {
+    const by = SORTERS[field];
+    if (!by) return msgs;
+    if (dir === 'desc') return [...msgs].reverse().sort((a, b) => by(b, a));
+    return [...msgs].sort(by);
+}
+
+export interface Group<T> {
+    key: string;
+    count: number;
+    messages: T[];
+}
+
+/** Messages grouped by a field: biggest first, then by name, as the history. */
+export function groupMessages<T extends Filterable>(msgs: T[], field: string): Group<T>[] {
+    const map = new Map<string, T[]>();
+    for (const m of msgs) {
+        const key = groupKey(m, field);
+        let list = map.get(key);
+        if (!list) map.set(key, (list = []));
+        list.push(m);
+    }
+    return [...map.entries()]
+        .map(([key, messages]) => ({ key, count: messages.length, messages }))
+        .sort((a, b) => b.count - a.count || compareText(a.key, b.key) || compareExact(a.key, b.key));
 }

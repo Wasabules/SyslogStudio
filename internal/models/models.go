@@ -183,8 +183,14 @@ type FilterCriteria struct {
 	SourceIP   string `json:"sourceIP,omitempty"`
 	Search     string `json:"search,omitempty"`
 	SearchMode string `json:"searchMode,omitempty"`
-	DateFrom   string `json:"dateFrom,omitempty"`
-	DateTo     string `json:"dateTo,omitempty"`
+	// DateFrom and DateTo bound the time range: instants in RFC 3339, From
+	// included and To excluded (see search.CompileFilter for older forms).
+	DateFrom string `json:"dateFrom,omitempty"`
+	DateTo   string `json:"dateTo,omitempty"`
+	// GroupField and GroupKey narrow to one group: the messages whose field
+	// is exactly the key, as grouping made it ("" for those without).
+	GroupField string `json:"groupField,omitempty"`
+	GroupKey   string `json:"groupKey,omitempty"`
 }
 
 // StorageConfig holds persistence settings.
@@ -810,32 +816,6 @@ func ParseSourceEntry(entry string) (*net.IPNet, error) {
 		bits = 128
 	}
 	return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}, nil
-}
-
-// ParseFilterDate parses a date string in RFC 3339 or "YYYY-MM-DD" format.
-// The zone-less layouts are read in the collector's local zone, not UTC. These
-// values come from the UI's date and datetime-local inputs, which a user fills
-// in wall-clock time; reading them as UTC moved every filter boundary by the
-// UTC offset, so "from 2026-09-17" started at 02:00 for a CEST user. Same root
-// cause as the RFC 3164 timestamp shift in issue #24. RFC 3339 keeps its own
-// explicit offset and is parsed as-is.
-func ParseFilterDate(s string) (time.Time, bool) {
-	if s == "" {
-		return time.Time{}, false
-	}
-	t, err := time.Parse(time.RFC3339, s)
-	if err == nil {
-		return t, true
-	}
-	t, err = time.ParseInLocation("2006-01-02", s, time.Local)
-	if err == nil {
-		return t, true
-	}
-	t, err = time.ParseInLocation("2006-01-02T15:04", s, time.Local)
-	if err == nil {
-		return t, true
-	}
-	return time.Time{}, false
 }
 
 // --- Describing a log file so it can be imported -----------------------------
