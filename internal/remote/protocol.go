@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
+	"strings"
+	"sync"
 )
 
 // ProtocolVersion is bumped when frames change shape. A window and a service
@@ -36,6 +39,62 @@ type Hello struct {
 	Protocol int    `json:"protocol"`
 	Version  string `json:"version"`
 	PID      int    `json:"pid"`
+	// Build is the commit the service was built from. A release is named by
+	// its version; an unversioned build — "dev" — by this alone.
+	Build string `json:"build,omitempty"`
+}
+
+// devVersion is what an unversioned build calls itself (updater.AppVersion):
+// every one of them, whatever its code. Two of them match only when they
+// were built from the same commit.
+const devVersion = "dev"
+
+var (
+	buildOnce sync.Once
+	buildID   string
+)
+
+// BuildID is the commit this executable was built from, marked when the
+// tree had changes; "" when the build does not say.
+func BuildID() string {
+	buildOnce.Do(func() {
+		info, ok := debug.ReadBuildInfo()
+		if !ok {
+			return
+		}
+		var rev, modified string
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				rev = s.Value
+			case "vcs.modified":
+				modified = s.Value
+			}
+		}
+		if rev == "" {
+			return
+		}
+		buildID = rev
+		if modified == "true" {
+			buildID += "+changes"
+		}
+	})
+	return buildID
+}
+
+// shortBuild names a build for a person: its abbreviated commit.
+func shortBuild(b string) string {
+	if b == "" {
+		return "unknown build"
+	}
+	rev, changes, _ := strings.Cut(b, "+")
+	if len(rev) > 7 {
+		rev = rev[:7]
+	}
+	if changes != "" {
+		return rev + "+" + changes
+	}
+	return rev
 }
 
 // ErrClosed is returned by calls on a connection that has gone away.

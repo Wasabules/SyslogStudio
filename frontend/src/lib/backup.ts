@@ -143,7 +143,11 @@ export function errorText(e: any): string {
 export const getBackupConfig = (): Promise<BackupConfig> => callGo('GetBackupConfig');
 export const setBackupConfig = (cfg: BackupConfig): Promise<void> => callGo('SetBackupConfig', cfg);
 export const getBackupStatus = (): Promise<BackupStatus> => callGo('GetBackupStatus');
-export const listBackups = (): Promise<BackupListing> => callGo('ListBackups');
+export async function listBackups(): Promise<BackupListing> {
+    const l: BackupListing | null = await callGo('ListBackups');
+    // An engine that could not answer gives back nothing at all.
+    return { files: l?.files || [], problems: l?.problems || [] };
+}
 export const backupNow = (): Promise<void> => callGo('BackupNow');
 export const selectBackupDir = (): Promise<string> => callGo('SelectBackupDir');
 export const selectBackupFile = (): Promise<string> => callGo('SelectBackupFile');

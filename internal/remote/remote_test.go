@@ -202,6 +202,41 @@ func TestNewClient_RefusesAnotherBuild(t *testing.T) {
 	}
 }
 
+// Unversioned builds all call themselves "dev": a window built today drove
+// a service built last week and called methods it did not have. They match
+// only when built from the same commit.
+func TestNewClient_RefusesAnotherDevBuild(t *testing.T) {
+	helloAs := func(version, build string) net.Conn {
+		window, service := net.Pipe()
+		go func() {
+			json.NewEncoder(service).Encode(frame{Hello: &Hello{Protocol: ProtocolVersion, Version: version, Build: build}})
+		}()
+		return window
+	}
+	hello := func(build string) net.Conn { return helloAs("dev", build) }
+	other := "0123456789abcdef0123456789abcdef01234567"
+	if BuildID() == other {
+		other = "fedcba9876543210fedcba9876543210fedcba98"
+	}
+	_, err := NewClient(hello(other), "dev", nil)
+	var verr *VersionError
+	if !errors.As(err, &verr) || !strings.Contains(verr.Service, other[:7]) {
+		t.Fatalf("a dev window drove a dev service of another commit: %v", err)
+	}
+	c, err := NewClient(hello(BuildID()), "dev", nil)
+	if err != nil {
+		t.Fatalf("a dev service of the same commit was refused: %v", err)
+	}
+	c.Close()
+	// A released version is named by its version alone: the same version,
+	// built on two machines, is the same release.
+	c, err = NewClient(helloAs("v1.8.0", other), "v1.8.0", nil)
+	if err != nil {
+		t.Fatalf("a release was refused for its build: %v", err)
+	}
+	c.Close()
+}
+
 func TestClient_KnowsWhenTheServiceGoesAway(t *testing.T) {
 	_, srv, c, _ := pair(t, nil)
 	srv.Close()
