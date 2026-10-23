@@ -25,7 +25,7 @@ runs:
         set -euo pipefail
         packages="libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config"
         sudo apt-get update
-        if ! sudo timeout 240 apt-get install -y --download-only -o Acquire::Retries=3 $packages; then
+        if ! sudo timeout 1 apt-get install -y --download-only -o Acquire::Retries=3 $packages; then
           echo "::warning::The runner's Ubuntu mirror did not deliver in 4 minutes; switching to archive.ubuntu.com."
           for list in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
             if [ -f "$list" ]; then
