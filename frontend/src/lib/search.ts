@@ -243,10 +243,10 @@ function compileNode(n: SearchNode): Test {
 export function planMatcher(plan: SearchPlan | null | undefined): ((msg: Searchable) => boolean) | null {
     if (!plan || plan.error) return null;
     if (plan.pattern) {
-        // Validated by Go, whose syntax JavaScript reads the same way for all
-        // but its rarest forms; one it cannot read is left unapplied here.
+        // Go's own parse of the pattern, spelt out in full for the "u" flag:
+        // case, classes and anchors already say exactly what Go matches.
         let re: RegExp;
-        try { re = new RegExp(plan.pattern, 'i'); } catch { return null; }
+        try { re = new RegExp(plan.pattern, 'u'); } catch { return null; }
         return msg => re.test(msg.message) || re.test(msg.rawMessage);
     }
     if (plan.literal) {

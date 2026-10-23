@@ -43,6 +43,8 @@ var corpus = []corpusMessage{
 	message("cjk", "数据库连接失败 error"),
 	message("arrow", "value -> next"),
 	message("quote", `He said "hello world" loudly`),
+	message("lines", "first line\nsecond line"),
+	message("kelvin", "Kelvin: 5 \u212A, then Straße"),
 }
 
 type queryCase struct {
@@ -113,6 +115,29 @@ var cases = []queryCase{
 	// Regex: Go's syntax, without regard to case.
 	{ModeRegex, `err(or)?\s+on`, []string{"disk"}, ""},
 	{ModeRegex, "TIMEOUT", []string{"slow", "both", "later"}, ""},
+	// Go's own syntax and meanings, which the window must follow: it gets the
+	// pattern rewritten rather than as typed.
+	{ModeRegex, `^disk`, []string{"disk"}, ""},
+	{ModeRegex, `\Adisk`, []string{"disk"}, ""},
+	{ModeRegex, `^second`, []string{}, ""},
+	{ModeRegex, `(?m)^second`, []string{"lines"}, ""},
+	{ModeRegex, `line$`, []string{"lines"}, ""},
+	{ModeRegex, `first line$`, []string{}, ""},
+	{ModeRegex, `(?m)first line$`, []string{"lines"}, ""},
+	{ModeRegex, `line\z`, []string{"lines"}, ""},
+	{ModeRegex, `first.second`, []string{}, ""},
+	{ModeRegex, `(?s)first.second`, []string{}, ""},
+	{ModeRegex, `(?s)line.second`, []string{"lines"}, ""},
+	{ModeRegex, `[[:digit:]]{3}\.[[:digit:]]+`, []string{"ssh"}, ""},
+	{ModeRegex, `\pL+:\s\d`, []string{"kelvin"}, ""},
+	{ModeRegex, `5 k`, []string{"kelvin"}, ""},
+	{ModeRegex, `(?-i)5 k`, []string{}, ""},
+	{ModeRegex, `STRASSE`, []string{}, ""},
+	{ModeRegex, `straße`, []string{"kelvin"}, ""},
+	{ModeRegex, `(?P<word>time)out`, []string{"slow", "both", "later"}, ""},
+	{ModeRegex, `e.*?r\b`, []string{"disk", "slow", "both", "later", "refused", "ssh", "choice", "cjk"}, ""},
+	{ModeRegex, `\bpeer\b|\bport\b`, []string{"refused", "ssh"}, ""},
+	{ModeRegex, `(?U)a+`, []string{"disk", "slow", "later", "french", "ssh", "choice", "arrow", "quote", "kelvin"}, ""},
 	{ModeRegex, "(", nil, ErrBadRegex},
 	{ModeRegex, strings.Repeat("a", 1001), nil, ErrRegexTooLong},
 }

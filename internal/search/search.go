@@ -15,7 +15,8 @@
 //   - fts: words combined with AND (or just a space), OR and NOT, in any case,
 //     with parentheses, "exact phrases", prefix* searches and NEAR(a b, 5).
 //     NOT excludes from what comes before it: "error NOT timeout".
-//   - regex: a regular expression, case-insensitive, in Go's syntax.
+//   - regex: a regular expression, case-insensitive, in Go's syntax — which
+//     the window receives rewritten, so that it matches what Go matches.
 //
 // A query that does not compile is not applied, and the error says why.
 package search
@@ -44,7 +45,8 @@ type Plan struct {
 	Root *Node `json:"root,omitempty"`
 	// Literal is a text query with no word in it, looked for as is.
 	Literal string `json:"literal,omitempty"`
-	// Pattern is a regex query that compiled.
+	// Pattern is a regex query that compiled, spelt out for JavaScript's "u"
+	// mode so that the window matches exactly what Go does (see jsPattern).
 	Pattern string `json:"pattern,omitempty"`
 	// Error says why the query is not applied.
 	Error *Error `json:"error,omitempty"`
@@ -136,7 +138,12 @@ func Compile(query, mode string) Plan {
 		case err != nil:
 			p.Error = &Error{Code: ErrBadRegex, Term: regexMessage(err)}
 		default:
-			p.Pattern, p.re = query, re
+			js, err := jsPattern(query)
+			if err != nil {
+				p.Error = &Error{Code: ErrBadRegex, Term: regexMessage(err)}
+				break
+			}
+			p.Pattern, p.re = js, re
 		}
 	case ModeFTS:
 		p.Root, p.Error = parse(trimmed)
