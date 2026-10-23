@@ -228,7 +228,7 @@ func TestBackup_RestoreKeepsASafetyCopy(t *testing.T) {
 
 	// The restored database receives, and is encrypted when it closes.
 	e.logStore.BufferMessage(msgs[40])
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second) // polled: generous for a loaded CI under -race
 	for {
 		if n, _, _ := e.logStore.Span(); n == 31 {
 			break
