@@ -231,7 +231,7 @@ func TestFiles(t *testing.T) {
 	if !IsVaultFile(enc) || IsVaultFile(src) {
 		t.Fatal("IsVaultFile")
 	}
-	if _, err := Verify(enc, master); err != nil {
+	if _, err := Verify(enc, master, nil); err != nil {
 		t.Fatal(err)
 	}
 	out := filepath.Join(dir, "back.db")

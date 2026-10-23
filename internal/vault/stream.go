@@ -303,13 +303,19 @@ func DecryptFile(src, dst, master string, progress func(int64)) (Header, error) 
 
 // Verify decrypts a file without writing it anywhere: it is whole, and
 // master opens it.
-func Verify(path, master string) (Header, error) {
+func Verify(path, master string, progress func(int64)) (Header, error) {
 	in, err := os.Open(path)
 	if err != nil {
 		return Header{}, err
 	}
 	defer in.Close()
-	return Decrypt(io.Discard, in, master, nil)
+	return Decrypt(io.Discard, in, master, progress)
+}
+
+// WriteAtomically writes dst through write: beside it first, synced, then
+// renamed into place, so that it appears whole or not at all.
+func WriteAtomically(dst string, write func(io.Writer) error) error {
+	return writeAtomically(dst, write)
 }
 
 func writeAtomically(dst string, write func(io.Writer) error) error {

@@ -77,9 +77,9 @@ func occurrence(s models.CleanupSchedule, day time.Time) time.Time {
 	return time.Date(y, mo, d, h, m, 0, 0, loc)
 }
 
-// previousRun is the last scheduled time at or before now; zero for a
+// PreviousRun is the last scheduled time at or before now; zero for a
 // continuous cleanup.
-func previousRun(s models.CleanupSchedule, now time.Time) time.Time {
+func PreviousRun(s models.CleanupSchedule, now time.Time) time.Time {
 	if s.Every == models.CleanupContinuous {
 		return time.Time{}
 	}
@@ -97,9 +97,9 @@ func previousRun(s models.CleanupSchedule, now time.Time) time.Time {
 	}
 }
 
-// nextRun is the first scheduled time after now; zero for a continuous
+// NextRun is the first scheduled time after now; zero for a continuous
 // cleanup.
-func nextRun(s models.CleanupSchedule, now time.Time) time.Time {
+func NextRun(s models.CleanupSchedule, now time.Time) time.Time {
 	if s.Every == models.CleanupContinuous {
 		return time.Time{}
 	}
