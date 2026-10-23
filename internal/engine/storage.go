@@ -17,6 +17,11 @@ func (e *Engine) GetStorageConfig() models.StorageConfig {
 }
 
 func (e *Engine) SetStorageConfig(cfg models.StorageConfig) {
+	// Encryption is turned on and off by EnableEncryption and
+	// DisableEncryption, with the password. The settings form does not carry
+	// it, and saving the form once cleared it — leaving the database in the
+	// clear at the next closing.
+	cfg.EncryptionEnabled = e.configStore.LoadStorage().EncryptionEnabled
 	e.configStore.SaveStorage(cfg)
 	if e.logStore != nil {
 		// The store resolves an empty path itself, against the user's
