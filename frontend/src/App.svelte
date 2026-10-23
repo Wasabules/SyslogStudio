@@ -36,6 +36,7 @@
     import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted, getAutoStartError, getDataDirConflict } from './lib/api';
     import { watchSystemService, unwatchSystemService } from './lib/systemService';
     import { watchServiceLink } from './lib/serviceLink';
+    import { watchBackups } from './lib/backup';
     import ServiceBanner from './components/ServiceBanner.svelte';
     import DataDirConflict from './components/DataDirConflict.svelte';
     import { toastError, toastInfo, toastSuccess } from './lib/toast';
@@ -55,6 +56,7 @@
         maybeWarnCAPlaintext();
         maybeReportAutoStart();
         watchSystemService();
+        watchBackups();
     }
 
     function openSettings(tab: '' | 'background' = '') {

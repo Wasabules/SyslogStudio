@@ -307,6 +307,8 @@ type AppConfig struct {
 	// Inbox, on a service, seals what it receives for the window that
 	// installed it, instead of storing it in a database in the clear.
 	Inbox *InboxConfig `json:"inbox,omitempty"`
+	// Backup is where copies of the database go, and when.
+	Backup BackupConfig `json:"backup"`
 }
 
 // CloseAction is what closing the window means.

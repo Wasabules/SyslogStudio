@@ -65,6 +65,32 @@ func (b sealedBackend) DisableEncryption(password string) error {
 func (b sealedBackend) ChangeEncryptionPassword(oldPassword, newPassword string) error {
 	return b.store.ChangeEncryptionPassword(oldPassword, newPassword)
 }
+func (b sealedBackend) GetRecoveryKey() models.RecoveryKeyInfo { return b.store.GetRecoveryKey() }
+func (b sealedBackend) SetRecoveryKey(pub []byte) (models.RecoveryKeyInfo, error) {
+	return b.store.SetRecoveryKey(pub)
+}
+func (b sealedBackend) RemoveRecoveryKey() error { return b.store.RemoveRecoveryKey() }
+func (b sealedBackend) UnlockWithRecoveryKey(keyFile []byte) error {
+	return b.store.UnlockWithRecoveryKey(keyFile)
+}
+func (b sealedBackend) IsUnlockedByRecoveryKey() bool { return b.store.IsUnlockedByRecoveryKey() }
+func (b sealedBackend) ResetEncryptionPassword(newPassword string) error {
+	return b.store.ResetEncryptionPassword(newPassword)
+}
+
+// Backups: of the window's own database.
+func (b sealedBackend) GetBackupConfig() models.BackupConfig { return b.store.GetBackupConfig() }
+func (b sealedBackend) SetBackupConfig(cfg models.BackupConfig) error {
+	return b.store.SetBackupConfig(cfg)
+}
+func (b sealedBackend) GetBackupStatus() models.BackupStatus { return b.store.GetBackupStatus() }
+func (b sealedBackend) ListBackups() ([]models.BackupFile, error) {
+	return b.store.ListBackups()
+}
+func (b sealedBackend) BackupNow() error { return b.store.BackupNow() }
+func (b sealedBackend) RestoreBackup(path, password string, keyFile []byte) error {
+	return b.store.RestoreBackup(path, password, keyFile)
+}
 
 // sealedPair is the connection and the database to collect between, while
 // the window drives a service that seals.

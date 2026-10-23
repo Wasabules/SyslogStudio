@@ -14,6 +14,10 @@ export function AreSinkCredentialsUnencrypted() {
   return window['go']['main']['App']['AreSinkCredentialsUnencrypted']();
 }
 
+export function BackupNow() {
+  return window['go']['main']['App']['BackupNow']();
+}
+
 export function CancelClose() {
   return window['go']['main']['App']['CancelClose']();
 }
@@ -42,12 +46,20 @@ export function ClearNotifyLog() {
   return window['go']['main']['App']['ClearNotifyLog']();
 }
 
+export function CloseBackup() {
+  return window['go']['main']['App']['CloseBackup']();
+}
+
 export function CompactDatabase() {
   return window['go']['main']['App']['CompactDatabase']();
 }
 
 export function CompileSearch(arg1, arg2) {
   return window['go']['main']['App']['CompileSearch'](arg1, arg2);
+}
+
+export function CreateRecoveryKey() {
+  return window['go']['main']['App']['CreateRecoveryKey']();
 }
 
 export function DeleteAlertRule(arg1) {
@@ -130,6 +142,18 @@ export function GetBackgroundSettings() {
   return window['go']['main']['App']['GetBackgroundSettings']();
 }
 
+export function GetBackupConfig() {
+  return window['go']['main']['App']['GetBackupConfig']();
+}
+
+export function GetBackupStatus() {
+  return window['go']['main']['App']['GetBackupStatus']();
+}
+
+export function GetBackupView() {
+  return window['go']['main']['App']['GetBackupView']();
+}
+
 export function GetCACertInfo() {
   return window['go']['main']['App']['GetCACertInfo']();
 }
@@ -188,6 +212,10 @@ export function GetNotifySinks() {
 
 export function GetNotifyStats() {
   return window['go']['main']['App']['GetNotifyStats']();
+}
+
+export function GetRecoveryKey() {
+  return window['go']['main']['App']['GetRecoveryKey']();
 }
 
 export function GetScenarioDurationSeconds() {
@@ -274,8 +302,20 @@ export function IsTrayAvailable() {
   return window['go']['main']['App']['IsTrayAvailable']();
 }
 
+export function IsUnlockedByRecoveryKey() {
+  return window['go']['main']['App']['IsUnlockedByRecoveryKey']();
+}
+
+export function ListBackups() {
+  return window['go']['main']['App']['ListBackups']();
+}
+
 export function LoadPersistedCA() {
   return window['go']['main']['App']['LoadPersistedCA']();
+}
+
+export function OpenBackup(arg1, arg2, arg3) {
+  return window['go']['main']['App']['OpenBackup'](arg1, arg2, arg3);
 }
 
 export function OpenURL(arg1) {
@@ -298,6 +338,22 @@ export function QuitApplication() {
   return window['go']['main']['App']['QuitApplication']();
 }
 
+export function RemoveRecoveryKey() {
+  return window['go']['main']['App']['RemoveRecoveryKey']();
+}
+
+export function ResetEncryptionPassword(arg1) {
+  return window['go']['main']['App']['ResetEncryptionPassword'](arg1);
+}
+
+export function RestoreBackup(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RestoreBackup'](arg1, arg2, arg3);
+}
+
+export function RestoreBackupFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RestoreBackupFile'](arg1, arg2, arg3);
+}
+
 export function RevealWindow() {
   return window['go']['main']['App']['RevealWindow']();
 }
@@ -318,6 +374,14 @@ export function SaveSimulatorConfig(arg1) {
   return window['go']['main']['App']['SaveSimulatorConfig'](arg1);
 }
 
+export function SelectBackupDir() {
+  return window['go']['main']['App']['SelectBackupDir']();
+}
+
+export function SelectBackupFile() {
+  return window['go']['main']['App']['SelectBackupFile']();
+}
+
 export function SelectCAFile() {
   return window['go']['main']['App']['SelectCAFile']();
 }
@@ -334,8 +398,16 @@ export function SelectLogFile() {
   return window['go']['main']['App']['SelectLogFile']();
 }
 
+export function SelectRecoveryKeyFile() {
+  return window['go']['main']['App']['SelectRecoveryKeyFile']();
+}
+
 export function SetAutoStartListeners(arg1) {
   return window['go']['main']['App']['SetAutoStartListeners'](arg1);
+}
+
+export function SetBackupConfig(arg1) {
+  return window['go']['main']['App']['SetBackupConfig'](arg1);
 }
 
 export function SetCloseAction(arg1) {
@@ -348,6 +420,10 @@ export function SetLaunchAtLogin(arg1) {
 
 export function SetListenOnStart(arg1) {
   return window['go']['main']['App']['SetListenOnStart'](arg1);
+}
+
+export function SetRecoveryKey(arg1) {
+  return window['go']['main']['App']['SetRecoveryKey'](arg1);
 }
 
 export function SetStorageConfig(arg1) {
@@ -400,6 +476,14 @@ export function UninstallSystemService(arg1) {
 
 export function UnlockDatabase(arg1) {
   return window['go']['main']['App']['UnlockDatabase'](arg1);
+}
+
+export function UnlockWithRecoveryKey(arg1) {
+  return window['go']['main']['App']['UnlockWithRecoveryKey'](arg1);
+}
+
+export function UnlockWithRecoveryKeyFile(arg1) {
+  return window['go']['main']['App']['UnlockWithRecoveryKeyFile'](arg1);
 }
 
 export function UpdateAlertRule(arg1) {

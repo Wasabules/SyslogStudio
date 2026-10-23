@@ -40,18 +40,18 @@ func TestSchedule_Runs(t *testing.T) {
 		{"monthly on the 31st, a 30-day month next", models.CleanupSchedule{Every: models.CleanupMonthly, MonthDay: 31},
 			"2026-09-30 03:00 Wed", "2026-10-31 03:00 Sat"},
 	} {
-		if got := previousRun(c.s, now); !got.Equal(local(c.prev)) {
+		if got := PreviousRun(c.s, now); !got.Equal(local(c.prev)) {
 			t.Errorf("%s: previous %v, want %s", c.name, got, c.prev)
 		}
-		if got := nextRun(c.s, now); !got.Equal(local(c.next)) {
+		if got := NextRun(c.s, now); !got.Equal(local(c.next)) {
 			t.Errorf("%s: next %v, want %s", c.name, got, c.next)
 		}
 	}
 	feb := local("2026-02-15 10:00 Sun")
-	if got := nextRun(models.CleanupSchedule{Every: models.CleanupMonthly, MonthDay: 31}, feb); !got.Equal(local("2026-02-28 03:00 Sat")) {
+	if got := NextRun(models.CleanupSchedule{Every: models.CleanupMonthly, MonthDay: 31}, feb); !got.Equal(local("2026-02-28 03:00 Sat")) {
 		t.Errorf("the 31st in February is %v, want its last day", got)
 	}
-	if !previousRun(models.CleanupSchedule{}, now).IsZero() || !nextRun(models.CleanupSchedule{}, now).IsZero() {
+	if !PreviousRun(models.CleanupSchedule{}, now).IsZero() || !NextRun(models.CleanupSchedule{}, now).IsZero() {
 		t.Error("a continuous cleanup has no schedule")
 	}
 }

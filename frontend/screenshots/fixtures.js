@@ -584,3 +584,53 @@ export const SYSTEM_SERVICE_RUNNING = {
     inbox: { sealed: true, keyId: '5c9a64d2ab53cf85', batches: 3, bytes: 2_516_582, quota: 1 << 30, dropped: 0 },
   },
 };
+
+// --- backups -----------------------------------------------------------------
+
+/** 03:00 on the night `daysAgo` before the evening, local time. */
+function backupNight(daysAgo) {
+  const d = new Date(NOW.getTime() - daysAgo * 86400_000);
+  d.setHours(3, 0, 0, 0);
+  return d;
+}
+
+function backupName(d, safety = false) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `syslogstudio-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}00${safety ? '-before-restore' : ''}.ssbackup`;
+}
+
+export const BACKUP_DIR = 'E:\\Backups\\SyslogStudio';
+
+/** Every night at three, a week kept, to a second disk. */
+export const BACKUP_CONFIG = {
+  enabled: true,
+  dir: BACKUP_DIR,
+  schedule: { every: 'daily', at: '03:00' },
+  keep: 7,
+};
+
+/** The database is not encrypted in the fixtures, its backups are: by the recovery key. */
+export const RECOVERY_KEY = {
+  set: true,
+  id: '3f9a1c2e7b4d8a60',
+  created: new Date(NOW.getTime() - 41 * 86400_000).toISOString(),
+};
+
+export const BACKUP_FILES = [0, 1, 2, 3].map((daysAgo, i) => {
+  const d = backupNight(daysAgo);
+  return {
+    name: backupName(d), path: `${BACKUP_DIR}\\${backupName(d)}`,
+    sizeMB: 302.4 - i * 9.7, created: d.toISOString(), lock: 'key', keyId: RECOVERY_KEY.id, app: 'v1.8.0',
+  };
+});
+
+export const BACKUP_STATUS = {
+  running: false,
+  percent: 0,
+  lastAt: new Date(backupNight(0).getTime() + 18_400).toISOString(),
+  lastFile: BACKUP_FILES[0].name,
+  lastSizeMB: BACKUP_FILES[0].sizeMB,
+  lastTookMs: 18_400,
+  next: backupNight(-1).toISOString(),
+  lock: 'key',
+};

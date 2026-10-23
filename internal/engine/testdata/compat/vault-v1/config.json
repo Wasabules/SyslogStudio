@@ -1,0 +1,91 @@
+{
+  "server": {
+    "udpEnabled": true,
+    "tcpEnabled": false,
+    "tlsEnabled": false,
+    "udpPort": 1514,
+    "tcpPort": 1514,
+    "tlsPort": 6514,
+    "bindAddress": "",
+    "allowedSources": null,
+    "maxBuffer": 10000,
+    "certFile": "",
+    "keyFile": "",
+    "useSelfSigned": false,
+    "certOptions": {
+      "algorithm": "",
+      "validityDays": 0,
+      "commonName": "",
+      "organization": "",
+      "dnsNames": null,
+      "ipAddresses": null
+    },
+    "mutualTLS": false,
+    "caFile": "",
+    "maxConnsPerIP": 128
+  },
+  "storage": {
+    "enabled": true,
+    "path": "",
+    "retentionDays": 7,
+    "maxMessages": 1000000,
+    "maxSizeMB": 500,
+    "encryptionEnabled": true,
+    "cleanup": {}
+  },
+  "alerts": [],
+  "lockout": {
+    "failedAttempts": 0,
+    "lockedUntilUnix": 0
+  },
+  "updates": {
+    "autoCheck": true,
+    "intervalHours": 24,
+    "skipVersion": "",
+    "lastCheckUnix": 0
+  },
+  "simulator": {
+    "destinations": null,
+    "mode": "",
+    "profile": "",
+    "format": "",
+    "rate": 0,
+    "count": 0,
+    "durationSeconds": 0,
+    "customMessage": "",
+    "hostname": "",
+    "appName": ""
+  },
+  "notifySinks": [
+    {
+      "id": "sink-compat",
+      "name": "compat",
+      "kind": "webhook",
+      "enabled": false,
+      "webhook": {
+        "url": "https://example.invalid/hook",
+        "method": "",
+        "headers": null,
+        "timeout": 0
+      },
+      "redact": false,
+      "hasSecret": false
+    }
+  ],
+  "import": {
+    "mode": "",
+    "joinContinuations": false,
+    "skipUnmatched": false
+  },
+  "background": {
+    "autoStartListeners": false
+  },
+  "backup": {
+    "enabled": false,
+    "dir": "",
+    "schedule": {
+      "every": "daily"
+    },
+    "keep": 7
+  }
+}

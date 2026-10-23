@@ -433,6 +433,22 @@ func (cs *ConfigStore) SaveInbox(c *models.InboxConfig) {
 	cs.saveAll(all)
 }
 
+// LoadBackup reads where copies of the database go, and when.
+func (cs *ConfigStore) LoadBackup() models.BackupConfig {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.loadAll().Backup
+}
+
+// SaveBackup writes it.
+func (cs *ConfigStore) SaveBackup(c models.BackupConfig) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.Backup = c
+	cs.saveAll(all)
+}
+
 // SaveUpdateConfig writes the update-check preferences.
 func (cs *ConfigStore) SaveUpdateConfig(cfg models.UpdateConfig) {
 	cs.mu.Lock()

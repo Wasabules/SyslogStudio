@@ -11,6 +11,8 @@ export function AllowServiceAccess():Promise<void>;
 
 export function AreSinkCredentialsUnencrypted():Promise<boolean>;
 
+export function BackupNow():Promise<void>;
+
 export function CancelClose():Promise<void>;
 
 export function ChangeEncryptionPassword(arg1:string,arg2:string):Promise<void>;
@@ -25,9 +27,13 @@ export function ClearMessages():Promise<void>;
 
 export function ClearNotifyLog():Promise<void>;
 
+export function CloseBackup():Promise<void>;
+
 export function CompactDatabase():Promise<void>;
 
 export function CompileSearch(arg1:string,arg2:string):Promise<search.Plan>;
+
+export function CreateRecoveryKey():Promise<models.RecoveryKeyInfo>;
 
 export function DeleteAlertRule(arg1:string):Promise<boolean>;
 
@@ -69,6 +75,12 @@ export function GetAutoStartError():Promise<string>;
 
 export function GetBackgroundSettings():Promise<models.BackgroundSettings>;
 
+export function GetBackupConfig():Promise<models.BackupConfig>;
+
+export function GetBackupStatus():Promise<models.BackupStatus>;
+
+export function GetBackupView():Promise<models.BackupView>;
+
 export function GetCACertInfo():Promise<models.CertInfo>;
 
 export function GetCertificateInfo(arg1:models.ServerConfig):Promise<models.CertInfo>;
@@ -98,6 +110,8 @@ export function GetNotifyRoutes():Promise<Array<notify.Route>>;
 export function GetNotifySinks():Promise<Array<notify.SinkConfig>>;
 
 export function GetNotifyStats():Promise<notify.Stats>;
+
+export function GetRecoveryKey():Promise<models.RecoveryKeyInfo>;
 
 export function GetScenarioDurationSeconds():Promise<number>;
 
@@ -141,7 +155,13 @@ export function IsStorageReady():Promise<boolean>;
 
 export function IsTrayAvailable():Promise<boolean>;
 
+export function IsUnlockedByRecoveryKey():Promise<boolean>;
+
+export function ListBackups():Promise<Array<models.BackupFile>>;
+
 export function LoadPersistedCA():Promise<void>;
+
+export function OpenBackup(arg1:string,arg2:string,arg3:string):Promise<models.BackupView>;
 
 export function OpenURL(arg1:string):Promise<void>;
 
@@ -153,6 +173,14 @@ export function QueryMessages(arg1:models.QueryOptions):Promise<models.PagedResu
 
 export function QuitApplication():Promise<void>;
 
+export function RemoveRecoveryKey():Promise<void>;
+
+export function ResetEncryptionPassword(arg1:string):Promise<void>;
+
+export function RestoreBackup(arg1:string,arg2:string,arg3:Array<number>):Promise<void>;
+
+export function RestoreBackupFile(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function RevealWindow():Promise<void>;
 
 export function SaveNotifyRoute(arg1:notify.Route):Promise<void>;
@@ -163,6 +191,10 @@ export function SaveServerConfig(arg1:models.ServerConfig):Promise<void>;
 
 export function SaveSimulatorConfig(arg1:models.SimulatorConfig):Promise<void>;
 
+export function SelectBackupDir():Promise<string>;
+
+export function SelectBackupFile():Promise<string>;
+
 export function SelectCAFile():Promise<string>;
 
 export function SelectCertFile():Promise<string>;
@@ -171,13 +203,19 @@ export function SelectKeyFile():Promise<string>;
 
 export function SelectLogFile():Promise<string>;
 
+export function SelectRecoveryKeyFile():Promise<string>;
+
 export function SetAutoStartListeners(arg1:boolean):Promise<void>;
+
+export function SetBackupConfig(arg1:models.BackupConfig):Promise<void>;
 
 export function SetCloseAction(arg1:string):Promise<void>;
 
 export function SetLaunchAtLogin(arg1:boolean):Promise<void>;
 
 export function SetListenOnStart(arg1:boolean):Promise<void>;
+
+export function SetRecoveryKey(arg1:Array<number>):Promise<models.RecoveryKeyInfo>;
 
 export function SetStorageConfig(arg1:models.StorageConfig):Promise<void>;
 
@@ -204,5 +242,9 @@ export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
 export function UninstallSystemService(arg1:boolean):Promise<void>;
 
 export function UnlockDatabase(arg1:string):Promise<void>;
+
+export function UnlockWithRecoveryKey(arg1:Array<number>):Promise<void>;
+
+export function UnlockWithRecoveryKeyFile(arg1:string):Promise<void>;
 
 export function UpdateAlertRule(arg1:models.AlertRule):Promise<boolean>;

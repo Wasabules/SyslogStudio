@@ -34,6 +34,7 @@ import {
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
   BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK,
+  BACKUP_CONFIG, BACKUP_STATUS, BACKUP_FILES, RECOVERY_KEY,
 } from '../fixtures.js';
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -58,6 +59,13 @@ const DEMO_ONLY = {
   UninstallSystemService: 'There is no service behind the demo to remove.',
   StartSystemService: 'There is no service behind the demo to start.',
   StopSystemService: 'There is no service behind the demo to stop.',
+  BackupNow: 'A backup writes the database to a folder on your disk, which a web page cannot do.',
+  SelectBackupDir: 'Choosing a folder needs a native dialog, which a web page does not have.',
+  SelectBackupFile: 'Choosing a file needs a native dialog, which a web page does not have.',
+  SelectRecoveryKeyFile: 'Choosing a file needs a native dialog, which a web page does not have.',
+  CreateRecoveryKey: 'A recovery key is saved to a file of your choosing, which a web page cannot write.',
+  OpenBackup: 'There is no backup behind the demo to open — this one runs entirely in your browser.',
+  RestoreBackupFile: 'There is no database behind the demo to restore into.',
 };
 
 // --- mutable demo state ----------------------------------------------------
@@ -75,6 +83,8 @@ let notifySinks = clone(NOTIFY_SINKS);
 let notifyLog = clone(NOTIFY_LOG);
 let storageConfig = clone(STORAGE_CONFIG);
 let simulatorConfig = clone(SIMULATOR_CONFIG);
+let backupConfig = clone(BACKUP_CONFIG);
+let recoveryKey = clone(RECOVERY_KEY);
 let updateConfig = { checkOnStartup: true, channel: 'stable', skippedVersion: '' };
 
 const nextId = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -255,6 +265,29 @@ const HANDLERS = {
   UnlockDatabase: () => Promise.resolve(null),
   GetUnlockAttemptsRemaining: () => Promise.resolve(5),
   GetUnlockLockoutSeconds: () => Promise.resolve(0),
+
+  // the recovery key
+  GetRecoveryKey: () => Promise.resolve(clone(recoveryKey)),
+  CreateRecoveryKey: () => delayed('CreateRecoveryKey', clone(recoveryKey)),
+  RemoveRecoveryKey: () => { recoveryKey = { set: false }; return Promise.resolve(null); },
+  UnlockWithRecoveryKeyFile: () => Promise.resolve(null),
+  IsUnlockedByRecoveryKey: () => Promise.resolve(false),
+  ResetEncryptionPassword: () => Promise.resolve(null),
+
+  // backups
+  GetBackupConfig: () => Promise.resolve(clone(backupConfig)),
+  SetBackupConfig: (cfg) => { backupConfig = { ...backupConfig, ...cfg }; return Promise.resolve(null); },
+  GetBackupStatus: () => Promise.resolve(clone(BACKUP_STATUS)),
+  ListBackups: () => Promise.resolve(clone(BACKUP_FILES)),
+  BackupNow: () => delayed('BackupNow', null),
+  SelectBackupDir: () => refuse('SelectBackupDir'),
+  SelectBackupFile: () => refuse('SelectBackupFile'),
+  SelectRecoveryKeyFile: () => refuse('SelectRecoveryKeyFile'),
+  DescribeBackup: (path) => Promise.resolve(clone(BACKUP_FILES.find((f) => f.path === path) || BACKUP_FILES[0])),
+  OpenBackup: () => refuse('OpenBackup'),
+  CloseBackup: () => Promise.resolve(null),
+  GetBackupView: () => Promise.resolve({ open: false, messages: 0 }),
+  RestoreBackupFile: () => refuse('RestoreBackupFile'),
 
   // TLS
   GetDefaultCertOptions: () => Promise.resolve({

@@ -31,6 +31,7 @@ func TestEnableEncryption_RejectsWhenAlreadyEnabled(t *testing.T) {
 	// password change without proof of the current password, and against a
 	// still-locked database it would set a password that cannot decrypt the
 	// existing logs.db.enc.
+	before := a.master
 	err := a.EnableEncryption("attacker chosen pw")
 	if err == nil {
 		t.Fatal("EnableEncryption re-keyed an already-encrypted store without the current password")
@@ -38,8 +39,8 @@ func TestEnableEncryption_RejectsWhenAlreadyEnabled(t *testing.T) {
 	if !strings.Contains(err.Error(), "already enabled") {
 		t.Errorf("unexpected error: %v", err)
 	}
-	if a.encryptionPassword != "correct horse battery" {
-		t.Errorf("session password was overwritten: %q", a.encryptionPassword)
+	if a.master != before || !a.checkPassword("correct horse battery") || a.checkPassword("attacker chosen pw") {
+		t.Error("the session was re-keyed by the refused call")
 	}
 }
 
@@ -75,18 +76,24 @@ func TestChangeEncryptionPassword_RequiresCurrent(t *testing.T) {
 		t.Fatalf("EnableEncryption failed: %v", err)
 	}
 
+	master := a.master
 	if err := a.ChangeEncryptionPassword("wrong password", "new password"); err == nil {
 		t.Fatal("password changed without the correct current password")
 	}
-	if a.encryptionPassword != "correct horse battery" {
-		t.Errorf("session password changed after a failed attempt: %q", a.encryptionPassword)
+	if a.master != master || !a.checkPassword("correct horse battery") {
+		t.Error("the session changed after a failed attempt")
 	}
 
 	if err := a.ChangeEncryptionPassword("correct horse battery", "another good one"); err != nil {
 		t.Fatalf("legitimate password change failed: %v", err)
 	}
-	if a.encryptionPassword != "another good one" {
-		t.Errorf("session password not updated: %q", a.encryptionPassword)
+	// The new password opens the master secret, the old one no longer does,
+	// and nothing had to be encrypted again: the master secret is the same.
+	if !a.checkPassword("another good one") || a.checkPassword("correct horse battery") {
+		t.Error("the password was not replaced")
+	}
+	if a.master != master {
+		t.Error("a generated master secret was replaced, which needs no rewriting")
 	}
 }
 

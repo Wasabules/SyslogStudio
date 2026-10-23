@@ -49,7 +49,11 @@ func TestServerIdentity_PersistedEncryptedAndRestoredAfterUnlock(t *testing.T) {
 	}
 
 	// Unlocked: the very same certificate comes back.
-	b.encryptionPassword = identityPassword
+	master, _, err := b.masterFor(identityPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.master = master
 	if err := b.loadPersistedServerCert(); err != nil {
 		t.Fatal(err)
 	}

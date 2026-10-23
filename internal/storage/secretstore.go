@@ -106,6 +106,13 @@ func (s *SecretStore) HasAny() bool {
 	return len(s.cache) > 0
 }
 
+// Readable says whether the store can be read with the password it has.
+func (s *SecretStore) Readable() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.load()
+}
+
 // load reads the store. Must be called with the lock held.
 func (s *SecretStore) load() error {
 	if s.loaded || s.dir == "" {
@@ -261,17 +268,34 @@ func (s *SecretStore) Prune(keep map[string]bool) error {
 	return s.save()
 }
 
-// Rewrite re-persists the store under the current password. Called when
-// encryption is turned on or off, or the password changes, so credentials do
-// not stay behind in the previous form.
-func (s *SecretStore) Rewrite() error {
+// Rekey moves the store to a new password: read under the one it has, written
+// under the new one. Called when encryption is turned on or off, or the
+// password changes, so credentials do not stay behind in the previous form.
+//
+// Setting the password and then rewriting is not the same: the new password
+// cannot read the file the old one wrote, and the credentials were left there,
+// unreadable — what turning encryption off or changing its password did up to
+// v1.7.1. The store keeps its old password when the read fails.
+func (s *SecretStore) Rekey(password string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.load(); err != nil {
 		return err
 	}
-	if len(s.cache) == 0 {
+	s.password = password
+	if len(s.cache) == 0 && !s.onDisk() {
 		return nil
 	}
 	return s.save()
+}
+
+// onDisk says a file is there, even an empty store: left alone, the next load
+// would read it with a password it no longer has.
+func (s *SecretStore) onDisk() bool {
+	for _, p := range []string{s.encPath(), s.plainPath()} {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
 }

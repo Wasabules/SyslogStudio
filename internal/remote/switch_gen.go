@@ -180,6 +180,54 @@ func (s *Switch) ChangeEncryptionPassword(oldPassword string, newPassword string
 	return s.Current().ChangeEncryptionPassword(oldPassword, newPassword)
 }
 
+func (s *Switch) GetRecoveryKey() models.RecoveryKeyInfo {
+	return s.Current().GetRecoveryKey()
+}
+
+func (s *Switch) SetRecoveryKey(pub []byte) (models.RecoveryKeyInfo, error) {
+	return s.Current().SetRecoveryKey(pub)
+}
+
+func (s *Switch) RemoveRecoveryKey() error {
+	return s.Current().RemoveRecoveryKey()
+}
+
+func (s *Switch) UnlockWithRecoveryKey(keyFile []byte) error {
+	return s.Current().UnlockWithRecoveryKey(keyFile)
+}
+
+func (s *Switch) IsUnlockedByRecoveryKey() bool {
+	return s.Current().IsUnlockedByRecoveryKey()
+}
+
+func (s *Switch) ResetEncryptionPassword(newPassword string) error {
+	return s.Current().ResetEncryptionPassword(newPassword)
+}
+
+func (s *Switch) GetBackupConfig() models.BackupConfig {
+	return s.Current().GetBackupConfig()
+}
+
+func (s *Switch) SetBackupConfig(cfg models.BackupConfig) error {
+	return s.Current().SetBackupConfig(cfg)
+}
+
+func (s *Switch) GetBackupStatus() models.BackupStatus {
+	return s.Current().GetBackupStatus()
+}
+
+func (s *Switch) ListBackups() ([]models.BackupFile, error) {
+	return s.Current().ListBackups()
+}
+
+func (s *Switch) BackupNow() error {
+	return s.Current().BackupNow()
+}
+
+func (s *Switch) RestoreBackup(path string, password string, keyFile []byte) error {
+	return s.Current().RestoreBackup(path, password, keyFile)
+}
+
 func (s *Switch) StartSimulator(cfg models.SimulatorConfig) error {
 	return s.Current().StartSimulator(cfg)
 }

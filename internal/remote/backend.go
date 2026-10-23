@@ -80,6 +80,23 @@ type Backend interface {
 	EnableEncryption(password string) error
 	DisableEncryption(password string) error
 	ChangeEncryptionPassword(oldPassword, newPassword string) error
+	// The recovery key: the window makes the pair and hands the public half
+	// over, so the private half never leaves it — except to unlock, or to
+	// open a backup, the way a password does.
+	GetRecoveryKey() models.RecoveryKeyInfo
+	SetRecoveryKey(pub []byte) (models.RecoveryKeyInfo, error)
+	RemoveRecoveryKey() error
+	UnlockWithRecoveryKey(keyFile []byte) error
+	IsUnlockedByRecoveryKey() bool
+	ResetEncryptionPassword(newPassword string) error
+
+	// Backups
+	GetBackupConfig() models.BackupConfig
+	SetBackupConfig(cfg models.BackupConfig) error
+	GetBackupStatus() models.BackupStatus
+	ListBackups() ([]models.BackupFile, error)
+	BackupNow() error
+	RestoreBackup(path, password string, keyFile []byte) error
 
 	// Simulator
 	StartSimulator(cfg models.SimulatorConfig) error

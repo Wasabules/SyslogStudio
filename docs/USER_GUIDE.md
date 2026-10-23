@@ -327,6 +327,82 @@ Under the settings, the forecast says what they mean at the rate messages actual
 - free space on the disk, and when it would run out at this rate;
 - the last cleanup — when, how many messages, how much space went back — and the next one.
 
+## Encryption
+
+**Settings > Storage > Encryption** encrypts the database at rest, with AES-256-GCM. The password
+opens a random key, and that key encrypts the database, the certificate authority, the
+destinations' credentials and the sealed inbox key. The password itself is never stored.
+
+- **Change the password** asks for the current one. The data is not encrypted again: only the
+  lock on the key changes.
+- A database encrypted by a version before 1.8 opens with its password as before. Its first
+  change of password, or the creation of a recovery key, replaces its key, which encrypts
+  everything again once.
+- Once this version has written a database, versions before 1.8 can no longer open it.
+
+### The recovery key
+
+A recovery key is a file that opens the database and its backups without the password. If the
+password is forgotten, it gets everything back.
+
+- **Create a recovery key…** saves it to a file you choose (`.key`). Keep it away from the
+  computer: a USB stick, a safe, a password manager. Whoever has the file can open the database.
+- On the unlock screen, **Forgot the password? Use the recovery key** asks for the file, then for a
+  new password. *Later* keeps the current one.
+- **Replace…** and **Remove** stop the old file from opening the database and the backups made
+  from then on. Backups made before still open with it.
+
+The recovery key works with encryption off too: backups are then encrypted, and open with the key.
+
+## Backups
+
+**Settings > Backups** copies the database to another folder: another disk, a network share.
+
+- **Folder**: where the copies go. The folder is tested when you choose it.
+- **Back up automatically**: every day, every week or every month, at a time of day. A backup
+  missed while SyslogStudio was off is made at the next start, once the database is unlocked. A
+  backup that fails, because a disk is unplugged or a share unreachable, is tried again an hour
+  later.
+- **Keep**: how many backups are kept; the oldest go beyond that. SyslogStudio only deletes the
+  files it made (`syslogstudio-….ssbackup` or `.db`), never the copies made before a restore.
+- **Back up now** makes one at once.
+
+Messages keep arriving during a backup: the copy is the database as it was when the backup
+started. Each backup is read back once written, so a backup listed is a backup that opens.
+
+What opens a backup:
+
+| Database | Recovery key | The backup opens with |
+|---|---|---|
+| Encrypted | No | The password the database had when the backup was made |
+| Encrypted | Yes | That password, or the recovery key |
+| Not encrypted | Yes | The recovery key |
+| Not encrypted | No | Nothing: the backup is a plain SQLite file |
+
+### Opening a backup
+
+**Open** in the list, or **Open a backup file…** for a backup from elsewhere, asks for its
+password or recovery key, then shows the backup in the **History**. A banner says so; the live
+view and the database are untouched. **Close the backup** returns the History to the database.
+
+### Restoring
+
+**Restore…** replaces the database with a backup:
+
+1. The backup is opened first: a wrong password changes nothing.
+2. The database as it is is copied beside the other backups, as
+   `syslogstudio-…-before-restore.ssbackup` (in a `backups` folder of the data directory if no
+   backup folder is set). Restoring that copy undoes the restore.
+3. The database is replaced. Messages that arrive meanwhile wait in memory and go to the restored
+   database.
+
+The retention applies to the restored database: messages older than it are deleted at the next
+cleanup. To read old messages, open the backup instead of restoring it.
+
+With the system service, backups are made by the service, under its own account: the folder has
+to be one that account can write to. With the sealed inbox, the backups are those of your own
+database.
+
 ## Running in the Background
 
 SyslogStudio can keep receiving with its window closed, in two ways, both set up in

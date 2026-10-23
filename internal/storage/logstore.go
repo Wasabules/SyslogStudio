@@ -14,6 +14,7 @@ import (
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/search"
+	"SyslogStudio/internal/vault"
 
 	_ "modernc.org/sqlite"
 )
@@ -38,6 +39,12 @@ const (
 // and letting the flush loop write them, which takes minutes under -race for a
 // branch that is three lines long.
 var maxWriteBuffer = 200000
+
+// writeChunk is how many messages one write transaction holds: about a second
+// on a database of a million messages, well inside the time another writer
+// waits for the lock (busy_timeout). Writing a backlog of tens of thousands
+// in one transaction kept the others out past it.
+const writeChunk = 2000
 
 // LogStore handles SQLite-based message persistence.
 type LogStore struct {
@@ -69,6 +76,10 @@ type LogStore struct {
 	// the statistics every few seconds, and the forecast reads the index.
 	forecast   models.StorageForecast
 	forecastAt time.Time
+	// readOnly is a copy opened to be read (OpenSnapshot); holdBuffer keeps
+	// the buffer from being written while the database is replaced.
+	readOnly   bool
+	holdBuffer bool
 }
 
 // NewLogStore creates and initializes a LogStore.
@@ -167,7 +178,17 @@ func (ls *LogStore) UnlockAndOpen(password string) error {
 		p.Percent = p.Percent * 0.70
 		ls.emitCryptoProgress(p)
 	}
-	if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
+	// The current format is decrypted a chunk at a time; a file written
+	// before it, whole, as it always was.
+	if vault.IsVaultFile(encPath) {
+		size := fileSize(encPath)
+		_, err := vault.DecryptFile(encPath, dbPath, password, func(done int64) {
+			scaledProgress(CryptoProgress{Phase: "decrypting", Percent: percentOf(done, size), SizeMB: float64(size) / (1 << 20)})
+		})
+		if err != nil {
+			return err
+		}
+	} else if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
 		return err
 	}
 
@@ -370,7 +391,7 @@ func (ls *LogStore) rebuildFTS() {
 func (ls *LogStore) BufferMessage(msg models.SyslogMessage) {
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
-	if ls.db == nil {
+	if ls.db == nil || ls.readOnly {
 		return
 	}
 	if len(ls.buffer) >= maxWriteBuffer {
@@ -404,7 +425,9 @@ func (ls *LogStore) flushLoop() {
 	for {
 		select {
 		case <-ls.stopCh:
-			ls.flushWaiting() // the last one waits out a rewrite in progress
+			if !ls.holding() {
+				ls.flushWaiting() // the last one waits out a rewrite in progress
+			}
 			return
 		case <-ticker.C:
 			ls.flush()
@@ -443,11 +466,19 @@ func (ls *LogStore) write() {
 	if db == nil {
 		return
 	}
-	if err := insertMessages(db, batch); err != nil {
-		// Put back, ahead of what came since, for the next tick: a write that
-		// waited too long for the database is not a reason to lose messages.
-		slog.Warn("log store: write failed, will retry", "messages", len(batch), "error", err)
-		ls.requeue(batch)
+	// In transactions of writeChunk: after a pause — a compaction, a
+	// restore — the buffer can hold tens of thousands of messages, and one
+	// transaction of all of them would keep every other writer out for longer
+	// than they wait.
+	for i := 0; i < len(batch); i += writeChunk {
+		if err := insertMessages(db, batch[i:min(i+writeChunk, len(batch))]); err != nil {
+			// Put back, ahead of what came since, for the next tick: a write
+			// that waited too long for the database is not a reason to lose
+			// messages.
+			slog.Warn("log store: write failed, will retry", "messages", len(batch)-i, "error", err)
+			ls.requeue(batch[i:])
+			return
+		}
 	}
 }
 
@@ -475,10 +506,15 @@ func (ls *LogStore) InsertMessages(msgs []models.SyslogMessage) error {
 	ls.gate.RLock()
 	defer ls.gate.RUnlock()
 	db := ls.handle()
-	if db == nil {
+	if db == nil || ls.readOnly {
 		return fmt.Errorf("the database is not open")
 	}
-	return insertMessages(db, msgs)
+	for i := 0; i < len(msgs); i += writeChunk {
+		if err := insertMessages(db, msgs[i:min(i+writeChunk, len(msgs))]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func insertMessages(db *sql.DB, batch []models.SyslogMessage) error {
@@ -511,7 +547,11 @@ func insertMessages(db *sql.DB, batch []models.SyslogMessage) error {
 			msg.Version, msg.StructuredData,
 		)
 		if err != nil {
-			slog.Debug("log store: insert error", "id", msg.ID, "error", err)
+			// The whole batch or none of it: a row that did not go in —
+			// most often a write that waited out the busy timeout — would
+			// otherwise be lost while the caller is told the batch is stored.
+			tx.Rollback()
+			return fmt.Errorf("insert %s: %w", msg.ID, err)
 		}
 	}
 
@@ -600,7 +640,7 @@ func (ls *LogStore) cleanupLoop() {
 			due := false
 			if cfg.Cleanup.Every != models.CleanupContinuous {
 				last, _ := time.Parse(time.RFC3339, getMeta(db, metaLastScheduled))
-				prev := previousRun(cfg.Cleanup, now)
+				prev := PreviousRun(cfg.Cleanup, now)
 				if last.IsZero() {
 					// Just scheduled: from the next run on, not at once.
 					setMeta(db, metaLastScheduled, now.Format(time.RFC3339))
@@ -942,7 +982,7 @@ func (ls *LogStore) GetStats() models.StorageStats {
 	stats.Compacting = ls.compacting
 	ls.mu.Unlock()
 	now := time.Now()
-	stats.NextCleanup = formatRFC3339(nextRun(cfg.Cleanup, now))
+	stats.NextCleanup = formatRFC3339(NextRun(cfg.Cleanup, now))
 	ls.mu.Lock()
 	cached, at := ls.forecast, ls.forecastAt
 	ls.mu.Unlock()
@@ -1032,6 +1072,13 @@ func (ls *LogStore) Close() {
 	if db == nil {
 		return
 	}
+	if ls.readOnly {
+		db.Close()
+		ls.mu.Lock()
+		ls.db = nil
+		ls.mu.Unlock()
+		return
+	}
 
 	// Wait for background FTS rebuild to finish before closing
 	if ls.ftsReadyCh != nil {
@@ -1066,8 +1113,17 @@ func (ls *LogStore) Close() {
 		os.Remove(dbPath + "-wal")
 		os.Remove(dbPath + "-shm")
 
+		// A chunk at a time, in the vault format: the memory taken no longer
+		// grows with the database. The file appears whole or not at all.
 		encPath := dbPath + ".enc"
-		if err := EncryptFileWithProgress(dbPath, encPath, ls.encryptionPassword, ls.emitCryptoProgress); err != nil {
+		size := fileSize(dbPath)
+		err = vault.EncryptFile(dbPath, encPath, ls.encryptionPassword, vault.Header{Kind: vault.KindDatabase}, func(done int64) {
+			ls.emitCryptoProgress(CryptoProgress{Phase: "encrypting", Percent: percentOf(done, size), SizeMB: float64(size) / (1 << 20)})
+		})
+		if err == nil {
+			ls.emitCryptoProgress(CryptoProgress{Phase: "done", Percent: 100, SizeMB: float64(size) / (1 << 20)})
+		}
+		if err != nil {
 			slog.Error("failed to encrypt database, leaving plaintext", "error", err)
 			return
 		}
@@ -1078,4 +1134,18 @@ func (ls *LogStore) Close() {
 	}
 
 	slog.Info("log store closed")
+}
+
+func fileSize(path string) int64 {
+	if fi, err := os.Stat(path); err == nil {
+		return fi.Size()
+	}
+	return 0
+}
+
+func percentOf(done, total int64) float64 {
+	if total <= 0 {
+		return 100
+	}
+	return min(100, float64(done)*100/float64(total))
 }

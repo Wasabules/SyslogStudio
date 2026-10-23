@@ -172,6 +172,142 @@ export namespace models {
 	        this.trayAvailable = source["trayAvailable"];
 	    }
 	}
+	export class CleanupSchedule {
+	    every?: string;
+	    at?: string;
+	    weekday?: number;
+	    monthDay?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CleanupSchedule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.every = source["every"];
+	        this.at = source["at"];
+	        this.weekday = source["weekday"];
+	        this.monthDay = source["monthDay"];
+	    }
+	}
+	export class BackupConfig {
+	    enabled: boolean;
+	    dir: string;
+	    schedule: CleanupSchedule;
+	    keep?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.dir = source["dir"];
+	        this.schedule = this.convertValues(source["schedule"], CleanupSchedule);
+	        this.keep = source["keep"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class BackupFile {
+	    name: string;
+	    path: string;
+	    sizeMB: number;
+	    created: string;
+	    lock: string;
+	    keyId?: string;
+	    app?: string;
+	    safetyCopy?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.sizeMB = source["sizeMB"];
+	        this.created = source["created"];
+	        this.lock = source["lock"];
+	        this.keyId = source["keyId"];
+	        this.app = source["app"];
+	        this.safetyCopy = source["safetyCopy"];
+	    }
+	}
+	export class BackupStatus {
+	    running: boolean;
+	    phase?: string;
+	    percent: number;
+	    lastAt?: string;
+	    lastFile?: string;
+	    lastSizeMB?: number;
+	    lastTookMs?: number;
+	    lastError?: string;
+	    lastFailAt?: string;
+	    next?: string;
+	    lock: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.phase = source["phase"];
+	        this.percent = source["percent"];
+	        this.lastAt = source["lastAt"];
+	        this.lastFile = source["lastFile"];
+	        this.lastSizeMB = source["lastSizeMB"];
+	        this.lastTookMs = source["lastTookMs"];
+	        this.lastError = source["lastError"];
+	        this.lastFailAt = source["lastFailAt"];
+	        this.next = source["next"];
+	        this.lock = source["lock"];
+	    }
+	}
+	export class BackupView {
+	    open: boolean;
+	    name?: string;
+	    path?: string;
+	    created?: string;
+	    messages: number;
+	    oldest?: string;
+	    newest?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.open = source["open"];
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.created = source["created"];
+	        this.messages = source["messages"];
+	        this.oldest = source["oldest"];
+	        this.newest = source["newest"];
+	    }
+	}
 	export class CertInfo {
 	    subject: string;
 	    issuer: string;
@@ -248,24 +384,7 @@ export namespace models {
 	        this.tookMs = source["tookMs"];
 	    }
 	}
-	export class CleanupSchedule {
-	    every?: string;
-	    at?: string;
-	    weekday?: number;
-	    monthDay?: number;
 	
-	    static createFrom(source: any = {}) {
-	        return new CleanupSchedule(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.every = source["every"];
-	        this.at = source["at"];
-	        this.weekday = source["weekday"];
-	        this.monthDay = source["monthDay"];
-	    }
-	}
 	export class FilterCriteria {
 	    severities?: number[];
 	    facilities?: number[];
@@ -594,6 +713,22 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class RecoveryKeyInfo {
+	    set: boolean;
+	    id?: string;
+	    created?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecoveryKeyInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.set = source["set"];
+	        this.id = source["id"];
+	        this.created = source["created"];
+	    }
 	}
 	export class ServerConfig {
 	    udpEnabled: boolean;

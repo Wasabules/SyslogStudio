@@ -38,3 +38,42 @@ func TestSecretStore_HasAnyCountsEntriesNotFiles(t *testing.T) {
 		t.Fatal("a reopened empty store reports credentials")
 	}
 }
+
+// Changing the password, or turning encryption off, set the new password and
+// then rewrote the store — which the new password could not read. The
+// credentials stayed under the old one, and every destination lost its
+// password. Rekey reads under the old password and writes under the new one.
+func TestSecretStore_RekeyCarriesTheCredentials(t *testing.T) {
+	dir := t.TempDir()
+	const dest = "webhook|https://example.com"
+	s := NewSecretStore(dir)
+	if err := s.Set("sink-1", dest, "tok"); err != nil {
+		t.Fatal(err)
+	}
+	for _, password := range []string{"first password", "second password", "", "third password"} {
+		if err := s.Rekey(password); err != nil {
+			t.Fatalf("rekey to %q: %v", password, err)
+		}
+		if s.IsEncrypted() != (password != "") {
+			t.Fatalf("after a rekey to %q the store is encrypted=%v", password, s.IsEncrypted())
+		}
+		reopened := NewSecretStore(dir)
+		reopened.SetPassword(password)
+		if got := reopened.Get("sink-1", dest); got != "tok" {
+			t.Fatalf("after a rekey to %q the credential reads %q", password, got)
+		}
+	}
+
+	// A store that cannot be read keeps its password: rekeying it would make
+	// it unreadable for good.
+	locked := NewSecretStore(dir)
+	locked.SetPassword("wrong password")
+	if err := locked.Rekey("another"); err == nil {
+		t.Fatal("a store read with the wrong password was rekeyed")
+	}
+	reopened := NewSecretStore(dir)
+	reopened.SetPassword("third password")
+	if got := reopened.Get("sink-1", dest); got != "tok" {
+		t.Fatalf("a refused rekey changed the store: %q", got)
+	}
+}
