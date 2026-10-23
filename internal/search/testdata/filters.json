@@ -1,0 +1,1252 @@
+{
+  "corpus": [
+    {
+      "id": "a",
+      "timestamp": "2026-10-23T08:00:00Z",
+      "receivedAt": "2026-10-23T08:00:11Z",
+      "severity": 3,
+      "severityLabel": "Error",
+      "facility": 1,
+      "facilityLabel": "user",
+      "hostname": "web-01",
+      "appName": "nginx",
+      "procID": "1234",
+      "msgID": "ID47",
+      "message": "upstream timed out",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:00:00Z web-01 nginx - - - upstream timed out",
+      "sourceIP": "10.0.0.5",
+      "protocol": "UDP",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "b",
+      "timestamp": "2026-10-23T08:00:30Z",
+      "receivedAt": "2026-10-23T08:00:40Z",
+      "severity": 6,
+      "severityLabel": "Info",
+      "facility": 4,
+      "facilityLabel": "auth",
+      "hostname": "Web-02",
+      "appName": "sshd",
+      "procID": "99",
+      "msgID": "",
+      "message": "Accepted publickey for root",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:00:30Z Web-02 sshd - - - Accepted publickey for root",
+      "sourceIP": "10.0.0.10",
+      "protocol": "TCP",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "c",
+      "timestamp": "2026-10-23T08:01:00Z",
+      "receivedAt": "2026-10-23T08:01:09Z",
+      "severity": 4,
+      "severityLabel": "Warning",
+      "facility": 1,
+      "facilityLabel": "user",
+      "hostname": "web_01",
+      "appName": "CRON",
+      "procID": "",
+      "msgID": "-",
+      "message": "job started",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:01:00Z web_01 CRON - - - job started",
+      "sourceIP": "10.0.0.9",
+      "protocol": "UDP",
+      "version": 0,
+      "structuredData": ""
+    },
+    {
+      "id": "d",
+      "timestamp": "2026-10-23T08:01:59Z",
+      "receivedAt": "2026-10-23T08:02:07Z",
+      "severity": 3,
+      "severityLabel": "Error",
+      "facility": 3,
+      "facilityLabel": "daemon",
+      "hostname": "café-01",
+      "appName": "nginx",
+      "procID": "abc",
+      "msgID": "ID3",
+      "message": "Échec de connexion",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:01:59Z café-01 nginx - - - Échec de connexion",
+      "sourceIP": "192.168.1.20",
+      "protocol": "TLS",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "e",
+      "timestamp": "2026-10-23T08:02:00Z",
+      "receivedAt": "2026-10-23T08:02:07Z",
+      "severity": 6,
+      "severityLabel": "Info",
+      "facility": 1,
+      "facilityLabel": "user",
+      "hostname": "CAFE-02",
+      "appName": "Nginx",
+      "procID": "007",
+      "msgID": "ID10",
+      "message": "cache warm",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:02:00Z CAFE-02 Nginx - - - cache warm",
+      "sourceIP": "192.168.1.3",
+      "protocol": "udp",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "f",
+      "timestamp": "2026-10-23T08:03:00.5Z",
+      "receivedAt": "2026-10-23T08:03:06.5Z",
+      "severity": 2,
+      "severityLabel": "Critical",
+      "facility": 0,
+      "facilityLabel": "kern",
+      "hostname": "",
+      "appName": "",
+      "procID": "12",
+      "msgID": "",
+      "message": "kernel panic",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:03:00.5Z   - - - kernel panic",
+      "sourceIP": "fe80::1",
+      "protocol": "UDP",
+      "version": 0,
+      "structuredData": ""
+    },
+    {
+      "id": "g",
+      "timestamp": "2026-10-22T23:59:59Z",
+      "receivedAt": "2026-10-23T00:00:04Z",
+      "severity": 7,
+      "severityLabel": "Debug",
+      "facility": 16,
+      "facilityLabel": "local0",
+      "hostname": "db-01",
+      "appName": "postgres",
+      "procID": "1234",
+      "msgID": "id2",
+      "message": "checkpoint complete",
+      "rawMessage": "\u003c14\u003e1 2026-10-22T23:59:59Z db-01 postgres - - - checkpoint complete",
+      "sourceIP": "10.0.0.5",
+      "protocol": "TCP",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "h",
+      "timestamp": "2026-10-23T08:00:00Z",
+      "receivedAt": "2026-10-23T08:00:04Z",
+      "severity": 6,
+      "severityLabel": "Info",
+      "facility": 1,
+      "facilityLabel": "user",
+      "hostname": "web-01",
+      "appName": "nginx",
+      "procID": "88",
+      "msgID": "ID47",
+      "message": "GET / 200",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:00:00Z web-01 nginx - - - GET / 200",
+      "sourceIP": "10.0.0.5",
+      "protocol": "UDP",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "i",
+      "timestamp": "2026-10-23T08:04:00Z",
+      "receivedAt": "2026-10-23T08:04:03Z",
+      "severity": 5,
+      "severityLabel": "Notice",
+      "facility": 3,
+      "facilityLabel": "daemon",
+      "hostname": "50%-host",
+      "appName": "app_x",
+      "procID": "7",
+      "msgID": "",
+      "message": "disk 50% full",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:04:00Z 50%-host app_x - - - disk 50% full",
+      "sourceIP": "10.1.0.1",
+      "protocol": "TCP",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "j",
+      "timestamp": "2026-10-23T08:05:00Z",
+      "receivedAt": "2026-10-23T08:05:02Z",
+      "severity": 5,
+      "severityLabel": "Notice",
+      "facility": 1,
+      "facilityLabel": "user",
+      "hostname": "Straße-1",
+      "appName": "app-x",
+      "procID": "",
+      "msgID": "98765432109876543210",
+      "message": "road closed",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:05:00Z Straße-1 app-x - - - road closed",
+      "sourceIP": "10.1.0.2",
+      "protocol": "UDP",
+      "version": 1,
+      "structuredData": ""
+    },
+    {
+      "id": "k",
+      "timestamp": "2026-10-23T08:06:00Z",
+      "receivedAt": "2026-10-23T08:06:01Z",
+      "severity": 6,
+      "severityLabel": "Info",
+      "facility": 3,
+      "facilityLabel": "daemon",
+      "hostname": "İzmir-gw",
+      "appName": "ΣΥΣ",
+      "procID": "5",
+      "msgID": "98765432109876543211",
+      "message": "tunnel up",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T08:06:00Z İzmir-gw ΣΥΣ - - - tunnel up",
+      "sourceIP": "10.1.0.3",
+      "protocol": "UDP",
+      "version": 1,
+      "structuredData": ""
+    }
+  ],
+  "filters": [
+    {
+      "name": "no criteria",
+      "criteria": {},
+      "want": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "host web",
+      "criteria": {
+        "hostname": "web"
+      },
+      "want": [
+        "a",
+        "b",
+        "c",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "host WEB-0",
+      "criteria": {
+        "hostname": "WEB-0"
+      },
+      "want": [
+        "a",
+        "b",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "underscore is not a wildcard",
+      "criteria": {
+        "hostname": "web_01"
+      },
+      "want": [
+        "c"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "percent is not a wildcard",
+      "criteria": {
+        "hostname": "50%"
+      },
+      "want": [
+        "i"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "accent aside",
+      "criteria": {
+        "hostname": "cafe"
+      },
+      "want": [
+        "d",
+        "e"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "accent typed",
+      "criteria": {
+        "hostname": "CAFÉ"
+      },
+      "want": [
+        "d",
+        "e"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "sharp s is its own letter",
+      "criteria": {
+        "hostname": "strasse"
+      },
+      "want": [],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "sharp s typed",
+      "criteria": {
+        "hostname": "straß"
+      },
+      "want": [
+        "j"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "dotted capital I",
+      "criteria": {
+        "hostname": "izmir"
+      },
+      "want": [
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "greek case",
+      "criteria": {
+        "appName": "σύσ"
+      },
+      "want": [],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "greek lowercase",
+      "criteria": {
+        "appName": "συσ"
+      },
+      "want": [
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "app nginx",
+      "criteria": {
+        "appName": "NGINX"
+      },
+      "want": [
+        "a",
+        "d",
+        "e",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "app underscore",
+      "criteria": {
+        "appName": "app_"
+      },
+      "want": [
+        "i"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip prefix",
+      "criteria": {
+        "sourceIP": "10.0.0.1"
+      },
+      "want": [
+        "b"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip case",
+      "criteria": {
+        "sourceIP": "FE80"
+      },
+      "want": [
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "host typed with a space",
+      "criteria": {
+        "hostname": "web "
+      },
+      "want": [],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "severity",
+      "criteria": {
+        "severities": [
+          3
+        ]
+      },
+      "want": [
+        "a",
+        "d"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "severities",
+      "criteria": {
+        "severities": [
+          3,
+          2
+        ]
+      },
+      "want": [
+        "a",
+        "d",
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "facility",
+      "criteria": {
+        "facilities": [
+          3
+        ]
+      },
+      "want": [
+        "d",
+        "i",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "from",
+      "criteria": {
+        "dateFrom": "2026-10-23T08:01:00Z"
+      },
+      "want": [
+        "c",
+        "d",
+        "e",
+        "f",
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "to",
+      "criteria": {
+        "dateTo": "2026-10-23T08:01:00Z"
+      },
+      "want": [
+        "a",
+        "b",
+        "g",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "a second with a fraction in it",
+      "criteria": {
+        "dateFrom": "2026-10-23T08:03:00Z",
+        "dateTo": "2026-10-23T08:03:01Z"
+      },
+      "want": [
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "after the fraction",
+      "criteria": {
+        "dateFrom": "2026-10-23T08:03:01Z"
+      },
+      "want": [
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "another zone",
+      "criteria": {
+        "dateFrom": "2026-10-23T10:00:00+02:00",
+        "dateTo": "2026-10-23T10:01:00+02:00"
+      },
+      "want": [
+        "a",
+        "b",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "the day before",
+      "criteria": {
+        "dateTo": "2026-10-23T00:00:00Z"
+      },
+      "want": [
+        "g"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "group host",
+      "criteria": {
+        "groupField": "hostname",
+        "groupKey": "web-01"
+      },
+      "want": [
+        "a",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "group without host",
+      "criteria": {
+        "groupField": "hostname"
+      },
+      "want": [
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "group severity",
+      "criteria": {
+        "groupField": "severity",
+        "groupKey": "Error"
+      },
+      "want": [
+        "a",
+        "d"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "group app is exact",
+      "criteria": {
+        "groupField": "appName",
+        "groupKey": "nginx"
+      },
+      "want": [
+        "a",
+        "d",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "host and level",
+      "criteria": {
+        "severities": [
+          6
+        ],
+        "hostname": "web"
+      },
+      "want": [
+        "b",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "literal search",
+      "criteria": {
+        "search": "%",
+        "searchMode": "text"
+      },
+      "want": [
+        "i"
+      ],
+      "plan": {
+        "mode": "text",
+        "literal": "%"
+      }
+    },
+    {
+      "name": "search and group",
+      "criteria": {
+        "search": "upstream OR get",
+        "searchMode": "fts",
+        "groupField": "hostname",
+        "groupKey": "web-01"
+      },
+      "want": [
+        "a",
+        "h"
+      ],
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "or",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "upstream"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "get"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "sorts": [
+    {
+      "field": "timestamp",
+      "dir": "asc",
+      "want": [
+        "g",
+        "a",
+        "h",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "i",
+        "j",
+        "k"
+      ]
+    },
+    {
+      "field": "timestamp",
+      "dir": "desc",
+      "want": [
+        "k",
+        "j",
+        "i",
+        "f",
+        "e",
+        "d",
+        "c",
+        "b",
+        "h",
+        "a",
+        "g"
+      ]
+    },
+    {
+      "field": "receivedAt",
+      "dir": "asc",
+      "want": [
+        "g",
+        "h",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "i",
+        "j",
+        "k"
+      ]
+    },
+    {
+      "field": "receivedAt",
+      "dir": "desc",
+      "want": [
+        "k",
+        "j",
+        "i",
+        "f",
+        "e",
+        "d",
+        "c",
+        "b",
+        "a",
+        "h",
+        "g"
+      ]
+    },
+    {
+      "field": "severity",
+      "dir": "asc",
+      "want": [
+        "f",
+        "a",
+        "d",
+        "c",
+        "i",
+        "j",
+        "b",
+        "e",
+        "h",
+        "k",
+        "g"
+      ]
+    },
+    {
+      "field": "severity",
+      "dir": "desc",
+      "want": [
+        "g",
+        "k",
+        "h",
+        "e",
+        "b",
+        "j",
+        "i",
+        "c",
+        "d",
+        "a",
+        "f"
+      ]
+    },
+    {
+      "field": "facility",
+      "dir": "asc",
+      "want": [
+        "f",
+        "a",
+        "c",
+        "e",
+        "h",
+        "j",
+        "d",
+        "i",
+        "k",
+        "b",
+        "g"
+      ]
+    },
+    {
+      "field": "facility",
+      "dir": "desc",
+      "want": [
+        "g",
+        "b",
+        "k",
+        "i",
+        "d",
+        "j",
+        "h",
+        "e",
+        "c",
+        "a",
+        "f"
+      ]
+    },
+    {
+      "field": "version",
+      "dir": "asc",
+      "want": [
+        "c",
+        "f",
+        "a",
+        "b",
+        "d",
+        "e",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ]
+    },
+    {
+      "field": "version",
+      "dir": "desc",
+      "want": [
+        "k",
+        "j",
+        "i",
+        "h",
+        "g",
+        "e",
+        "d",
+        "b",
+        "a",
+        "f",
+        "c"
+      ]
+    },
+    {
+      "field": "hostname",
+      "dir": "asc",
+      "want": [
+        "f",
+        "i",
+        "e",
+        "d",
+        "g",
+        "j",
+        "a",
+        "h",
+        "b",
+        "c",
+        "k"
+      ]
+    },
+    {
+      "field": "hostname",
+      "dir": "desc",
+      "want": [
+        "k",
+        "c",
+        "b",
+        "h",
+        "a",
+        "j",
+        "g",
+        "d",
+        "e",
+        "i",
+        "f"
+      ]
+    },
+    {
+      "field": "appName",
+      "dir": "asc",
+      "want": [
+        "f",
+        "j",
+        "i",
+        "c",
+        "a",
+        "d",
+        "e",
+        "h",
+        "g",
+        "b",
+        "k"
+      ]
+    },
+    {
+      "field": "appName",
+      "dir": "desc",
+      "want": [
+        "k",
+        "b",
+        "g",
+        "h",
+        "e",
+        "d",
+        "a",
+        "c",
+        "i",
+        "j",
+        "f"
+      ]
+    },
+    {
+      "field": "sourceIP",
+      "dir": "asc",
+      "want": [
+        "b",
+        "a",
+        "g",
+        "h",
+        "c",
+        "i",
+        "j",
+        "k",
+        "d",
+        "e",
+        "f"
+      ]
+    },
+    {
+      "field": "sourceIP",
+      "dir": "desc",
+      "want": [
+        "f",
+        "e",
+        "d",
+        "k",
+        "j",
+        "i",
+        "c",
+        "h",
+        "g",
+        "a",
+        "b"
+      ]
+    },
+    {
+      "field": "protocol",
+      "dir": "asc",
+      "want": [
+        "b",
+        "g",
+        "i",
+        "d",
+        "a",
+        "c",
+        "e",
+        "f",
+        "h",
+        "j",
+        "k"
+      ]
+    },
+    {
+      "field": "protocol",
+      "dir": "desc",
+      "want": [
+        "k",
+        "j",
+        "h",
+        "f",
+        "e",
+        "c",
+        "a",
+        "d",
+        "i",
+        "g",
+        "b"
+      ]
+    },
+    {
+      "field": "message",
+      "dir": "asc",
+      "want": [
+        "b",
+        "e",
+        "g",
+        "i",
+        "h",
+        "c",
+        "f",
+        "j",
+        "k",
+        "a",
+        "d"
+      ]
+    },
+    {
+      "field": "message",
+      "dir": "desc",
+      "want": [
+        "d",
+        "a",
+        "k",
+        "j",
+        "f",
+        "c",
+        "h",
+        "i",
+        "g",
+        "e",
+        "b"
+      ]
+    },
+    {
+      "field": "procID",
+      "dir": "asc",
+      "want": [
+        "k",
+        "e",
+        "i",
+        "f",
+        "h",
+        "b",
+        "a",
+        "g",
+        "c",
+        "j",
+        "d"
+      ]
+    },
+    {
+      "field": "procID",
+      "dir": "desc",
+      "want": [
+        "d",
+        "j",
+        "c",
+        "g",
+        "a",
+        "b",
+        "h",
+        "f",
+        "i",
+        "e",
+        "k"
+      ]
+    },
+    {
+      "field": "msgID",
+      "dir": "asc",
+      "want": [
+        "j",
+        "k",
+        "b",
+        "f",
+        "i",
+        "c",
+        "e",
+        "g",
+        "d",
+        "a",
+        "h"
+      ]
+    },
+    {
+      "field": "msgID",
+      "dir": "desc",
+      "want": [
+        "h",
+        "a",
+        "d",
+        "g",
+        "e",
+        "c",
+        "i",
+        "f",
+        "b",
+        "k",
+        "j"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "field": "severity",
+      "groups": [
+        {
+          "key": "Info",
+          "count": 4
+        },
+        {
+          "key": "Error",
+          "count": 2
+        },
+        {
+          "key": "Notice",
+          "count": 2
+        },
+        {
+          "key": "Critical",
+          "count": 1
+        },
+        {
+          "key": "Debug",
+          "count": 1
+        },
+        {
+          "key": "Warning",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "field": "hostname",
+      "groups": [
+        {
+          "key": "web-01",
+          "count": 2
+        },
+        {
+          "key": "",
+          "count": 1
+        },
+        {
+          "key": "50%-host",
+          "count": 1
+        },
+        {
+          "key": "CAFE-02",
+          "count": 1
+        },
+        {
+          "key": "café-01",
+          "count": 1
+        },
+        {
+          "key": "db-01",
+          "count": 1
+        },
+        {
+          "key": "Straße-1",
+          "count": 1
+        },
+        {
+          "key": "Web-02",
+          "count": 1
+        },
+        {
+          "key": "web_01",
+          "count": 1
+        },
+        {
+          "key": "İzmir-gw",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "field": "appName",
+      "groups": [
+        {
+          "key": "nginx",
+          "count": 3
+        },
+        {
+          "key": "",
+          "count": 1
+        },
+        {
+          "key": "app-x",
+          "count": 1
+        },
+        {
+          "key": "app_x",
+          "count": 1
+        },
+        {
+          "key": "CRON",
+          "count": 1
+        },
+        {
+          "key": "Nginx",
+          "count": 1
+        },
+        {
+          "key": "postgres",
+          "count": 1
+        },
+        {
+          "key": "sshd",
+          "count": 1
+        },
+        {
+          "key": "ΣΥΣ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "field": "sourceIP",
+      "groups": [
+        {
+          "key": "10.0.0.5",
+          "count": 3
+        },
+        {
+          "key": "10.0.0.10",
+          "count": 1
+        },
+        {
+          "key": "10.0.0.9",
+          "count": 1
+        },
+        {
+          "key": "10.1.0.1",
+          "count": 1
+        },
+        {
+          "key": "10.1.0.2",
+          "count": 1
+        },
+        {
+          "key": "10.1.0.3",
+          "count": 1
+        },
+        {
+          "key": "192.168.1.20",
+          "count": 1
+        },
+        {
+          "key": "192.168.1.3",
+          "count": 1
+        },
+        {
+          "key": "fe80::1",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

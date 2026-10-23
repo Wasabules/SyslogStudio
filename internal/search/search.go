@@ -43,7 +43,8 @@ type Plan struct {
 	Mode string `json:"mode"`
 	// Root is the query's tree in the text and fts modes.
 	Root *Node `json:"root,omitempty"`
-	// Literal is a text query with no word in it, looked for as is.
+	// Literal is a text query with no word in it, folded, looked for as the
+	// field boxes look (see Fold).
 	Literal string `json:"literal,omitempty"`
 	// Pattern is a regex query that compiled, spelt out for JavaScript's "u"
 	// mode so that the window matches exactly what Go does (see jsPattern).
@@ -151,7 +152,7 @@ func Compile(query, mode string) Plan {
 		if words := Words(trimmed); len(words) > 0 {
 			p.Root = wordsNode(words, true, trimmed)
 		} else {
-			p.Literal = strings.ToLower(trimmed)
+			p.Literal = Fold(trimmed)
 		}
 	}
 	return p
@@ -188,7 +189,7 @@ func (p *Plan) Match(fields ...string) bool {
 		return false
 	case p.Literal != "":
 		for _, f := range fields {
-			if strings.Contains(strings.ToLower(f), p.Literal) {
+			if strings.Contains(Fold(f), p.Literal) {
 				return true
 			}
 		}

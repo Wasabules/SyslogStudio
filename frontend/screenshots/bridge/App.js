@@ -24,7 +24,7 @@
 
 import './runtime.js';
 import { isDemo, override, delayed } from './scene.js';
-import { words, planMatcher } from '../../src/lib/search';
+import { words, filterMatcher, sortMessages, groupMessages } from '../../src/lib/search';
 import {
   MESSAGES, STATS, SERVER_CONFIG, SERVER_STATUS,
   ALERT_RULES, ALERT_HISTORY,
@@ -106,18 +106,15 @@ function compileDemoSearch(query, mode) {
   return ws.length ? { mode, root: { op: 'words', words: ws, prefix: true } } : { mode, literal: q.toLowerCase() };
 }
 
-/** Filter the fixture the way the backend's FilterCriteria would. */
+const NO_CRITERIA = {
+  severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', dateFrom: '', dateTo: '',
+};
+
+/** Filter the fixture as the application does: with its own rules (lib/search.ts). */
 function applyFilter(list, criteria) {
   if (!criteria) return list;
-  const search = criteria.search ? planMatcher(compileDemoSearch(criteria.search, criteria.searchMode)) : null;
-  return list.filter((m) => {
-    if (criteria.minSeverity !== undefined && criteria.minSeverity !== null
-      && m.severity > criteria.minSeverity) return false;
-    if (criteria.hostname && !m.hostname.includes(criteria.hostname)) return false;
-    if (criteria.appName && !m.appName.includes(criteria.appName)) return false;
-    if (search && !search({ message: m.message || '', rawMessage: m.rawMessage || '' })) return false;
-    return true;
-  });
+  const c = { ...NO_CRITERIA, ...criteria };
+  return list.filter(filterMatcher(c, c.search ? compileDemoSearch(c.search, c.searchMode) : null));
 }
 
 // --- the table -------------------------------------------------------------
@@ -160,7 +157,9 @@ const HANDLERS = {
 
   // history (the database view)
   QueryMessages: (opts) => {
-    const all = applyFilter(messages, (opts && opts.filter) || {});
+    // Sorted as the history sorts; unsorted, it shows the newest first.
+    const all = sortMessages(applyFilter(messages, (opts && opts.filter) || {}),
+      (opts && opts.sortField) || 'timestamp', (opts && opts.sortField && opts.sortDir) || 'desc');
     const pageSize = (opts && opts.pageSize) || 100;
     const page = (opts && opts.page) || 1;
     const start = (page - 1) * pageSize;
@@ -172,18 +171,10 @@ const HANDLERS = {
       totalPages: Math.max(1, Math.ceil(all.length / pageSize)),
     });
   },
-  QueryMessageGroups: (opts) => {
-    const by = (opts && opts.groupBy) || 'severity';
-    const key = { severity: 'severityLabel', hostname: 'hostname', app: 'appName', sourceIP: 'sourceIP' }[by]
-      || 'severityLabel';
-    const counts = new Map();
-    for (const m of messages) counts.set(m[key], (counts.get(m[key]) || 0) + 1);
-    return Promise.resolve(
-      [...counts.entries()]
-        .map(([value, count]) => ({ value, count }))
-        .sort((a, b) => b.count - a.count),
-    );
-  },
+  QueryMessageGroups: (criteria, field) => Promise.resolve(
+    groupMessages(applyFilter(messages, criteria || {}), field || 'severity')
+      .map((g) => ({ key: g.key, count: g.count })),
+  ),
 
   // alerts
   GetAlertRules: () => Promise.resolve(clone(alertRules)),

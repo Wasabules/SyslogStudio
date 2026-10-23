@@ -14,8 +14,8 @@ import (
 // --- matchesFilter Tests ---
 
 func matchesFilter(msg models.SyslogMessage, filter models.FilterCriteria) bool {
-	plan := search.Compile(filter.Search, filter.SearchMode)
-	return matches(msg, filter, &plan)
+	f := search.CompileFilter(filter)
+	return f.Match(msg)
 }
 
 func TestMatchesFilter_EmptyFilter(t *testing.T) {

@@ -7,7 +7,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { words, planMatcher, type SearchPlan } from '../src/lib/search.ts';
+import {
+    words, planMatcher, filterMatcher, sortMessages, groupMessages,
+    type SearchPlan, type Filterable, type Criteria,
+} from '../src/lib/search.ts';
+import { wallToInstant, instantToWall, minuteAfter } from '../src/lib/zonedTime.ts';
 
 const testdata = new URL('../../internal/search/testdata/', import.meta.url);
 const load = (name: string) => JSON.parse(readFileSync(new URL(name, testdata), 'utf8'));
@@ -33,4 +37,50 @@ test('plans find what Go and the history find', () => {
         const got = golden.corpus.filter(m => !match || match(m)).map(m => m.id);
         assert.deepEqual(got, c.want, `${c.mode} ${JSON.stringify(c.query)}`);
     }
+});
+
+test('filters, sorting and grouping are the history\'s', () => {
+    const spec: {
+        corpus: (Filterable & { id: string })[];
+        filters: { name: string; criteria: Partial<Criteria>; plan: SearchPlan; want: string[] }[];
+        sorts: { field: string; dir: 'asc' | 'desc'; want: string[] }[];
+        groups: { field: string; groups: { key: string; count: number }[] }[];
+    } = load('filters.json');
+    const empty: Criteria = {
+        severities: [], facilities: [], hostname: '', appName: '', sourceIP: '', search: '', dateFrom: '', dateTo: '',
+    };
+    for (const c of spec.filters) {
+        const keep = filterMatcher({ ...empty, ...c.criteria }, c.plan);
+        assert.deepEqual(spec.corpus.filter(keep).map(m => m.id), c.want, `filter ${c.name}`);
+    }
+    for (const c of spec.sorts) {
+        assert.deepEqual(sortMessages(spec.corpus, c.field, c.dir).map(m => m.id), c.want, `sort by ${c.field} ${c.dir}`);
+    }
+    for (const c of spec.groups) {
+        assert.deepEqual(groupMessages(spec.corpus, c.field).map(g => ({ key: g.key, count: g.count })), c.groups,
+            `groups by ${c.field}`);
+    }
+});
+
+test('the date boxes name instants in the displayed zone', () => {
+    const cases: [string, string, string][] = [
+        ['2026-10-23T10:00', 'Europe/Paris', '2026-10-23T08:00:00Z'],
+        ['2026-12-23T10:00', 'Europe/Paris', '2026-12-23T09:00:00Z'],
+        ['2026-10-23T10:00', 'UTC', '2026-10-23T10:00:00Z'],
+        ['2026-10-23T10:00', 'America/New_York', '2026-10-23T14:00:00Z'],
+        ['2026-10-23T10:00', 'Asia/Kolkata', '2026-10-23T04:30:00Z'],
+        ['2026-10-23T10:00:30', 'UTC', '2026-10-23T10:00:30Z'],
+        // The hour daylight saving skips, and the one it repeats.
+        ['2026-03-29T02:30', 'Europe/Paris', '2026-03-29T01:30:00Z'],
+        ['2026-10-25T02:30', 'Europe/Paris', '2026-10-25T00:30:00Z'],
+        ['', 'UTC', ''],
+        ['not a date', 'UTC', ''],
+    ];
+    for (const [wall, zone, want] of cases) {
+        assert.equal(wallToInstant(wall, zone), want, `${wall} in ${zone}`);
+    }
+    for (const zone of ['Europe/Paris', 'UTC', 'America/New_York', 'Asia/Kolkata']) {
+        assert.equal(instantToWall(Date.parse(wallToInstant('2026-07-01T23:45', zone)), zone), '2026-07-01T23:45', zone);
+    }
+    assert.equal(minuteAfter('2026-10-23T08:00:00Z'), '2026-10-23T08:01:00Z');
 });

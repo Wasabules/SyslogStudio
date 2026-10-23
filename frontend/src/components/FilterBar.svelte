@@ -1,5 +1,7 @@
 <script lang="ts">
     import { activeZone } from '../lib/timezone';
+    import { wallToInstant, instantToWall, minuteAfter } from '../lib/zonedTime';
+    import { timeRange } from '../lib/search';
     import { onDestroy } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { filter, messages, searchPlan } from '../lib/stores';
@@ -50,14 +52,19 @@
     //
     // The search box is deliberately left out: it is debounced, so the store
     // lags what is being typed, and syncing it back would delete keystrokes.
-    $: followStore($filter);
+    $: followStore($filter, $activeZone);
 
-    function followStore(f: typeof $filter) {
+    function followStore(f: typeof $filter, zone: string) {
         if (f.hostname !== hostnameText) hostnameText = f.hostname;
         if (f.appName !== appNameText) appNameText = f.appName;
         if (f.sourceIP !== sourceIPText) sourceIPText = f.sourceIP;
-        if (f.dateFrom !== dateFrom) dateFrom = f.dateFrom;
-        if (f.dateTo !== dateTo) dateTo = f.dateTo;
+        // The filter holds instants, "to" excluded; the boxes show the wall
+        // clock of the zone the list is displayed in, "to" its last minute.
+        const [from, to] = timeRange(f);
+        const fromWall = instantToWall(from, zone);
+        const toWall = instantToWall(to - 60_000, zone);
+        if (fromWall !== dateFrom) dateFrom = fromWall;
+        if (toWall !== dateTo) dateTo = toWall;
     }
 
     function setHostname() {
@@ -72,12 +79,14 @@
         filter.update(f => ({ ...f, sourceIP: sourceIPText }));
     }
 
+    // What is typed is the time of the displayed zone; the filter keeps the
+    // instant it names, which every view compares the same way.
     function setDateFrom() {
-        filter.update(f => ({ ...f, dateFrom }));
+        filter.update(f => ({ ...f, dateFrom: dateFrom ? wallToInstant(dateFrom, $activeZone) : '' }));
     }
 
     function setDateTo() {
-        filter.update(f => ({ ...f, dateTo }));
+        filter.update(f => ({ ...f, dateTo: dateTo ? minuteAfter(wallToInstant(dateTo, $activeZone)) : '' }));
     }
 
     function cycleSearchMode() {
