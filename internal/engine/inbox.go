@@ -171,7 +171,7 @@ func (e *Engine) PrepareInbox() ([]byte, error) {
 	if !e.IsEncryptionEnabled() {
 		return nil, fmt.Errorf("turn on at-rest encryption first: the inbox key is protected by its password")
 	}
-	if e.encryptionPassword == "" {
+	if e.master == "" {
 		return nil, fmt.Errorf("unlock the database first")
 	}
 	if e.inboxPriv == nil {
@@ -184,7 +184,7 @@ func (e *Engine) PrepareInbox() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := e.inboxKeyStore.Save(pub, priv, e.encryptionPassword); err != nil {
+		if err := e.inboxKeyStore.Save(pub, priv, e.master); err != nil {
 			return nil, fmt.Errorf("keep the inbox key: %w", err)
 		}
 		e.inboxPriv = priv
@@ -196,10 +196,14 @@ func (e *Engine) PrepareInbox() ([]byte, error) {
 // loadInboxKey reads the private key, if there is one, with the session
 // password.
 func (e *Engine) loadInboxKey() error {
+	return e.loadInboxKeyWith(e.master)
+}
+
+func (e *Engine) loadInboxKeyWith(master string) error {
 	if !e.inboxKeyStore.Exists() {
 		return nil
 	}
-	_, priv, err := e.inboxKeyStore.Load(e.encryptionPassword)
+	_, priv, err := e.inboxKeyStore.Load(master)
 	if err != nil {
 		return fmt.Errorf("read the inbox key: %w", err)
 	}
@@ -217,7 +221,7 @@ func (e *Engine) repersistInboxKey() {
 	if err != nil {
 		return
 	}
-	if err := e.inboxKeyStore.Save(pub, e.inboxPriv, e.encryptionPassword); err != nil {
+	if err := e.inboxKeyStore.Save(pub, e.inboxPriv, e.master); err != nil {
 		slog.Warn("failed to persist the inbox key", "error", err)
 	}
 }

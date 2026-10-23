@@ -48,7 +48,13 @@ type Engine struct {
 	inboxKeyStore *storage.PEMStore
 	inboxPriv     []byte
 
-	encryptionPassword string // in-memory only for session
+	// master is the secret everything encrypted is encrypted with, once the
+	// keyring has given it up — the password itself for an installation
+	// encrypted before the keyring. In memory only.
+	master string
+	// unlockedByKey says the recovery key, not the password, unlocked this
+	// session: the password may then be replaced without being known.
+	unlockedByKey bool
 
 	// releaseDir gives the data directory back. openErr is why Open could not
 	// claim it: the engine then runs without its database and refuses to
@@ -175,6 +181,13 @@ func (e *Engine) Open(emitter event.EventEmitter) error {
 	if e.serverCertStore != nil && e.serverCertStore.Exists() && !e.serverCertStore.IsEncrypted() {
 		if err := e.loadPersistedServerCert(); err != nil {
 			slog.Warn("failed to load the persisted server certificate", "error", err)
+		}
+	}
+	// The inbox key too, left in the clear when encryption was turned off:
+	// otherwise turning it on again would leave the key in the clear as well.
+	if e.inboxKeyStore.Exists() && !e.inboxKeyStore.IsEncrypted() {
+		if err := e.loadInboxKey(); err != nil {
+			slog.Warn("failed to load the inbox key", "error", err)
 		}
 	}
 	return nil

@@ -29,11 +29,11 @@ func (e *Engine) persistCA() {
 	if err != nil {
 		return
 	}
-	if err := e.caStore.Save(certPEM, keyPEM, e.encryptionPassword); err != nil {
+	if err := e.caStore.Save(certPEM, keyPEM, e.master); err != nil {
 		slog.Warn("failed to persist CA", "error", err)
 		return
 	}
-	if e.encryptionPassword == "" {
+	if e.master == "" {
 		slog.Warn("CA private key persisted unencrypted (0600); enable encryption to protect it at rest")
 	}
 }
@@ -43,7 +43,7 @@ func (e *Engine) persistCA() {
 // write would land in plaintext and remove the encrypted copy, so it is
 // refused; the material stays in memory for this session.
 func (e *Engine) canPersistKeys(what string) bool {
-	if e.encryptionPassword == "" && e.configStore.LoadStorage().EncryptionEnabled {
+	if e.master == "" && e.configStore.LoadStorage().EncryptionEnabled {
 		slog.Warn("not persisting a private key while the database is locked", "key", what)
 		return false
 	}
@@ -57,11 +57,11 @@ func (e *Engine) persistServerCert(certPEM, keyPEM []byte) {
 	if e.serverCertStore == nil || !e.canPersistKeys("server certificate") {
 		return
 	}
-	if err := e.serverCertStore.Save(certPEM, keyPEM, e.encryptionPassword); err != nil {
+	if err := e.serverCertStore.Save(certPEM, keyPEM, e.master); err != nil {
 		slog.Warn("failed to persist the server certificate", "error", err)
 		return
 	}
-	if e.encryptionPassword == "" {
+	if e.master == "" {
 		slog.Warn("server TLS private key persisted unencrypted (0600); enable encryption to protect it at rest")
 	}
 }
@@ -80,7 +80,11 @@ func (e *Engine) repersistServerCert() {
 // loadPersistedServerCert restores the server identity with the current
 // session password. Nothing persisted is not an error.
 func (e *Engine) loadPersistedServerCert() error {
-	certPEM, keyPEM, err := e.serverCertStore.Load(e.encryptionPassword)
+	return e.loadServerCertWith(e.master)
+}
+
+func (e *Engine) loadServerCertWith(master string) error {
+	certPEM, keyPEM, err := e.serverCertStore.Load(master)
 	if err != nil {
 		return err
 	}
@@ -98,10 +102,14 @@ func (e *Engine) loadPersistedServerCert() error {
 // session password. Called after the database is unlocked. Returns nil if
 // there is no encrypted CA to load.
 func (e *Engine) LoadPersistedCA() error {
+	return e.loadCAWith(e.master)
+}
+
+func (e *Engine) loadCAWith(master string) error {
 	if e.caStore == nil || !e.caStore.Exists() || !e.caStore.IsEncrypted() {
 		return nil
 	}
-	certPEM, keyPEM, err := e.caStore.Load(e.encryptionPassword)
+	certPEM, keyPEM, err := e.caStore.Load(master)
 	if err != nil {
 		return err
 	}

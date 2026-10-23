@@ -14,6 +14,7 @@ import (
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/search"
+	"SyslogStudio/internal/vault"
 
 	_ "modernc.org/sqlite"
 )
@@ -167,7 +168,17 @@ func (ls *LogStore) UnlockAndOpen(password string) error {
 		p.Percent = p.Percent * 0.70
 		ls.emitCryptoProgress(p)
 	}
-	if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
+	// The current format is decrypted a chunk at a time; a file written
+	// before it, whole, as it always was.
+	if vault.IsVaultFile(encPath) {
+		size := fileSize(encPath)
+		_, err := vault.DecryptFile(encPath, dbPath, password, func(done int64) {
+			scaledProgress(CryptoProgress{Phase: "decrypting", Percent: percentOf(done, size), SizeMB: float64(size) / (1 << 20)})
+		})
+		if err != nil {
+			return err
+		}
+	} else if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
 		return err
 	}
 
@@ -1066,8 +1077,17 @@ func (ls *LogStore) Close() {
 		os.Remove(dbPath + "-wal")
 		os.Remove(dbPath + "-shm")
 
+		// A chunk at a time, in the vault format: the memory taken no longer
+		// grows with the database. The file appears whole or not at all.
 		encPath := dbPath + ".enc"
-		if err := EncryptFileWithProgress(dbPath, encPath, ls.encryptionPassword, ls.emitCryptoProgress); err != nil {
+		size := fileSize(dbPath)
+		err = vault.EncryptFile(dbPath, encPath, ls.encryptionPassword, vault.Header{Kind: vault.KindDatabase}, func(done int64) {
+			ls.emitCryptoProgress(CryptoProgress{Phase: "encrypting", Percent: percentOf(done, size), SizeMB: float64(size) / (1 << 20)})
+		})
+		if err == nil {
+			ls.emitCryptoProgress(CryptoProgress{Phase: "done", Percent: 100, SizeMB: float64(size) / (1 << 20)})
+		}
+		if err != nil {
 			slog.Error("failed to encrypt database, leaving plaintext", "error", err)
 			return
 		}
@@ -1078,4 +1098,18 @@ func (ls *LogStore) Close() {
 	}
 
 	slog.Info("log store closed")
+}
+
+func fileSize(path string) int64 {
+	if fi, err := os.Stat(path); err == nil {
+		return fi.Size()
+	}
+	return 0
+}
+
+func percentOf(done, total int64) float64 {
+	if total <= 0 {
+		return 100
+	}
+	return min(100, float64(done)*100/float64(total))
 }

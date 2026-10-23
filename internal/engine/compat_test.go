@@ -12,6 +12,7 @@ import (
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/storage"
+	"SyslogStudio/internal/vault"
 )
 
 // Installations encrypted by earlier versions must keep opening. testdata/compat
@@ -153,13 +154,23 @@ func copyFixture(t *testing.T, version string) (string, compatManifest) {
 // everything the version that wrote it kept is there.
 func checkCompat(t *testing.T, dir string, m compatManifest, unlock func(*Engine) error) {
 	t.Helper()
+	checkCompatAs(t, dir, m, true, unlock)
+}
+
+// checkCompatAs is checkCompat for an installation that may have had its
+// encryption turned off since.
+func checkCompatAs(t *testing.T, dir string, m compatManifest, encrypted bool, unlock func(*Engine) error) {
+	t.Helper()
 	e := New(storage.NewConfigStoreAt(dir))
 	if err := e.Open(event.NewMockEventEmitter()); err != nil {
 		t.Fatal(err)
 	}
 	defer e.Close()
-	if !e.IsEncryptionEnabled() || !e.IsEncryptionLocked() {
+	if encrypted && (!e.IsEncryptionEnabled() || !e.IsEncryptionLocked()) {
 		t.Fatalf("the %s installation does not open locked", m.Version)
+	}
+	if !encrypted && (e.IsEncryptionEnabled() || e.IsEncryptionLocked()) {
+		t.Fatalf("the %s installation is still encrypted", m.Version)
 	}
 	if err := unlock(e); err != nil {
 		t.Fatalf("the %s installation does not unlock: %v", m.Version, err)
@@ -197,4 +208,143 @@ func TestCompat_V171InstallationOpens(t *testing.T) {
 	byPassword := func(e *Engine) error { return e.UnlockDatabase(m.Password) }
 	checkCompat(t, dir, m, byPassword)
 	checkCompat(t, dir, m, byPassword)
+}
+
+// The same v1.7.1 installation, taken through everything this version adds:
+// a recovery key set up, the database reopened with that key alone, a new
+// password set without the old one, the old one refused afterwards — and the
+// installation whole at every step.
+func TestCompat_V171InstallationThroughRecovery(t *testing.T) {
+	dir, m := copyFixture(t, "v1.7.1")
+	byPassword := func(password string) func(*Engine) error {
+		return func(e *Engine) error { return e.UnlockDatabase(password) }
+	}
+	var keyFile []byte
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockDatabase(m.Password); err != nil {
+			return err
+		}
+		file, pub, _, err := vault.GenerateRecoveryKey()
+		if err != nil {
+			return err
+		}
+		keyFile = file
+		_, err = e.SetRecoveryKey(pub)
+		return err
+	})
+	if !vault.IsVaultFile(storage.DBPathIn(dir) + ".enc") {
+		t.Fatal("the database was not written back in the current format")
+	}
+	const newPassword = "a brand new password"
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockWithRecoveryKey(keyFile); err != nil {
+			return err
+		}
+		if !e.IsUnlockedByRecoveryKey() {
+			t.Error("the session does not say the recovery key opened it")
+		}
+		return e.ResetEncryptionPassword(newPassword)
+	})
+	e := New(storage.NewConfigStoreAt(dir))
+	if err := e.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.UnlockDatabase(m.Password); err == nil {
+		t.Fatal("the old password still opens the installation after a reset")
+	}
+	e.Close()
+	e.configStore.SaveLockout(models.LockoutState{})
+	checkCompat(t, dir, m, byPassword(newPassword))
+	checkCompat(t, dir, m, func(e *Engine) error { return e.UnlockWithRecoveryKey(keyFile) })
+}
+
+// A v1.7.1 installation whose password is changed: its master secret, the old
+// password itself, is replaced, and everything written under it follows —
+// the credentials included, which up to v1.7.1 stayed under the old password.
+// Then encryption off and on again, the installation whole each time.
+func TestCompat_V171InstallationThroughPasswordChanges(t *testing.T) {
+	dir, m := copyFixture(t, "v1.7.1")
+	const newPassword = "a brand new password"
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockDatabase(m.Password); err != nil {
+			return err
+		}
+		if err := e.ChangeEncryptionPassword(m.Password, newPassword); err != nil {
+			return err
+		}
+		if !vault.IsGenerated(e.master) {
+			t.Error("the password is still the master secret after a change")
+		}
+		return nil
+	})
+	byNew := func(e *Engine) error { return e.UnlockDatabase(newPassword) }
+	checkCompat(t, dir, m, byNew)
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := byNew(e); err != nil {
+			return err
+		}
+		return e.DisableEncryption(newPassword)
+	})
+	checkCompatAs(t, dir, m, false, func(e *Engine) error { return nil })
+	checkCompatAs(t, dir, m, false, func(e *Engine) error { return e.EnableEncryption(m.Password) })
+	checkCompat(t, dir, m, func(e *Engine) error { return e.UnlockDatabase(m.Password) })
+}
+
+// A password change on a v1.7.1 installation replaces its master secret, then
+// writes every key file again. Interrupted in between — a crash, a full disk —
+// some files are left under the old secret: they must still open, and be
+// written under the new one then.
+func TestCompat_V171InterruptedRotationRecovers(t *testing.T) {
+	dir, m := copyFixture(t, "v1.7.1")
+	const newPassword = "a brand new password"
+	checkCompat(t, dir, m, func(e *Engine) error {
+		if err := e.UnlockDatabase(m.Password); err != nil {
+			return err
+		}
+		return e.ChangeEncryptionPassword(m.Password, newPassword)
+	})
+
+	// Put back the files as v1.7.1 wrote them, under the old secret, and the
+	// old secret in the keyring: what an interrupted rewrite leaves.
+	src := filepath.Join("testdata", "compat", "v1.7.1")
+	for _, name := range []string{"ca.json.enc", "sinksecrets.json.enc", "inbox-key.json.enc"} {
+		data, err := os.ReadFile(filepath.Join(src, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	probe := New(storage.NewConfigStoreAt(dir))
+	master, _, err := probe.masterFor(newPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := storage.LoadKeyring(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(k.Previous) != 0 {
+		t.Fatal("the keyring kept the previous master secret after a complete rewrite")
+	}
+	if err := k.SetPrevious(m.Password, master); err != nil {
+		t.Fatal(err)
+	}
+	if err := storage.SaveKeyring(dir, k); err != nil {
+		t.Fatal(err)
+	}
+
+	byNew := func(e *Engine) error { return e.UnlockDatabase(newPassword) }
+	checkCompat(t, dir, m, byNew)
+	if k, _ := storage.LoadKeyring(dir); len(k.Previous) == 0 {
+		t.Error("the previous master secret was dropped in the session that still needed it")
+	}
+	checkCompat(t, dir, m, byNew)
+	if k, _ := storage.LoadKeyring(dir); len(k.Previous) != 0 {
+		t.Error("the previous master secret is still kept once everything opens with the new one")
+	}
+	if err := probe.readableWith(master); err != nil {
+		t.Errorf("not everything was written under the new master secret: %v", err)
+	}
 }
