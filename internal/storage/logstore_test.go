@@ -64,7 +64,7 @@ func seed(t *testing.T, ls *LogStore, msgs ...models.SyslogMessage) {
 	for _, m := range msgs {
 		ls.BufferMessage(m)
 	}
-	ls.flush()
+	ls.flushWaiting()
 }
 
 func TestLogStore_RoundTrip(t *testing.T) {
@@ -304,7 +304,7 @@ func TestLogStore_RetentionByCount(t *testing.T) {
 	}
 	seed(t, ls, msgs...)
 
-	ls.runCleanup()
+	ls.runCleanup(false)
 
 	res := ls.QueryMessages(models.QueryOptions{Page: 1, PageSize: 50})
 	if res.Total != 10 {
@@ -329,7 +329,7 @@ func TestLogStore_RetentionByAge(t *testing.T) {
 	recent.ID = "msg-new"
 	seed(t, ls, old, recent)
 
-	ls.runCleanup()
+	ls.runCleanup(false)
 
 	res := ls.QueryMessages(models.QueryOptions{Page: 1, PageSize: 10})
 	if res.Total != 1 {
@@ -354,7 +354,7 @@ func TestLogStore_RetentionBySizeStopsOnceUnderTheCap(t *testing.T) {
 	}
 	seed(t, ls, msgs...)
 
-	ls.runCleanup()
+	ls.runCleanup(false)
 	kept := ls.GetStats().MessageCount
 	if kept == 0 || kept >= 3000 {
 		t.Fatalf("%d messages left after trimming to 1 MB, want some but not all", kept)
@@ -364,7 +364,7 @@ func TestLogStore_RetentionBySizeStopsOnceUnderTheCap(t *testing.T) {
 	}
 
 	// The file is as large as before, and must not count as being over.
-	ls.runCleanup()
+	ls.runCleanup(false)
 	if again := ls.GetStats().MessageCount; again != kept {
 		t.Fatalf("a second pass under the cap deleted %d more messages", kept-again)
 	}

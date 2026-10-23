@@ -368,8 +368,9 @@ export const STORAGE_CONFIG = {
   enabled: true,
   path: 'C:\\Users\\operator\\AppData\\Roaming\\SyslogStudio\\logs.db',
   retentionDays: 30,
-  maxMessages: 5000000,
-  maxSizeMB: 2048,
+  // Values the settings offer, or the selects show blank.
+  maxMessages: 10000000,
+  maxSizeMB: 5120,
   encryptionEnabled: false,
 };
 
@@ -378,6 +379,20 @@ export const STORAGE_STATS = {
   databaseSizeMB: 463.8,
   oldestTimestamp: new Date(NOW.getTime() - 29 * 86400 * 1000).toISOString(),
   droppedWrites: 0,
+  usedMB: 441.2,
+  spaceReturns: true,
+  compacting: false,
+  // A pass of the continuous cleanup a few minutes ago.
+  lastCleanup: {
+    at: new Date(NOW.getTime() - 3 * 60 * 1000).toISOString(),
+    deleted: 4210, freedMB: 2.6, tookMs: 840,
+  },
+  // 1.28 million messages over 29 days, 30 days kept.
+  forecast: {
+    messagesPerDay: 44290, bytesPerMessage: 360, growthMBPerDay: 15.2,
+    steadyMB: 471, boundBy: 'age', steadyInDays: 1.9, fileMB: 471,
+    diskFreeMB: 182400, diskFullInDays: 0,
+  },
 };
 
 export const SIMULATOR_CONFIG = {

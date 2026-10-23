@@ -230,6 +230,42 @@ export namespace models {
 	        this.ipAddresses = source["ipAddresses"];
 	    }
 	}
+	export class CleanupRecord {
+	    at: string;
+	    deleted: number;
+	    freedMB: number;
+	    tookMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CleanupRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.at = source["at"];
+	        this.deleted = source["deleted"];
+	        this.freedMB = source["freedMB"];
+	        this.tookMs = source["tookMs"];
+	    }
+	}
+	export class CleanupSchedule {
+	    every?: string;
+	    at?: string;
+	    weekday?: number;
+	    monthDay?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CleanupSchedule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.every = source["every"];
+	        this.at = source["at"];
+	        this.weekday = source["weekday"];
+	        this.monthDay = source["monthDay"];
+	    }
+	}
 	export class FilterCriteria {
 	    severities?: number[];
 	    facilities?: number[];
@@ -886,6 +922,9 @@ export namespace models {
 	    maxMessages: number;
 	    maxSizeMB: number;
 	    encryptionEnabled: boolean;
+	    retentionAlign?: string;
+	    cleanup: CleanupSchedule;
+	    compaction?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StorageConfig(source);
@@ -899,6 +938,55 @@ export namespace models {
 	        this.maxMessages = source["maxMessages"];
 	        this.maxSizeMB = source["maxSizeMB"];
 	        this.encryptionEnabled = source["encryptionEnabled"];
+	        this.retentionAlign = source["retentionAlign"];
+	        this.cleanup = this.convertValues(source["cleanup"], CleanupSchedule);
+	        this.compaction = source["compaction"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StorageForecast {
+	    messagesPerDay: number;
+	    bytesPerMessage: number;
+	    growthMBPerDay: number;
+	    steadyMB: number;
+	    boundBy?: string;
+	    steadyInDays: number;
+	    fileMB: number;
+	    diskFreeMB: number;
+	    diskFullInDays: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageForecast(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messagesPerDay = source["messagesPerDay"];
+	        this.bytesPerMessage = source["bytesPerMessage"];
+	        this.growthMBPerDay = source["growthMBPerDay"];
+	        this.steadyMB = source["steadyMB"];
+	        this.boundBy = source["boundBy"];
+	        this.steadyInDays = source["steadyInDays"];
+	        this.fileMB = source["fileMB"];
+	        this.diskFreeMB = source["diskFreeMB"];
+	        this.diskFullInDays = source["diskFullInDays"];
 	    }
 	}
 	export class StorageStats {
@@ -906,6 +994,12 @@ export namespace models {
 	    databaseSizeMB: number;
 	    oldestTimestamp: string;
 	    droppedWrites: number;
+	    usedMB: number;
+	    spaceReturns: boolean;
+	    compacting: boolean;
+	    lastCleanup?: CleanupRecord;
+	    nextCleanup?: string;
+	    forecast: StorageForecast;
 	
 	    static createFrom(source: any = {}) {
 	        return new StorageStats(source);
@@ -917,7 +1011,31 @@ export namespace models {
 	        this.databaseSizeMB = source["databaseSizeMB"];
 	        this.oldestTimestamp = source["oldestTimestamp"];
 	        this.droppedWrites = source["droppedWrites"];
+	        this.usedMB = source["usedMB"];
+	        this.spaceReturns = source["spaceReturns"];
+	        this.compacting = source["compacting"];
+	        this.lastCleanup = this.convertValues(source["lastCleanup"], CleanupRecord);
+	        this.nextCleanup = source["nextCleanup"];
+	        this.forecast = this.convertValues(source["forecast"], StorageForecast);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	
 	export class SystemServiceInfo {

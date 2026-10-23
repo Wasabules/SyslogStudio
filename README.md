@@ -176,7 +176,9 @@ starts with the computer, before anyone signs in, and that the window then drive
 
 ### Keeping
 
-- **SQLite persistence** with retention by age, count and size, cleaned in the background
+- **SQLite persistence** with retention by age, count and size — continuously or on a daily,
+  weekly or monthly schedule — disk space given back as it goes, and a forecast of where the
+  database is heading
 - **At-rest encryption** — AES-256-GCM with Argon2id key derivation, the password held in
   memory only
 - **Brute-force protection** that survives a restart, so a stolen laptop cannot be
@@ -433,15 +435,20 @@ encrypted (`.enc`) when at-rest encryption is on. No credential is ever written 
 
 | Setting | Options | Default |
 |---------|---------|---------|
-| Retention | 1, 7, 30, 90 days, unlimited | 7 days |
+| Retention | 1, 7, 30, 90, 180, 365 days, any number of days, unlimited | 7 days |
+| Keep whole | days, weeks, months | to the minute |
+| Clean up | continuously, every day, week or month at a set time | continuously |
+| Disk space | given back as it goes, compacted after each scheduled cleanup, manual | as it goes |
 | Max messages | 10K, 100K, 1M, 10M, unlimited | 1M |
 | Max size | 100 MB, 500 MB, 1 GB, 5 GB, unlimited | 500 MB |
 
-Roughly 560 bytes per message, so a million messages is about 530 MB.
+Roughly 400–600 bytes per message, index included; the Storage tab measures it on your own
+history and forecasts the database's size and the free disk space at the rate messages arrive.
 
-Max size counts what the messages and their search index take. The file itself does not shrink
-when old messages go: SQLite reuses their space for new ones, and **Compact** gives it back to
-the disk.
+Max size counts what the messages and their search index take, and like the message limit it
+applies at all times, whatever the schedule. Cleanups and compactions keep messages arriving:
+deletes run in small transactions, the space goes back to the disk a step at a time, and
+anything that rewrites the whole database holds incoming messages in memory meanwhile.
 
 At-rest encryption uses AES-256-GCM with Argon2id (64 MB, 3 iterations, 4 threads). The
 password exists only in memory while the application runs.

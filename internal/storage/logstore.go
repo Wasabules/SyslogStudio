@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,9 +19,14 @@ import (
 )
 
 const (
-	logStoreFlushInterval   = 500 * time.Millisecond
-	logStoreCleanupInterval = 5 * time.Minute
-	dbFileName              = "logs.db"
+	logStoreFlushInterval = 500 * time.Millisecond
+	// cleanupEvery is how often the retention limits are applied; cleanupTick,
+	// how often a scheduled cleanup is checked for.
+	cleanupEvery = 5 * time.Minute
+	cleanupTick  = time.Minute
+	// forecastFor is how long a forecast is kept.
+	forecastFor = time.Minute
+	dbFileName  = "logs.db"
 )
 
 // maxWriteBuffer caps the in-memory pending-write buffer so a message flood
@@ -50,6 +56,19 @@ type LogStore struct {
 
 	locked             bool   // true if encrypted db exists but not yet unlocked
 	encryptionPassword string // in-memory only, set when unlocked or encryption enabled
+
+	// gate lets the flush write while nothing rewrites the whole database:
+	// flushes hold it shared, a VACUUM or an index rebuild exclusively — and
+	// incoming messages wait in the buffer meanwhile (see rewrite).
+	gate       sync.RWMutex
+	compacting bool
+	// converted is set once the switch to giving space back has been tried,
+	// so that a failure — a full disk — is not retried every minute.
+	converted bool
+	// forecast is the last forecast, kept a minute: the status bar asks for
+	// the statistics every few seconds, and the forecast reads the index.
+	forecast   models.StorageForecast
+	forecastAt time.Time
 }
 
 // NewLogStore creates and initializes a LogStore.
@@ -77,15 +96,32 @@ func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogS
 	return openDatabase(dbPath, config, emitter)
 }
 
+// dsn is how every connection to the database is opened. auto_vacuum is set on
+// each of them because it only takes on a connection that creates the first
+// table, or runs a VACUUM: a new database gives freed space back from the
+// start, an older one once convertForSpaceReturn has rewritten it.
+func dsn(dbPath string) string {
+	return dbPath +
+		"?_pragma=journal_mode(wal)" +
+		"&_pragma=synchronous(normal)" +
+		"&_pragma=busy_timeout(5000)" +
+		"&_pragma=cache_size(-64000)" + // 64 MB cache
+		// No memory mapping: on Windows a file another connection of the
+		// pool has mapped cannot be truncated, so the space cleanups give
+		// back never left the file while the store was in use — and the
+		// cleanup itself took twice as long. Measured on a million messages.
+		"&_pragma=mmap_size(0)" +
+		"&_pragma=temp_store(memory)" +
+		"&_pragma=auto_vacuum(incremental)" +
+		// After a large cleanup or a compaction the write-ahead log has grown
+		// by as much as was rewritten; once checkpointed, it is cut back to
+		// this rather than kept at its largest.
+		"&_pragma=journal_size_limit(67108864)"
+}
+
 // openDatabase opens the SQLite database and starts background goroutines.
 func openDatabase(dbPath string, config models.StorageConfig, emitter event.EventEmitter) (*LogStore, error) {
-	db, err := sql.Open("sqlite", dbPath+
-		"?_pragma=journal_mode(wal)"+
-		"&_pragma=synchronous(normal)"+
-		"&_pragma=busy_timeout(5000)"+
-		"&_pragma=cache_size(-64000)"+ // 64 MB cache
-		"&_pragma=mmap_size(268435456)"+ // 256 MB mmap
-		"&_pragma=temp_store(memory)")
+	db, err := sql.Open("sqlite", dsn(dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -141,13 +177,7 @@ func (ls *LogStore) UnlockAndOpen(password string) error {
 	// Phase: opening database (70-75%)
 	ls.emitCryptoProgress(CryptoProgress{Phase: "initializing", Percent: 72})
 
-	db, err := sql.Open("sqlite", dbPath+
-		"?_pragma=journal_mode(wal)"+
-		"&_pragma=synchronous(normal)"+
-		"&_pragma=busy_timeout(5000)"+
-		"&_pragma=cache_size(-64000)"+
-		"&_pragma=mmap_size(268435456)"+
-		"&_pragma=temp_store(memory)")
+	db, err := sql.Open("sqlite", dsn(dbPath))
 	if err != nil {
 		return fmt.Errorf("open database after decrypt: %w", err)
 	}
@@ -269,6 +299,13 @@ func initSchema(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_app_name_nocase ON messages(app_name COLLATE NOCASE);
 	CREATE INDEX IF NOT EXISTS idx_source_ip_nocase ON messages(source_ip COLLATE NOCASE);
 
+	-- What the store remembers about itself: the last cleanup, whether the
+	-- search index has been built.
+	CREATE TABLE IF NOT EXISTS meta (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);
+
 	CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 		message, raw_message,
 		content='messages',
@@ -308,17 +345,25 @@ func (ls *LogStore) rebuildFTS() {
 	if db == nil {
 		return
 	}
+	// Each of these writes for a while; incoming messages wait in the buffer.
+	ls.gate.Lock()
 	migrateSortIndexes(db)
-
-	var msgCount int64
-	db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
-	if msgCount > 0 {
-		slog.Info("rebuilding FTS index", "messages", msgCount)
-		if _, err := db.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); err != nil {
-			slog.Warn("FTS rebuild failed, text search may be slow", "error", err)
+	// The triggers keep the search index in step with the messages; it is
+	// built once for a database from before them, not at every opening —
+	// which took ten seconds a million messages, with writes waiting.
+	if getMeta(db, metaFTSBuilt) == "" {
+		var msgCount int64
+		db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&msgCount)
+		if msgCount > 0 {
+			slog.Info("rebuilding FTS index", "messages", msgCount)
+			if _, err := db.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); err != nil {
+				slog.Warn("FTS rebuild failed, text search may be slow", "error", err)
+			}
+			slog.Info("FTS index ready", "messages", msgCount)
 		}
-		slog.Info("FTS index ready", "messages", msgCount)
+		setMeta(db, metaFTSBuilt, "1")
 	}
+	ls.gate.Unlock()
 }
 
 // BufferMessage adds a message to the write buffer (non-blocking).
@@ -359,7 +404,7 @@ func (ls *LogStore) flushLoop() {
 	for {
 		select {
 		case <-ls.stopCh:
-			ls.flush() // final flush
+			ls.flushWaiting() // the last one waits out a rewrite in progress
 			return
 		case <-ticker.C:
 			ls.flush()
@@ -368,6 +413,23 @@ func (ls *LogStore) flushLoop() {
 }
 
 func (ls *LogStore) flush() {
+	// The whole database is being rewritten: the messages wait in the buffer
+	// for the next tick rather than for the lock.
+	if !ls.gate.TryRLock() {
+		return
+	}
+	defer ls.gate.RUnlock()
+	ls.write()
+}
+
+// flushWaiting writes the buffer once nothing rewrites the database.
+func (ls *LogStore) flushWaiting() {
+	ls.gate.RLock()
+	defer ls.gate.RUnlock()
+	ls.write()
+}
+
+func (ls *LogStore) write() {
 	ls.mu.Lock()
 	if len(ls.buffer) == 0 {
 		ls.mu.Unlock()
@@ -382,8 +444,26 @@ func (ls *LogStore) flush() {
 		return
 	}
 	if err := insertMessages(db, batch); err != nil {
-		slog.Error("log store: write failed", "error", err)
+		// Put back, ahead of what came since, for the next tick: a write that
+		// waited too long for the database is not a reason to lose messages.
+		slog.Warn("log store: write failed, will retry", "messages", len(batch), "error", err)
+		ls.requeue(batch)
 	}
+}
+
+// requeue puts messages a flush could not write back at the head of the
+// buffer, within its cap.
+func (ls *LogStore) requeue(batch []models.SyslogMessage) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	merged := append(batch, ls.buffer...)
+	if over := len(merged) - maxWriteBuffer; over > 0 {
+		merged = merged[over:]
+		ls.droppedWrites += int64(over)
+		slog.Warn("log write buffer full, dropping oldest messages",
+			"droppedThisChunk", over, "droppedTotal", ls.droppedWrites)
+	}
+	ls.buffer = merged
 }
 
 // InsertMessages writes messages now rather than through the write buffer,
@@ -391,6 +471,9 @@ func (ls *LogStore) flush() {
 // they are. A message already stored — same id — is left as it is, so
 // writing a batch twice stores it once.
 func (ls *LogStore) InsertMessages(msgs []models.SyslogMessage) error {
+	// Waits out a rewrite of the database rather than failing on it.
+	ls.gate.RLock()
+	defer ls.gate.RUnlock()
 	db := ls.handle()
 	if db == nil {
 		return fmt.Errorf("the database is not open")
@@ -494,55 +577,122 @@ func (ls *LogStore) DeleteMessages(ids []string) error {
 	return tx.Commit()
 }
 
+// cleanupLoop applies the retention: the limits on count and size every
+// cleanupEvery, the one on age then too or when its schedule says, and makes
+// up a scheduled run missed while the store was closed.
 func (ls *LogStore) cleanupLoop() {
 	defer ls.wg.Done()
-	ticker := time.NewTicker(logStoreCleanupInterval)
+	ticker := time.NewTicker(cleanupTick)
 	defer ticker.Stop()
 
+	lastPass := time.Now()
 	for {
 		select {
 		case <-ls.stopCh:
 			return
-		case <-ticker.C:
-			ls.runCleanup()
+		case now := <-ticker.C:
+			db := ls.handle()
+			if db == nil {
+				continue
+			}
+			cfg := ls.currentConfig()
+			ls.convertForSpaceReturn(db)
+			due := false
+			if cfg.Cleanup.Every != models.CleanupContinuous {
+				last, _ := time.Parse(time.RFC3339, getMeta(db, metaLastScheduled))
+				prev := previousRun(cfg.Cleanup, now)
+				if last.IsZero() {
+					// Just scheduled: from the next run on, not at once.
+					setMeta(db, metaLastScheduled, now.Format(time.RFC3339))
+				} else if last.Before(prev) {
+					due = true
+				}
+			}
+			if due || now.Sub(lastPass) >= cleanupEvery {
+				lastPass = now
+				ls.runCleanup(due)
+			}
 		}
 	}
 }
 
-func (ls *LogStore) runCleanup() {
+// runCleanup applies the retention once. scheduled says the age limit is due
+// by the schedule; under a continuous one it always is.
+func (ls *LogStore) runCleanup(scheduled bool) {
 	db := ls.handle()
 	if db == nil {
 		return
 	}
-
-	// Retention by age
-	if ls.config.RetentionDays > 0 {
-		cutoff := time.Now().Add(-time.Duration(ls.config.RetentionDays) * 24 * time.Hour).UTC().Format(time.RFC3339)
-		res, err := db.Exec("DELETE FROM messages WHERE timestamp < ?", cutoff)
-		if err == nil {
-			if n, _ := res.RowsAffected(); n > 0 {
-				slog.Info("log store: cleaned old messages", "deleted", n)
-			}
+	cfg := ls.currentConfig()
+	start := time.Now()
+	fileBefore := ls.fileBytes()
+	var deleted int64
+	count := func(n int64, err error, what string) {
+		deleted += n
+		if err != nil {
+			slog.Warn("log store: cleanup failed", "limit", what, "error", err)
+		} else if n > 0 {
+			slog.Info("log store: cleaned", "limit", what, "deleted", n)
 		}
 	}
 
-	// Retention by count
-	if ls.config.MaxMessages > 0 {
-		res, err := db.Exec(`DELETE FROM messages WHERE id IN (
-			SELECT id FROM messages ORDER BY timestamp ASC
-			LIMIT MAX(0, (SELECT COUNT(*) FROM messages) - ?)
-		)`, ls.config.MaxMessages)
-		if err == nil {
-			if n, _ := res.RowsAffected(); n > 0 {
-				slog.Info("log store: trimmed by count", "deleted", n)
-			}
+	ageDue := cfg.Cleanup.Every == models.CleanupContinuous || scheduled
+	if cfg.RetentionDays > 0 && ageDue {
+		cutoff := retentionCutoff(start, cfg.RetentionDays, cfg.RetentionAlign)
+		n, err := ls.deleteInChunks(db, " WHERE timestamp < ?", 0, sqlTime(cutoff))
+		count(n, err, "age")
+	}
+	if cfg.MaxMessages > 0 {
+		if excess := ls.messageCount(db) - int64(cfg.MaxMessages); excess > 0 {
+			n, err := ls.deleteInChunks(db, "", excess)
+			count(n, err, "count")
 		}
 	}
-
-	// Retention by size
-	if ls.config.MaxSizeMB > 0 {
-		ls.trimToSize(db, int64(ls.config.MaxSizeMB)<<20)
+	if cfg.MaxSizeMB > 0 {
+		n, err := ls.trimToSize(db, int64(cfg.MaxSizeMB)<<20)
+		count(n, err, "size")
 	}
+
+	switch {
+	case cfg.Compaction == models.CompactAuto:
+		ls.giveBack(db)
+	case cfg.Compaction == models.CompactAfterCleanup && scheduled:
+		ls.rewrite(db, "VACUUM")
+	}
+	if deleted > 0 {
+		// A large cleanup grows the write-ahead log by as much as it
+		// deletes — 800 MB for a quarter of a million messages: folded back
+		// into the database and truncated, whatever the compaction.
+		db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	}
+	if scheduled {
+		setMeta(db, metaLastScheduled, start.Format(time.RFC3339))
+	}
+	if deleted > 0 {
+		ls.mu.Lock()
+		ls.forecastAt = time.Time{}
+		ls.mu.Unlock()
+	}
+	if deleted > 0 || scheduled {
+		freed := max(fileBefore-ls.fileBytes(), 0)
+		record, _ := json.Marshal(models.CleanupRecord{
+			At: start.Format(time.RFC3339), Deleted: deleted,
+			FreedMB: float64(freed) / (1 << 20), TookMs: time.Since(start).Milliseconds(),
+		})
+		setMeta(db, metaLastCleanup, string(record))
+	}
+}
+
+// fileBytes is what the database's files take on disk.
+func (ls *LogStore) fileBytes() int64 {
+	dbPath, _ := ResolveDBPath(ls.currentConfig().Path)
+	var total int64
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if info, err := os.Stat(dbPath + suffix); err == nil {
+			total += info.Size()
+		}
+	}
+	return total
 }
 
 // trimToSize deletes the oldest messages until what the rows take is back under
@@ -550,30 +700,30 @@ func (ls *LogStore) runCleanup() {
 // Deleting rows leaves index pages part-empty rather than free, so the space
 // comes back less than in proportion: it checks and goes again, a few times at
 // most.
-func (ls *LogStore) trimToSize(db *sql.DB, limit int64) {
+func (ls *LogStore) trimToSize(db *sql.DB, limit int64) (int64, error) {
 	target := limit - limit/10
+	var total int64
 	for pass := 0; pass < 5; pass++ {
 		used := ls.usedBytes(db)
 		if used <= limit {
-			return
+			break
 		}
 		count := ls.messageCount(db)
 		if count == 0 {
-			return
+			break
 		}
 		// What to delete for the rest to fit, at the average row's size.
 		toDelete := count - count*target/used
 		if toDelete < 1 {
 			toDelete = 1
 		}
-		res, err := db.Exec("DELETE FROM messages WHERE id IN (SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?)", toDelete)
+		n, err := ls.deleteInChunks(db, "", toDelete)
+		total += n
 		if err != nil {
-			slog.Warn("log store: trimming by size failed", "error", err)
-			return
+			return total, err
 		}
-		n, _ := res.RowsAffected()
-		slog.Info("log store: trimmed by size", "deleted", n)
 	}
+	return total, nil
 }
 
 // QueryMessages returns a paginated, filtered, sorted result set.
@@ -777,20 +927,33 @@ func (ls *LogStore) GetStats() models.StorageStats {
 		return models.StorageStats{}
 	}
 
+	cfg := ls.currentConfig()
+	used := ls.usedBytes(db)
+	file := ls.fileBytes()
 	stats := models.StorageStats{
-		MessageCount:  ls.messageCount(db),
-		DroppedWrites: ls.droppedWriteCount(),
+		MessageCount:   ls.messageCount(db),
+		DroppedWrites:  ls.droppedWriteCount(),
+		DatabaseSizeMB: float64(file) / (1 << 20),
+		UsedMB:         float64(used) / (1 << 20),
+		SpaceReturns:   spaceReturns(db),
+		LastCleanup:    lastCleanup(db),
 	}
-
-	// DB file size (main + WAL + SHM)
-	dbPath, _ := ResolveDBPath(ls.config.Path)
-	var totalBytes int64
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		if info, err := os.Stat(dbPath + suffix); err == nil {
-			totalBytes += info.Size()
-		}
+	ls.mu.Lock()
+	stats.Compacting = ls.compacting
+	ls.mu.Unlock()
+	now := time.Now()
+	stats.NextCleanup = formatRFC3339(nextRun(cfg.Cleanup, now))
+	ls.mu.Lock()
+	cached, at := ls.forecast, ls.forecastAt
+	ls.mu.Unlock()
+	if now.Sub(at) < forecastFor {
+		stats.Forecast = cached
+	} else {
+		stats.Forecast = forecast(db, cfg, now, stats.MessageCount, used, file, dbDir(cfg.Path))
+		ls.mu.Lock()
+		ls.forecast, ls.forecastAt = stats.Forecast, now
+		ls.mu.Unlock()
 	}
-	stats.DatabaseSizeMB = float64(totalBytes) / (1024 * 1024)
 
 	// Oldest message
 	var oldest sql.NullString
@@ -829,9 +992,7 @@ func (ls *LogStore) Compact() error {
 	if db == nil {
 		return nil
 	}
-	slog.Info("log store: running VACUUM")
-	_, err := db.Exec("VACUUM")
-	return err
+	return ls.rewrite(db, "VACUUM")
 }
 
 // ClearAll deletes all messages and compacts the database.
@@ -840,7 +1001,10 @@ func (ls *LogStore) ClearAll() error {
 	if db == nil {
 		return nil
 	}
-	if _, err := db.Exec("DELETE FROM messages"); err != nil {
+	ls.gate.Lock()
+	_, err := db.Exec("DELETE FROM messages")
+	ls.gate.Unlock()
+	if err != nil {
 		return err
 	}
 	return ls.Compact()
@@ -858,6 +1022,7 @@ func (ls *LogStore) UpdateConfig(config models.StorageConfig) {
 		config.Path = ls.config.Path
 	}
 	ls.config = config
+	ls.forecastAt = time.Time{} // the forecast follows the settings
 	ls.mu.Unlock()
 }
 
@@ -875,7 +1040,10 @@ func (ls *LogStore) Close() {
 
 	close(ls.stopCh)
 	ls.wg.Wait()
-	ls.Compact()
+	// The write-ahead log folded into the database, so that one file is all
+	// there is to encrypt. This used to be a VACUUM, which rewrote the whole
+	// database at every closing — over ten seconds a million messages.
+	db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	db.Close()
 	// Clear the field under the lock: readers take it via handle(), so an
 	// unsynchronized write here would race with an in-flight frontend query.
@@ -894,7 +1062,7 @@ func (ls *LogStore) Close() {
 			return
 		}
 
-		// Clean up WAL/SHM (VACUUM already consolidated them)
+		// Clean up WAL/SHM (the checkpoint already consolidated them)
 		os.Remove(dbPath + "-wal")
 		os.Remove(dbPath + "-shm")
 

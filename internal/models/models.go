@@ -201,6 +201,11 @@ type StorageConfig struct {
 	MaxMessages       int    `json:"maxMessages"`
 	MaxSizeMB         int    `json:"maxSizeMB"`
 	EncryptionEnabled bool   `json:"encryptionEnabled"`
+	// RetentionAlign, Cleanup and Compaction say how retention runs: see
+	// retention.go. Their zero values are the defaults.
+	RetentionAlign string          `json:"retentionAlign,omitempty"`
+	Cleanup        CleanupSchedule `json:"cleanup"`
+	Compaction     string          `json:"compaction,omitempty"`
 }
 
 // StorageStats provides database information.
@@ -211,6 +216,17 @@ type StorageStats struct {
 	// DroppedWrites counts messages discarded because the write buffer stayed
 	// full (persistence could not keep up). Non-zero means logs were lost.
 	DroppedWrites int64 `json:"droppedWrites"`
+	// UsedMB is what the messages and their index take; DatabaseSizeMB is the
+	// files, which hold the space of deleted messages until it goes back.
+	UsedMB float64 `json:"usedMB"`
+	// SpaceReturns says the database gives freed space back to the disk by
+	// itself; Compacting, that a compaction is under way.
+	SpaceReturns bool           `json:"spaceReturns"`
+	Compacting   bool           `json:"compacting"`
+	LastCleanup  *CleanupRecord `json:"lastCleanup,omitempty"`
+	// NextCleanup is when the retention by age next runs, RFC 3339.
+	NextCleanup string          `json:"nextCleanup,omitempty"`
+	Forecast    StorageForecast `json:"forecast"`
 }
 
 // PagedResult holds a paginated query result.
