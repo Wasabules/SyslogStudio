@@ -1,0 +1,1393 @@
+{
+  "corpus": [
+    {
+      "id": "disk",
+      "message": "Disk error on /dev/sda",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - Disk error on /dev/sda"
+    },
+    {
+      "id": "slow",
+      "message": "Request timeout after 30s",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - Request timeout after 30s"
+    },
+    {
+      "id": "both",
+      "message": "error: timeout while connecting to 10.0.0.5",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - error: timeout while connecting to 10.0.0.5"
+    },
+    {
+      "id": "later",
+      "message": "timeout, then an error",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - timeout, then an error"
+    },
+    {
+      "id": "refused",
+      "message": "Connection refused by peer",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - Connection refused by peer"
+    },
+    {
+      "id": "french",
+      "message": "Échec de connexion : délai dépassé",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - Échec de connexion : délai dépassé"
+    },
+    {
+      "id": "ssh",
+      "message": "Accepted publickey for root from 192.168.1.10 port 51234",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - Accepted publickey for root from 192.168.1.10 port 51234"
+    },
+    {
+      "id": "choice",
+      "message": "Choose this or that",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - Choose this or that"
+    },
+    {
+      "id": "cjk",
+      "message": "数据库连接失败 error",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - 数据库连接失败 error"
+    },
+    {
+      "id": "arrow",
+      "message": "value -\u003e next",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - value -\u003e next"
+    },
+    {
+      "id": "quote",
+      "message": "He said \"hello world\" loudly",
+      "rawMessage": "\u003c14\u003e1 2026-10-23T10:00:00Z web-01 svc - - - He said \"hello world\" loudly"
+    }
+  ],
+  "cases": [
+    {
+      "mode": "text",
+      "query": "",
+      "plan": {
+        "mode": "text"
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "error",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "error"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "disk",
+        "both",
+        "later",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "ERROR",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "error"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "disk",
+        "both",
+        "later",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "error timeout",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "error",
+            "timeout"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "both"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "connection ref",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "connection",
+            "ref"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "refused"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "onnection",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "onnection"
+          ],
+          "prefix": true
+        }
+      },
+      "want": []
+    },
+    {
+      "mode": "text",
+      "query": "echec",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "echec"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "french"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "délai",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "delai"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "french"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "192.168.1",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "192",
+            "168",
+            "1"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "ssh"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "-\u003e",
+      "plan": {
+        "mode": "text",
+        "literal": "-\u003e"
+      },
+      "want": [
+        "arrow"
+      ]
+    },
+    {
+      "mode": "text",
+      "query": "web-01 svc",
+      "plan": {
+        "mode": "text",
+        "root": {
+          "op": "words",
+          "words": [
+            "web",
+            "01",
+            "svc"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error timeout",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "and",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"error\" \"timeout\"",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "and",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error AND timeout",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "and",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error or timeout",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "or",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error OR timeout",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "or",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"error\" or \"timeout\"",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "or",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error NOT timeout",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "not",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "disk",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error not timeout",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "not",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "disk",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "(error OR refused) NOT disk",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "not",
+          "kids": [
+            {
+              "op": "or",
+              "kids": [
+                {
+                  "op": "words",
+                  "words": [
+                    "error"
+                  ]
+                },
+                {
+                  "op": "words",
+                  "words": [
+                    "refused"
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "disk"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "both",
+        "later",
+        "refused",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error timeout OR refused",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "or",
+          "kids": [
+            {
+              "op": "and",
+              "kids": [
+                {
+                  "op": "words",
+                  "words": [
+                    "error"
+                  ]
+                },
+                {
+                  "op": "words",
+                  "words": [
+                    "timeout"
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "refused"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "both",
+        "later",
+        "refused"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"error timeout\"",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "error",
+            "timeout"
+          ]
+        }
+      },
+      "want": [
+        "both"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "time*",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "time"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "slow",
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"connection ref\"*",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "connection",
+            "ref"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "refused"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error*",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "error"
+          ],
+          "prefix": true
+        }
+      },
+      "want": [
+        "disk",
+        "both",
+        "later",
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"or\"",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "or"
+          ]
+        }
+      },
+      "want": [
+        "choice"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"hello \"\"world\"\"\"",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "hello",
+            "world"
+          ]
+        }
+      },
+      "want": [
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "192.168.1.10",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "192",
+            "168",
+            "1",
+            "10"
+          ]
+        }
+      },
+      "want": [
+        "ssh"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "délai",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "delai"
+          ]
+        }
+      },
+      "want": [
+        "french"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "DELAI",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "delai"
+          ]
+        }
+      },
+      "want": [
+        "french"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "数据库连接失败",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "words",
+          "words": [
+            "数据库连接失败"
+          ]
+        }
+      },
+      "want": [
+        "cjk"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error timeout, 0)",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "near",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "both"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error timeout, 2)",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "near",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ],
+          "distance": 2
+        }
+      },
+      "want": [
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "near(error timeout, 2)",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "near",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "timeout"
+              ]
+            }
+          ],
+          "distance": 2
+        }
+      },
+      "want": [
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error connecting)",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "near",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "connecting"
+              ]
+            }
+          ],
+          "distance": 10
+        }
+      },
+      "want": [
+        "both"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error connecting, 1)",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "near",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "connecting"
+              ]
+            }
+          ],
+          "distance": 1
+        }
+      },
+      "want": []
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(\"connection refused\" peer, 1)",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "near",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "connection",
+                "refused"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "peer"
+              ]
+            }
+          ],
+          "distance": 1
+        }
+      },
+      "want": [
+        "refused"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(time* error, 5) NOT connecting",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "not",
+          "kids": [
+            {
+              "op": "near",
+              "kids": [
+                {
+                  "op": "words",
+                  "words": [
+                    "time"
+                  ],
+                  "prefix": true
+                },
+                {
+                  "op": "words",
+                  "words": [
+                    "error"
+                  ]
+                }
+              ],
+              "distance": 5
+            },
+            {
+              "op": "words",
+              "words": [
+                "connecting"
+              ]
+            }
+          ]
+        }
+      },
+      "want": [
+        "later"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "near error",
+      "plan": {
+        "mode": "fts",
+        "root": {
+          "op": "and",
+          "kids": [
+            {
+              "op": "words",
+              "words": [
+                "near"
+              ]
+            },
+            {
+              "op": "words",
+              "words": [
+                "error"
+              ]
+            }
+          ]
+        }
+      },
+      "want": []
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error OR timeout)",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "nearWordsOnly",
+          "term": "OR"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error, x)",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "nearDistance",
+          "term": "x"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR(error timeout",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "unclosedParen",
+          "term": "NEAR("
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NEAR()",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "missingTerm",
+          "term": "NEAR()"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error)",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "unexpectedParen",
+          "term": ")"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "\"error",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "unclosedQuote",
+          "term": "\"error"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "(error",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "unclosedParen",
+          "term": "("
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error OR",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "missingTerm",
+          "term": "OR"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "AND error",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "missingTerm",
+          "term": "AND"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "()",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "missingTerm",
+          "term": "()"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "NOT error",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "notNeedsLeft",
+          "term": "NOT"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "error OR NOT timeout",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "notNeedsLeft",
+          "term": "NOT"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "-\u003e",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "noWords",
+          "term": "-\u003e"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "fts",
+      "query": "*",
+      "plan": {
+        "mode": "fts",
+        "error": {
+          "code": "noWords",
+          "term": "*"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "regex",
+      "query": "err(or)?\\s+on",
+      "plan": {
+        "mode": "regex",
+        "pattern": "err(or)?\\s+on"
+      },
+      "want": [
+        "disk"
+      ]
+    },
+    {
+      "mode": "regex",
+      "query": "TIMEOUT",
+      "plan": {
+        "mode": "regex",
+        "pattern": "TIMEOUT"
+      },
+      "want": [
+        "slow",
+        "both",
+        "later"
+      ]
+    },
+    {
+      "mode": "regex",
+      "query": "(",
+      "plan": {
+        "mode": "regex",
+        "error": {
+          "code": "badRegex",
+          "term": "missing closing )"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    },
+    {
+      "mode": "regex",
+      "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "plan": {
+        "mode": "regex",
+        "error": {
+          "code": "regexTooLong"
+        }
+      },
+      "want": [
+        "disk",
+        "slow",
+        "both",
+        "later",
+        "refused",
+        "french",
+        "ssh",
+        "choice",
+        "cjk",
+        "arrow",
+        "quote"
+      ]
+    }
+  ]
+}

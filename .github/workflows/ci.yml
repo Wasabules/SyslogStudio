@@ -142,6 +142,13 @@ jobs:
         run: npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
         working-directory: frontend
 
+      - name: Frontend tests
+        # The live view's half of the search engine, held to the files that
+        # internal/search checks against SQLite's FTS5: the live view and the
+        # history must find the same messages.
+        run: npm test
+        working-directory: frontend
+
       # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
       # gitignored, so anything that compiles the main package fails with
       # "pattern all:frontend/dist: no matching files found" before it analyses a

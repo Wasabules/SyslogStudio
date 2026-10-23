@@ -2,7 +2,8 @@
  * Service layer wrapping Wails-generated Go bindings.
  * All components should import from here instead of from wailsjs directly.
  */
-import type { ServerConfig, FilterCriteria, CertOptions, CertInfo, ServerStatus, ServerStats, SyslogMessage, AlertRule, AlertEvent, StorageConfig, StorageStats, PagedResult, GroupSummary } from './stores';
+import type { ServerConfig, FilterCriteria, CertOptions, CertInfo, ServerStatus, ServerStats, SyslogMessage, AlertRule, AlertEvent, StorageConfig, StorageStats, PagedResult, GroupSummary, SearchMode } from './stores';
+import type { SearchPlan } from './search';
 
 // Re-export all Wails bindings through a typed service layer
 import {
@@ -11,6 +12,7 @@ import {
     GetServerStatus as _GetServerStatus,
     GetDefaultConfig as _GetDefaultConfig,
     GetMessages as _GetMessages,
+    CompileSearch as _CompileSearch,
     ClearMessages as _ClearMessages,
     GetStats as _GetStats,
     GenerateCA as _GenerateCA,
@@ -42,6 +44,7 @@ export const saveServerConfig = (c: ServerConfig): Promise<void> => callGo('Save
 
 // --- Logs ---
 export const getMessages = (filter: FilterCriteria): Promise<SyslogMessage[]> => _GetMessages(filter as any);
+export const compileSearch = (query: string, mode: SearchMode): Promise<SearchPlan> => _CompileSearch(query, mode) as Promise<SearchPlan>;
 export const clearMessages = (): Promise<void> => _ClearMessages();
 export const getStats = (): Promise<ServerStats> => _GetStats();
 export const exportLogs = (filter: FilterCriteria, format: string, timezone: string): Promise<string> => _ExportLogs(filter as any, format, timezone);

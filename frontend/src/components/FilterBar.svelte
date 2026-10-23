@@ -2,7 +2,7 @@
     import { activeZone } from '../lib/timezone';
     import { onDestroy } from 'svelte';
     import { _ } from 'svelte-i18n';
-    import { filter, messages } from '../lib/stores';
+    import { filter, messages, searchPlan } from '../lib/stores';
     import { SEVERITY_LABELS, SEVERITY_COLORS } from '../lib/constants';
     import { exportLogs, clearMessages } from '../lib/api';
     import ImportDialog from './ImportDialog.svelte';
@@ -28,6 +28,13 @@
     let searchTimeout: ReturnType<typeof setTimeout>;
 
     onDestroy(() => clearTimeout(searchTimeout));
+
+    // A search that does not compile is not applied, here or in the history:
+    // say so where it was typed, and why.
+    $: searchError = $filter.search.trim() && $searchPlan?.error
+        ? $_('filter.searchNotApplied', { values: { reason: $_(`filter.searchError.${$searchPlan.error.code}`,
+            { values: { term: $searchPlan.error.term ?? '' } }) } })
+        : '';
 
     function debounceSearch() {
         clearTimeout(searchTimeout);
@@ -210,6 +217,8 @@
         <div class="search-group">
             <input type="text" bind:value={searchText} on:input={debounceSearch}
                    class="filter-input search-input"
+                   class:invalid={!!searchError}
+                   aria-invalid={!!searchError}
                    data-search-box
                    placeholder={searchMode === 'fts' ? $_('filter.ftsPlaceholder') : searchMode === 'regex' ? $_('filter.regexPlaceholder') : $_('filter.searchMessages')} />
             <button class="search-mode-btn" class:mode-fts={searchMode === 'fts'} class:mode-regex={searchMode === 'regex'}
@@ -217,6 +226,9 @@
                     title={searchMode === 'text' ? $_('filter.modeText') : searchMode === 'fts' ? $_('filter.modeFts') : $_('filter.modeRegex')}>
                 {searchMode === 'text' ? 'Aa' : searchMode === 'fts' ? 'FTS' : '.*'}
             </button>
+            {#if searchError}
+                <div class="search-error" role="status">{searchError}</div>
+            {/if}
         </div>
     </div>
 
@@ -325,6 +337,28 @@
         display: flex;
         align-items: center;
         gap: 2px;
+        position: relative;
+    }
+
+    .search-input.invalid {
+        border-color: var(--danger);
+    }
+
+    .search-error {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        z-index: 20;
+        width: max-content;
+        max-width: 320px;
+        padding: 4px 8px;
+        border: 1px solid var(--danger);
+        border-radius: 4px;
+        background: var(--bg-secondary);
+        color: var(--danger);
+        font-size: 11px;
+        line-height: 1.4;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
     .search-mode-btn {

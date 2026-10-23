@@ -13,6 +13,7 @@ import (
 	"SyslogStudio/internal/engine"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/remote"
+	"SyslogStudio/internal/search"
 	"SyslogStudio/internal/storage"
 	"SyslogStudio/internal/updater"
 
@@ -246,6 +247,14 @@ func (a *App) SelectCAFile() (string, error) {
 			{DisplayName: "All Files", Pattern: "*.*"},
 		},
 	})
+}
+
+// CompileSearch compiles a search for the live view, which applies the plan to
+// the messages the window holds. The window never reads a query itself: the
+// plan is the one the history and an export apply, so all three find the same
+// messages.
+func (a *App) CompileSearch(query, mode string) search.Plan {
+	return search.Compile(query, mode)
 }
 
 // ExportLogs writes the filtered messages to a file the user picks. timezone is

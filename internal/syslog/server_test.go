@@ -8,9 +8,15 @@ import (
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/search"
 )
 
 // --- matchesFilter Tests ---
+
+func matchesFilter(msg models.SyslogMessage, filter models.FilterCriteria) bool {
+	plan := search.Compile(filter.Search, filter.SearchMode)
+	return matches(msg, filter, &plan)
+}
 
 func TestMatchesFilter_EmptyFilter(t *testing.T) {
 	msg := models.SyslogMessage{

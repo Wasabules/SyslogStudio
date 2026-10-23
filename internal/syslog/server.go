@@ -19,6 +19,7 @@ import (
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
+	"SyslogStudio/internal/search"
 	"SyslogStudio/internal/storage"
 )
 
@@ -416,12 +417,13 @@ func (s *SyslogServer) GetMessages(filter models.FilterCriteria) []models.Syslog
 	defer s.mu.RUnlock()
 
 	result := make([]models.SyslogMessage, 0, s.count)
+	plan := search.Compile(filter.Search, filter.SearchMode)
 
 	// Read from oldest to newest
 	for i := 0; i < s.count; i++ {
 		idx := (s.head - s.count + i + len(s.messages)) % len(s.messages)
 		msg := s.messages[idx]
-		if matchesFilter(msg, filter) {
+		if matches(msg, filter, &plan) {
 			result = append(result, msg)
 		}
 	}
@@ -882,8 +884,9 @@ func (s *SyslogServer) emitStatus() {
 	s.emitter.Emit("syslog:status", status)
 }
 
-// matchesFilter checks if a message matches the given filter criteria.
-func matchesFilter(msg models.SyslogMessage, filter models.FilterCriteria) bool {
+// matches checks if a message matches the given filter criteria, its search
+// compiled once into plan for the whole buffer.
+func matches(msg models.SyslogMessage, filter models.FilterCriteria, plan *search.Plan) bool {
 	if len(filter.Severities) > 0 {
 		found := false
 		for _, sev := range filter.Severities {
@@ -944,28 +947,5 @@ func matchesFilter(msg models.SyslogMessage, filter models.FilterCriteria) bool 
 		}
 	}
 
-	// Search
-	if filter.Search != "" {
-		if filter.SearchMode == "regex" {
-			re, err := models.SafeCompileRegex(filter.Search)
-			if err != nil {
-				return matchPlainSearch(msg, filter.Search)
-			}
-			if !re.MatchString(msg.Message) && !re.MatchString(msg.RawMessage) {
-				return false
-			}
-		} else {
-			if !matchPlainSearch(msg, filter.Search) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-func matchPlainSearch(msg models.SyslogMessage, search string) bool {
-	s := strings.ToLower(search)
-	return strings.Contains(strings.ToLower(msg.Message), s) ||
-		strings.Contains(strings.ToLower(msg.RawMessage), s)
+	return plan.Match(msg.Message, msg.RawMessage)
 }
