@@ -61,7 +61,10 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+        # Bounded like the release workflow's: a crawling mirror fails the job
+        # in ten minutes rather than holding it for the six-hour default.
+        timeout-minutes: 10
+        run: sudo apt-get update && sudo apt-get install -y -o Acquire::Retries=3 libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
 
       - name: Install Wails CLI
         # Pinned, and kept in sync with the wails/v2 version in go.mod. The CLI
@@ -128,7 +131,8 @@ jobs:
           fi
 
       - name: Install Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+        timeout-minutes: 10
+        run: sudo apt-get update && sudo apt-get install -y -o Acquire::Retries=3 libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
 
       - name: Install frontend deps
         run: npm ci
@@ -214,7 +218,8 @@ jobs:
       # tripwire: it fails loudly if the toolchain cannot compile what the next
       # step is supposed to analyse.
       - name: Install Linux dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+        timeout-minutes: 10
+        run: sudo apt-get update && sudo apt-get install -y -o Acquire::Retries=3 libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
 
       - name: Confirm the tree builds before scanning it
         run: go build -tags webkit2_41 ./...
