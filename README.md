@@ -439,6 +439,10 @@ encrypted (`.enc`) when at-rest encryption is on. No credential is ever written 
 
 Roughly 560 bytes per message, so a million messages is about 530 MB.
 
+Max size counts what the messages and their search index take. The file itself does not shrink
+when old messages go: SQLite reuses their space for new ones, and **Compact** gives it back to
+the disk.
+
 At-rest encryption uses AES-256-GCM with Argon2id (64 MB, 3 iterations, 4 threads). The
 password exists only in memory while the application runs.
 

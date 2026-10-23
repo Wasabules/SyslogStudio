@@ -541,17 +541,38 @@ func (ls *LogStore) runCleanup() {
 
 	// Retention by size
 	if ls.config.MaxSizeMB > 0 {
-		stats := ls.GetStats()
-		if stats.DatabaseSizeMB > float64(ls.config.MaxSizeMB) {
-			// Delete oldest 10% to make room
-			count := ls.messageCount(db)
-			toDelete := count / 10
-			if toDelete < 1000 {
-				toDelete = 1000
-			}
-			db.Exec("DELETE FROM messages WHERE id IN (SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?)", toDelete)
-			slog.Info("log store: trimmed by size", "deleted", toDelete)
+		ls.trimToSize(db, int64(ls.config.MaxSizeMB)<<20)
+	}
+}
+
+// trimToSize deletes the oldest messages until what the rows take is back under
+// limit, aiming a tenth below it so the next pass does not start over at once.
+// Deleting rows leaves index pages part-empty rather than free, so the space
+// comes back less than in proportion: it checks and goes again, a few times at
+// most.
+func (ls *LogStore) trimToSize(db *sql.DB, limit int64) {
+	target := limit - limit/10
+	for pass := 0; pass < 5; pass++ {
+		used := ls.usedBytes(db)
+		if used <= limit {
+			return
 		}
+		count := ls.messageCount(db)
+		if count == 0 {
+			return
+		}
+		// What to delete for the rest to fit, at the average row's size.
+		toDelete := count - count*target/used
+		if toDelete < 1 {
+			toDelete = 1
+		}
+		res, err := db.Exec("DELETE FROM messages WHERE id IN (SELECT id FROM messages ORDER BY timestamp ASC LIMIT ?)", toDelete)
+		if err != nil {
+			slog.Warn("log store: trimming by size failed", "error", err)
+			return
+		}
+		n, _ := res.RowsAffected()
+		slog.Info("log store: trimmed by size", "deleted", n)
 	}
 }
 
@@ -787,6 +808,19 @@ func (ls *LogStore) messageCount(db *sql.DB) int64 {
 	var count int64
 	db.QueryRow("SELECT COUNT(*) FROM messages").Scan(&count)
 	return count
+}
+
+// usedBytes is the space the rows and their index take, which is what the size
+// cap is about. The file is no measure of it: SQLite keeps the pages of deleted
+// rows in the file, on a free list for later inserts, until a VACUUM.
+func (ls *LogStore) usedBytes(db *sql.DB) int64 {
+	var pages, free, size int64
+	if db.QueryRow("PRAGMA page_count").Scan(&pages) != nil ||
+		db.QueryRow("PRAGMA freelist_count").Scan(&free) != nil ||
+		db.QueryRow("PRAGMA page_size").Scan(&size) != nil {
+		return 0
+	}
+	return (pages - free) * size
 }
 
 // Compact runs VACUUM to reclaim disk space.
