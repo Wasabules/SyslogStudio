@@ -1,0 +1,38 @@
+name: Linux build dependencies
+description: >
+  GTK and WebKitGTK for building the Wails application on Ubuntu, from the
+  runner's Azure mirror, or from archive.ubuntu.com when that mirror crawls.
+
+# The runners fetch from azure.archive.ubuntu.com, which can slow to a few
+# kB/s on some of them for a day or more. The v1.7.0 release waited half an
+# hour on it, and with a ten-minute limit about one CI run in three failed
+# instead, to be re-run by hand.
+#
+# So the packages are downloaded first, under a time limit: cutting a download
+# short is harmless, where cutting dpkg short could leave the system half
+# configured. If the mirror does not deliver in time, the sources move to the
+# main archive and the download resumes there, keeping what had arrived. The
+# install comes last, from the cache, with nothing left to fetch.
+#
+# Workflows still bound the step with timeout-minutes: this only gets a slow
+# mirror out of the way, it cannot make a dead network answer.
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        packages="libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config"
+        sudo apt-get update
+        if ! sudo timeout 240 apt-get install -y --download-only -o Acquire::Retries=3 $packages; then
+          echo "::warning::The runner's Ubuntu mirror did not deliver in 4 minutes; switching to archive.ubuntu.com."
+          for list in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            if [ -f "$list" ]; then
+              sudo sed -i 's#azure\.archive\.ubuntu\.com#archive.ubuntu.com#g' "$list"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y --download-only -o Acquire::Retries=3 $packages
+        fi
+        sudo apt-get install -y $packages
