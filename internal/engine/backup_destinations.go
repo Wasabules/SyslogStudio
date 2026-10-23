@@ -235,7 +235,8 @@ func (e *Engine) ListBackups() models.BackupListing {
 	cfg := e.loadBackupConfig()
 	made := e.loadBackupState().Made
 	var mu sync.Mutex
-	var out models.BackupListing
+	// Never null: the window lists what it gets.
+	out := models.BackupListing{Files: []models.BackupFile{}}
 	var wg sync.WaitGroup
 	for _, d := range cfg.Destinations {
 		wg.Add(1)

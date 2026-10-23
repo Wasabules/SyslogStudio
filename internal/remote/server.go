@@ -47,7 +47,7 @@ func NewServer(host Host, version string, log *slog.Logger) *Server {
 	}
 	s := &Server{
 		methods:   map[string]reflect.Value{},
-		hello:     Hello{Protocol: ProtocolVersion, Version: version, PID: os.Getpid()},
+		hello:     Hello{Protocol: ProtocolVersion, Version: version, PID: os.Getpid(), Build: BuildID()},
 		log:       log,
 		conns:     map[*serverConn]struct{}{},
 		listeners: map[net.Listener]struct{}{},

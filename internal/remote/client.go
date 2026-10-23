@@ -74,6 +74,16 @@ func NewClient(conn net.Conn, version string, onEvent func(name string, data []j
 		conn.Close()
 		return nil, &VersionError{Service: h.Version, Window: version, ServiceProtocol: h.Protocol, WindowProtocol: ProtocolVersion}
 	}
+	// Two unversioned builds share a name, not their code: a window built
+	// today would drive a service built last week, and call methods it does
+	// not have.
+	if version == devVersion && h.Build != BuildID() {
+		conn.Close()
+		return nil, &VersionError{
+			Service: h.Version + " (" + shortBuild(h.Build) + ")", Window: version + " (" + shortBuild(BuildID()) + ")",
+			ServiceProtocol: h.Protocol, WindowProtocol: ProtocolVersion,
+		}
+	}
 
 	c := &Client{
 		conn:    conn,
