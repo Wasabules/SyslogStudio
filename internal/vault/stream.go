@@ -122,6 +122,10 @@ func Encrypt(w io.Writer, r io.Reader, master string, h Header, progress func(in
 	if err != nil {
 		return err
 	}
+	// What readPrelude refuses is not written: the file would not open.
+	if len(head) > maxHeader {
+		return fmt.Errorf("the header is too large: %d bytes", len(head))
+	}
 	prelude := make([]byte, 0, len(magic)+4+len(head))
 	prelude = append(prelude, magic...)
 	prelude = binary.BigEndian.AppendUint32(prelude, uint32(len(head)))
