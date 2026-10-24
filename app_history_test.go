@@ -160,8 +160,14 @@ func TestApp_HandsItsHistoryToTheServiceItInstalled(t *testing.T) {
 	svc, _, c := clearService(t, t.TempDir(), nil)
 	a.useService(c, false)
 	waitUntil(t, "the history brought over", func() bool {
-		_, pending := a.loadHandover()
-		return !pending && !a.GetHistoryCopy().Running
+		c := a.GetHistoryCopy()
+		return c.Kind == copyToService && !c.Running
+	})
+	// Stat, not a read: on Windows, a file this test held open could not be
+	// deleted, and the marker would stay for that reason alone.
+	waitUntil(t, "the handover marked done", func() bool {
+		_, err := os.Stat(a.handoverPath())
+		return os.IsNotExist(err)
 	})
 	if n := svc.GetStorageStats().MessageCount; n != 210 {
 		t.Fatalf("the service holds %d messages, want the 210 left to bring", n)

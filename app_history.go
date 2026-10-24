@@ -255,7 +255,7 @@ func (a *App) handOverHistory(c *remote.Client) {
 	if err != nil {
 		// Gone, or not a database: there is nothing to bring.
 		slog.Warn("the history to bring to the service cannot be read", "file", h.DB, "error", err)
-		os.Remove(a.handoverPath())
+		a.dropHandover()
 		return
 	}
 	defer src.Close()
@@ -269,7 +269,23 @@ func (a *App) handOverHistory(c *remote.Client) {
 		// Taken up again the next time the window drives the service.
 		return
 	}
-	os.Remove(a.handoverPath())
+	a.dropHandover()
+}
+
+// dropHandover forgets the history to bring over. Windows refuses to delete
+// a file another handle has open — a second connection reading it, an
+// antivirus scanning it — so it is tried again for a moment. A marker left
+// behind would only make the next connection read on from where it stood,
+// and find nothing new.
+func (a *App) dropHandover() {
+	var err error
+	for range 20 {
+		if err = os.Remove(a.handoverPath()); err == nil || errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	slog.Warn("the history brought to the service could not be marked done", "error", err)
 }
 
 // --- The service's history, back before it goes -------------------------------
