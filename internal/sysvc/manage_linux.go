@@ -289,6 +289,46 @@ func Uninstall(purge bool) error {
 	return nil
 }
 
+// Seal makes the installed service seal what it receives for the public key
+// in the file at keyPath, and keep no database: it stops, its configuration
+// says so, and it starts again, moving the database it had into its inbox
+// for the window holding the private key to collect. Nothing else of its
+// configuration changes. It must run as root.
+func Seal(keyPath string) error {
+	if !IsElevated() {
+		return fmt.Errorf("changing the service needs root: run it with sudo")
+	}
+	pub, err := readInboxKey(keyPath)
+	if err != nil {
+		return err
+	}
+	info, err := Query()
+	if err != nil {
+		return err
+	}
+	if !info.Installed {
+		return fmt.Errorf("the service is not installed")
+	}
+	uid, gid, err := ensureUser()
+	if err != nil {
+		return err
+	}
+	if info.State != "stopped" {
+		if err := systemctl("stop", unitName); err != nil {
+			return err
+		}
+	}
+	sealErr := engine.New(storage.NewConfigStoreAt(dataDir)).SealFor(pub)
+	if sealErr == nil {
+		sealErr = chownTree(dataDir, uid, gid)
+	}
+	// Started again either way: a service left stopped receives nothing.
+	if err := startAndWait(); sealErr == nil {
+		sealErr = err
+	}
+	return sealErr
+}
+
 // Start starts the installed service.
 func Start() error {
 	if !IsElevated() {

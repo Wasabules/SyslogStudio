@@ -77,7 +77,7 @@ func startWriter(db *sql.DB, first int, rate int) *writer {
 					batch = append(batch, bigMessage(int(w.next.Add(1)), now))
 				}
 				start := time.Now()
-				err := insertMessages(w.db, batch)
+				_, err := insertMessages(w.db, batch)
 				if d := time.Since(start).Microseconds(); d > w.worst.Load() {
 					w.worst.Store(d)
 				}
@@ -145,7 +145,7 @@ func fill(t *testing.T, db *sql.DB, n int, days int) time.Duration {
 		for j := i; j < i+batch && j < n; j++ {
 			msgs = append(msgs, bigMessage(j, from.Add(time.Duration(j)*step)))
 		}
-		if err := insertMessages(db, msgs); err != nil {
+		if _, err := insertMessages(db, msgs); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -399,6 +399,10 @@ func (a *App) useService(c *remote.Client, reload bool) {
 	}
 
 	a.sw.Set(backend)
+	if !sealed {
+		// The window's history, if it is still to be brought over.
+		go a.handOverHistory(c)
+	}
 	if oldClient != nil {
 		oldClient.Close()
 	}

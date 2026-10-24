@@ -413,11 +413,21 @@ export const getAutoStartError = (): Promise<string> => callGo('GetAutoStartErro
 // Why this window cannot use its data directory, or empty.
 export const getDataDirConflict = (): Promise<string> => callGo('GetDataDirConflict');
 export const getSystemService = (): Promise<SystemServiceInfo> => callGo('GetSystemService');
-// These four ask for administrator rights through the Windows prompt.
+// These ask for administrator rights through the system's prompt.
 // sealed keeps an encrypted database encrypted: the service seals what it
-// receives for this window instead of storing it in the clear.
-export const installSystemService = (sealed: boolean): Promise<void> => callGo('InstallSystemService', sealed);
-export const uninstallSystemService = (purge: boolean): Promise<void> => callGo('UninstallSystemService', purge);
+// receives for this window instead of storing it in the clear. bringHistory
+// copies this window's history to a service that stores in the clear, once
+// it runs.
+export const installSystemService = (sealed: boolean, bringHistory: boolean): Promise<void> =>
+    callGo('InstallSystemService', sealed, bringHistory);
+// bringBack first copies the service's messages into this window's own
+// database, opened with password when it is encrypted.
+export const uninstallSystemService = (purge: boolean, bringBack: boolean, password: string): Promise<void> =>
+    callGo('UninstallSystemService', purge, bringBack, password);
+// Encrypts while this window drives a service that stores in the clear: the
+// service then seals for this window, whose database — encrypted with
+// password, or unlocked with it — receives the service's history.
+export const sealServiceHistory = (password: string): Promise<void> => callGo('SealServiceHistory', password);
 export const startSystemService = (): Promise<void> => callGo('StartSystemService');
 export const stopSystemService = (): Promise<void> => callGo('StopSystemService');
 // Whether the service starts its listeners when it starts, or leaves them for
@@ -445,3 +455,11 @@ export interface ServiceLink {
 export const getServiceLink = (): Promise<ServiceLink> => callGo('GetServiceLink');
 // Lets this window's account drive the service; asks for administrator rights.
 export const allowServiceAccess = (): Promise<void> => callGo('AllowServiceAccess');
+
+// This window's own database, which it does not show while it drives a service
+// that stores in the clear.
+export interface OwnDatabase {
+    enabled: boolean;
+    encrypted: boolean;
+}
+export const getOwnDatabase = (): Promise<OwnDatabase> => callGo('GetOwnDatabase');

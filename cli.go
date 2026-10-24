@@ -48,6 +48,10 @@ Usage:
                                      let an account drive the service from
                                      its window; ID is its SID on Windows,
                                      its uid on Linux
+  SyslogStudio service seal --inbox-key FILE
+                                     make the service seal what it receives
+                                     for that public key, and keep no
+                                     database of its own
   SyslogStudio service uninstall [--purge]
   SyslogStudio service start | stop  manage it (as an administrator, or root)
 
@@ -127,6 +131,7 @@ func serviceCommand(args []string) int {
 	result := fs.String("result", "", "where to record the outcome")
 	purge := fs.Bool("purge", false, "also delete the service's data")
 	operator := fs.String("operator", "", "account allowed to drive the service: SID on Windows, uid on Linux")
+	inboxKey := fs.String("inbox-key", "", "public key the service seals what it receives for")
 	if err := fs.Parse(args[1:]); err != nil {
 		sysvc.AttachConsole()
 		fmt.Fprintln(os.Stderr, err)
@@ -179,6 +184,8 @@ func serviceCommand(args []string) int {
 			return finish(fmt.Errorf("--operator is required: the account to allow (its SID on Windows, its uid on Linux)"))
 		}
 		return finish(sysvc.Allow(*operator))
+	case "seal":
+		return finish(sysvc.Seal(*inboxKey))
 	case "uninstall":
 		return finish(sysvc.Uninstall(*purge))
 	case "start":

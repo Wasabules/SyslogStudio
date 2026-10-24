@@ -97,6 +97,8 @@ export function GetDefaultCertOptions():Promise<models.CertOptions>;
 
 export function GetDefaultConfig():Promise<models.ServerConfig>;
 
+export function GetHistoryCopy():Promise<models.HistoryCopy>;
+
 export function GetImportFormat():Promise<models.ImportFormat>;
 
 export function GetListenOnStart():Promise<boolean>;
@@ -114,6 +116,8 @@ export function GetNotifyRoutes():Promise<Array<notify.Route>>;
 export function GetNotifySinks():Promise<Array<notify.SinkConfig>>;
 
 export function GetNotifyStats():Promise<notify.Stats>;
+
+export function GetOwnDatabase():Promise<models.OwnDatabase>;
 
 export function GetRecoveryKey():Promise<models.RecoveryKeyInfo>;
 
@@ -145,9 +149,13 @@ export function GetUpdateConfig():Promise<models.UpdateConfig>;
 
 export function HideToBackground():Promise<void>;
 
+export function ImportBackup(arg1:models.BackupRef,arg2:string,arg3:string):Promise<models.HistoryCopy>;
+
 export function ImportLogFile(arg1:string,arg2:boolean,arg3:models.ImportFormat):Promise<importer.Result>;
 
-export function InstallSystemService(arg1:boolean):Promise<void>;
+export function ImportOpenBackup():Promise<models.HistoryCopy>;
+
+export function InstallSystemService(arg1:boolean,arg2:boolean):Promise<void>;
 
 export function IsCAKeyUnencrypted():Promise<boolean>;
 
@@ -198,6 +206,8 @@ export function SaveNotifySink(arg1:notify.SinkConfig):Promise<void>;
 export function SaveServerConfig(arg1:models.ServerConfig):Promise<void>;
 
 export function SaveSimulatorConfig(arg1:models.SimulatorConfig):Promise<void>;
+
+export function SealServiceHistory(arg1:string):Promise<void>;
 
 export function SelectBackupDir():Promise<string>;
 
@@ -253,7 +263,7 @@ export function TestBackupDestinationForm(arg1:models.BackupDestination,arg2:str
 
 export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
 
-export function UninstallSystemService(arg1:boolean):Promise<void>;
+export function UninstallSystemService(arg1:boolean,arg2:boolean,arg3:string):Promise<void>;
 
 export function UnlockDatabase(arg1:string):Promise<void>;
 

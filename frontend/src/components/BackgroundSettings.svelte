@@ -11,17 +11,22 @@
      * Installing, starting, stopping and removing it each go through the
      * Windows administrator prompt, which is why every one of those buttons
      * waits on it and says so.
+     *
+     * The history follows: installing a service that stores in the clear can
+     * bring this window's messages to it, and removing it brings the
+     * service's back first, so that neither leaves a history behind.
      */
     import { onMount } from 'svelte';
     import { _, locale } from 'svelte-i18n';
     import {
         getBackgroundSettings, setLaunchAtLogin, setAutoStartListeners, isEncryptionEnabled,
         installSystemService, uninstallSystemService, startSystemService, stopSystemService,
-        allowServiceAccess, getListenOnStart, setListenOnStart, type BackgroundSettings,
+        allowServiceAccess, getListenOnStart, setListenOnStart, getOwnDatabase, type BackgroundSettings,
     } from '../lib/api';
     import { systemService, refreshSystemService } from '../lib/systemService';
     import { serviceLink, refreshServiceLink } from '../lib/serviceLink';
     import { toastSuccess, toastError } from '../lib/toast';
+    import { copyPercent, historyCopy } from '../lib/historyCopy';
 
     // Bound by Settings, so Escape closes this panel's dialogs before the
     // whole Settings window.
@@ -37,9 +42,24 @@
     // With an encrypted database: keep it encrypted, the service sealing what
     // it receives, or let the service store in the clear.
     let keepEncryption = true;
+    // Without encryption: bring the messages stored here to the service.
+    let bringHistory = true;
     let purge = false;
+    // Removing: bring the service's messages into this window's database
+    // first — opened with its password, when it is encrypted.
+    let bringBack = true;
+    let ownEncrypted = false;
+    let ownPassword = '';
+    let uninstalling = false;
+    let uninstallError = '';
 
     $: overlayOpen = showInstall || showUninstall;
+    $: sealedChoice = encryptionOn && keepEncryption;
+    $: sealedLink = !!$serviceLink?.sealed;
+    // What the service holds comes back: asked for, or collected when sealed.
+    $: takingBack = driving && (sealedLink || bringBack);
+    $: needsPassword = driving && !sealedLink && bringBack && ownEncrypted;
+    $: copyingBack = uninstalling && $historyCopy.running && $historyCopy.kind === 'fromService';
     $: svc = $systemService;
     // While this window drives the service, its settings are the service's:
     // there is nothing to copy over, and "update its configuration" would
@@ -134,21 +154,54 @@
     function openInstall() {
         accepted = false;
         keepEncryption = true;
+        bringHistory = true;
         showInstall = true;
     }
 
     async function confirmInstall() {
         const wasInstalled = installed;
         showInstall = false;
-        const sealed = encryptionOn && keepEncryption;
-        await elevated(() => installSystemService(sealed),
+        const sealed = sealedChoice;
+        await elevated(() => installSystemService(sealed, !sealed && !encryptionOn && bringHistory),
             wasInstalled ? $_('background.updated') : $_('background.installed'));
     }
 
-    async function confirmUninstall() {
-        showUninstall = false;
-        await elevated(() => uninstallSystemService(purge), $_('background.uninstalled'));
+    async function openUninstall() {
         purge = false;
+        bringBack = true;
+        ownPassword = '';
+        uninstallError = '';
+        ownEncrypted = false;
+        showUninstall = true;
+        if (driving && !sealedLink) {
+            try { ownEncrypted = (await getOwnDatabase()).encrypted; } catch { /* asked for if needed */ }
+        }
+    }
+
+    function closeUninstall() {
+        if (!uninstalling) showUninstall = false;
+    }
+
+    // The dialog stays open while the messages come back, with how far that
+    // got, and says there what went wrong — a mistyped password, say.
+    async function confirmUninstall() {
+        uninstalling = true;
+        busy = true;
+        uninstallError = '';
+        try {
+            await uninstallSystemService(purge, takingBack, needsPassword ? ownPassword : '');
+            showUninstall = false;
+            ownPassword = '';
+            toastSuccess($_('background.uninstalled'));
+        } catch (err) {
+            uninstallError = message(err);
+        } finally {
+            uninstalling = false;
+            busy = false;
+            await refreshSystemService();
+            await refreshServiceLink();
+            try { settings = await getBackgroundSettings(); } catch { /* keep */ }
+        }
     }
 
     function stateLabel(state: string | undefined): string {
@@ -165,7 +218,7 @@
     function onKeydown(e: KeyboardEvent) {
         if (e.key !== 'Escape') return;
         if (showInstall) showInstall = false;
-        else if (showUninstall) showUninstall = false;
+        else if (showUninstall) closeUninstall();
     }
 </script>
 
@@ -289,7 +342,7 @@
                         {$_('background.start')}
                     </button>
                 {/if}
-                <button class="action-btn danger" disabled={busy} on:click={() => showUninstall = true}>
+                <button class="action-btn danger" disabled={busy} on:click={openUninstall}>
                     {$_('background.uninstall')}
                 </button>
             {/if}
@@ -319,7 +372,6 @@
                 <li>{$_('background.installStep5')}</li>
                 <li>{$_('background.installStep6')}</li>
             </ol>
-            <p class="text">{$_('background.installNotCopied')}</p>
             {#if encryptionOn}
                 <fieldset class="choice">
                     <legend>{$_('background.installEncryption')}</legend>
@@ -343,6 +395,19 @@
                     {$_('background.installAccept')}
                 </label>
             {/if}
+            {#if sealedChoice}
+                <p class="text">{$_('background.installHistorySealed')}</p>
+            {:else if encryptionOn}
+                <p class="text">{$_('background.installNotCopiedEncrypted')}</p>
+            {:else}
+                <div class="field">
+                    <label class="check">
+                        <input type="checkbox" bind:checked={bringHistory} />
+                        {$_('background.installBringHistory')}
+                    </label>
+                    <span class="hint">{$_(bringHistory ? 'background.installBringHistoryHint' : 'background.installNotCopied')}</span>
+                </div>
+            {/if}
             <div class="dialog-actions">
                 <button class="action-btn" on:click={() => showInstall = false}>{$_('background.cancel')}</button>
                 <button class="action-btn primary" disabled={encryptionOn && !keepEncryption && !accepted} on:click={confirmInstall}>
@@ -355,18 +420,50 @@
 
 {#if showUninstall}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <div class="overlay" role="presentation" on:click={() => showUninstall = false}>
+    <div class="overlay" role="presentation" on:click={closeUninstall}>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <div class="dialog danger-border" role="dialog" aria-modal="true" tabindex="-1" on:click|stopPropagation>
             <h3>{$_('background.uninstallTitle')}</h3>
             <p class="text">{$_('background.uninstallText')}</p>
+            {#if driving && !sealedLink}
+                <div class="field">
+                    <label class="check">
+                        <input type="checkbox" bind:checked={bringBack} disabled={uninstalling} />
+                        {$_('background.uninstallBringBack')}
+                    </label>
+                    <span class="hint">{$_('background.uninstallBringBackHint')}</span>
+                </div>
+                {#if needsPassword}
+                    <input type="password" class="password" bind:value={ownPassword} disabled={uninstalling}
+                           placeholder={$_('background.uninstallPassword')} />
+                {/if}
+            {:else if driving}
+                <p class="note">{$_('background.uninstallSealedCollect')}</p>
+            {:else}
+                <p class="note warn">{$_('background.uninstallNotDriving')}</p>
+            {/if}
             <label class="check">
-                <input type="checkbox" bind:checked={purge} />
+                <input type="checkbox" bind:checked={purge} disabled={uninstalling} />
                 {$_('background.uninstallPurge')}
             </label>
+            {#if purge && !takingBack}
+                <p class="note warn">{$_('background.uninstallPurgeLoses')}</p>
+            {/if}
+            {#if copyingBack}
+                <div class="progress" role="status">
+                    <span class="busy">{$_('background.copyFromService', { values: { percent: Math.round(copyPercent($historyCopy)) } })}</span>
+                    <div class="track"><div class="fill" style="width: {Math.round(copyPercent($historyCopy))}%"></div></div>
+                </div>
+            {:else if uninstalling}
+                <span class="busy">{$_('background.working')}</span>
+            {/if}
+            {#if uninstallError}
+                <p class="note error">{uninstallError}</p>
+            {/if}
             <div class="dialog-actions">
-                <button class="action-btn" on:click={() => showUninstall = false}>{$_('background.cancel')}</button>
-                <button class="action-btn danger" on:click={confirmUninstall}>{$_('background.uninstallConfirm')}</button>
+                <button class="action-btn" on:click={closeUninstall} disabled={uninstalling}>{$_('background.cancel')}</button>
+                <button class="action-btn danger" on:click={confirmUninstall}
+                        disabled={uninstalling || (needsPassword && !ownPassword)}>{$_('background.uninstallConfirm')}</button>
             </div>
         </div>
     </div>
@@ -547,5 +644,31 @@
         justify-content: flex-end;
         gap: 8px;
         margin-top: 4px;
+    }
+
+    .password {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .progress {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .track {
+        height: 6px;
+        background: var(--bg-primary);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .fill {
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.2s ease;
     }
 </style>

@@ -23,7 +23,8 @@
         try { await setCloseAction(closeAction); } catch { /* preference only */ }
     }
     import { enableEncryption, disableEncryption, changeEncryptionPassword, isEncryptionEnabled, getUpdateConfig,
-             setUpdateConfig, getCloseAction, setCloseAction, type CloseAction } from '../lib/api';
+             setUpdateConfig, getCloseAction, setCloseAction, getOwnDatabase, sealServiceHistory,
+             type CloseAction } from '../lib/api';
     import { updateStore } from '../lib/updateStore';
     import BackgroundSettings from './BackgroundSettings.svelte';
     import BackupSettings from './BackupSettings.svelte';
@@ -132,6 +133,15 @@
     let showChangePassword = false;
     let newPassword = '';
     let newPasswordConfirm = '';
+    // Driving a service that stores in the clear, encrypting makes it seal
+    // for this window, whose own database — encrypted already, or not —
+    // then holds the history.
+    $: serviceInClear = $serviceLink?.mode === 'service' && !$serviceLink.sealed;
+    let ownEncrypted = false;
+    let sealingService = false;
+    $: if (visible && serviceInClear) {
+        getOwnDatabase().then(o => ownEncrypted = o.encrypted).catch(() => { /* assume not */ });
+    }
 
     // --- About ---
     let appVersion = '';
@@ -269,6 +279,11 @@
 
     async function confirmEnableEncryption() {
         showEncryptionWarning = false;
+        if (sealingService) {
+            sealingService = false;
+            await sealService();
+            return;
+        }
         encLoading = true;
         try {
             await enableEncryption(encPassword);
@@ -286,6 +301,42 @@
 
     function cancelEnableEncryption() {
         showEncryptionWarning = false;
+        sealingService = false;
+    }
+
+    async function handleSealService() {
+        encError = '';
+        if (!encPassword) {
+            encError = $_('encryption.passwordRequired');
+            return;
+        }
+        if (ownEncrypted) {
+            await sealService();
+            return;
+        }
+        if (encPassword !== encPasswordConfirm) {
+            encError = $_('encryption.passwordMismatch');
+            return;
+        }
+        // A new password: the same warning as turning encryption on here.
+        sealingService = true;
+        showEncryptionWarning = true;
+    }
+
+    // One administrator prompt; the window then reconnects to the service,
+    // sealing, and reloads.
+    async function sealService() {
+        encLoading = true;
+        try {
+            await sealServiceHistory(encPassword);
+            encPassword = '';
+            encPasswordConfirm = '';
+            toastSuccess($_('encryption.serviceSealed'));
+        } catch (e: any) {
+            encError = e?.message || String(e);
+        } finally {
+            encLoading = false;
+        }
     }
 
     async function handleDisableEncryption() {
@@ -635,8 +686,28 @@
 
                     <div class="encryption-section">
                         <h4>{$_('encryption.title')}</h4>
-                        {#if $serviceLink?.mode === 'service' && !$serviceLink.sealed}
-                            <span class="hint encryption-hint">{$_('encryption.serviceUnavailable')}</span>
+                        {#if serviceInClear}
+                            <span class="hint encryption-hint">{$_('encryption.serviceSeal')}</span>
+                            <div class="enc-fields">
+                                {#if ownEncrypted}
+                                    <span class="hint encryption-hint">{$_('encryption.serviceSealOwnEncrypted')}</span>
+                                {/if}
+                                <input type="password" bind:value={encPassword}
+                                       placeholder={$_('encryption.password')}
+                                       disabled={encLoading} />
+                                {#if !ownEncrypted}
+                                    <input type="password" bind:value={encPasswordConfirm}
+                                           placeholder={$_('encryption.confirmPassword')}
+                                           disabled={encLoading} />
+                                {/if}
+                                {#if encError}
+                                    <div class="enc-error">{encError}</div>
+                                {/if}
+                                <button class="action-btn compact-btn" on:click={handleSealService}
+                                        disabled={encLoading}>
+                                    {encLoading ? $_('background.working') : $_('encryption.serviceSealButton')}
+                                </button>
+                            </div>
                         {:else}
                         <div class="form-group checkbox-group">
                             <label>

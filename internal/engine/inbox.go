@@ -161,6 +161,23 @@ func (e *Engine) InboxAck(id string) error {
 	return err
 }
 
+// SealFor makes this engine seal what it receives for the key pub, from its
+// next start, and keep no database: the one it has moves into the inbox as
+// it starts (openInbox). Its other settings stay as they are. Meant for an
+// engine that is not open: a service's, stopped by the administrator step
+// that turns sealing on.
+func (e *Engine) SealFor(pub []byte) error {
+	if err := inbox.CheckPublicKey(pub); err != nil {
+		return err
+	}
+	cfg := models.InboxConfig{PublicKey: pub}
+	if prev := e.configStore.LoadInbox(); prev != nil {
+		cfg.QuotaBytes = prev.QuotaBytes
+	}
+	e.configStore.SaveInbox(&cfg)
+	return nil
+}
+
 // --- The window's end -------------------------------------------------------
 
 // PrepareInbox returns the public key a service seals for, creating the key

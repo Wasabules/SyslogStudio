@@ -122,3 +122,26 @@ type ServiceLink struct {
 	Sealed       bool   `json:"sealed,omitempty"`
 	CollectError string `json:"collectError,omitempty"`
 }
+
+// HistoryCopy is a copy of stored messages from one database into another,
+// under way or just ended.
+type HistoryCopy struct {
+	// Kind is import (a backup merged into the history), toService (the
+	// window's history brought to the service it installed) or fromService
+	// (the service's taken back before it is removed).
+	Kind    string `json:"kind"`
+	Running bool   `json:"running"`
+	// Total is about how many messages there are to read; Read how many
+	// were, Added how many of them the history did not hold already.
+	Total int64  `json:"total"`
+	Read  int64  `json:"read"`
+	Added int64  `json:"added"`
+	Error string `json:"error,omitempty"`
+}
+
+// OwnDatabase is the window's own database, which it does not show while it
+// drives a service that stores in the clear.
+type OwnDatabase struct {
+	Enabled   bool `json:"enabled"`
+	Encrypted bool `json:"encrypted"`
+}

@@ -7,12 +7,18 @@
      *
      * The second kind cannot be dismissed while it lasts: the window is
      * showing something other than what is receiving on this machine.
+     *
+     * Nor can the third: the window's history on its way to the service it
+     * installed, which the History shows filling up meanwhile.
      */
-    import { _ } from 'svelte-i18n';
+    import { onDestroy } from 'svelte';
+    import { _, locale } from 'svelte-i18n';
     import { serviceLink, refreshServiceLink } from '../lib/serviceLink';
     import { systemService, refreshSystemService } from '../lib/systemService';
     import { allowServiceAccess, startSystemService } from '../lib/api';
     import { toastError, toastSuccess } from '../lib/toast';
+    import { copyPercent, historyCopy } from '../lib/historyCopy';
+    import { dbStatsVersion } from '../lib/stores';
 
     export let onOpenSettings: () => void = () => {};
 
@@ -26,6 +32,19 @@
         .filter(l => l.running)
         .map(l => `${l.protocol.toUpperCase()} ${l.port}`)
         .join(', ');
+    $: handOver = driving && $historyCopy.kind === 'toService' && ($historyCopy.running || !!$historyCopy.error);
+
+    // Said once it is over: the History then holds all of it.
+    let handingOver = false;
+    const unsubscribe = historyCopy.subscribe(c => {
+        const running = c.kind === 'toService' && c.running;
+        if (handingOver && !running && c.kind === 'toService' && !c.error) {
+            toastSuccess($_('background.copiedToService', { values: { count: c.added.toLocaleString($locale ?? undefined) } }));
+            dbStatsVersion.update(v => v + 1);
+        }
+        handingOver = running;
+    });
+    onDestroy(unsubscribe);
 
     async function act(action: () => Promise<void>, done: string) {
         busy = true;
@@ -96,6 +115,25 @@
             </button>
         {:else}
             <button class="svc-btn" on:click={onOpenSettings}>{$_('background.bannerSettings')}</button>
+        {/if}
+    </div>
+{/if}
+
+{#if handOver}
+    <div class="svc-banner" class:warn={!$historyCopy.running} role="status">
+        <svg class="svc-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+        </svg>
+        {#if $historyCopy.running}
+            <span class="svc-title">{$_('background.copyToService', { values: { percent: Math.round(copyPercent($historyCopy)) } })}</span>
+            <span class="svc-text">{$_('background.copyToServiceNote')}</span>
+        {:else}
+            <span class="svc-title">{$_('background.copyStopped')}</span>
+            <span class="svc-text" title={$historyCopy.error}>{$historyCopy.error}</span>
         {/if}
     </div>
 {/if}

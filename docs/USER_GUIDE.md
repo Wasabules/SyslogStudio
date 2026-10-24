@@ -419,6 +419,24 @@ password or recovery key, then shows the backup in the **History**. A backup on 
 as it arrives, by the window itself. A banner says so; the live
 view and the database are untouched. **Close the backup** returns the History to the database.
 
+### Importing a backup
+
+**Import** adds the messages of a backup to the history, without replacing anything. It is in
+three places:
+
+- **Import** next to a backup in the list;
+- **Import a file…**, for a backup from elsewhere or a database file (`.db`): one kept aside, or
+  another installation's;
+- **Import into the history**, in the banner of a backup open in the History.
+
+Only the messages the history lacks are added. Each message keeps its own identifier, so
+importing the same backup twice adds nothing the second time, and nothing already in the history
+is changed or removed. A toast says how many were added and how many were there already.
+
+The history is the database the window shows: your own, or the service's while the window drives
+one that stores in the clear. The retention applies to what is imported: messages older than it go
+at the next cleanup, so lengthen it first to keep them.
+
 ### Restoring
 
 **Restore…** replaces the database with a backup:
@@ -437,7 +455,8 @@ cleanup. To read old messages, open the backup instead of restoring it.
 With the system service, backups are made by the service, under its own account: a folder has
 to be one that account can write to — a server destination avoids the question. Installing the
 service hands it the destinations, credentials included. With the sealed inbox, the backups are
-those of your own database, and stay with the window.
+those of your own database, and stay with the window. A service switched to the sealed inbox later
+hands its destinations to the window, when the window has none of its own.
 
 ## Running in the Background
 
@@ -462,6 +481,15 @@ destinations with their credentials and your TLS certificate to `%ProgramData%\S
 and adds an inbound firewall rule on domain and private networks. This window stops its own
 listeners, since the service takes over the ports, and your account is allowed to drive the
 service.
+
+**Bring the messages stored here to the service** is offered, ticked, when your database is not
+encrypted. Once the service runs, the window copies your history into the service's database, in
+the background:
+
+- A banner shows how far the copy has got, and the History fills up meanwhile.
+- If the copy stops — the window closed, the service stopped — it carries on the next time the
+  window drives the service. Nothing is copied twice.
+- Your own database keeps its copy.
 
 While the service runs, **this window drives it**. A banner says so. Everything you see and
 change is the service's:
@@ -554,11 +582,35 @@ Requirements and limits:
 - Without the sealed inbox, the service's database is not encrypted: nobody is there to type a
   password at boot. Its directory is readable by administrators only.
 - The service's credentials and private key are sealed with DPAPI.
-- At-rest encryption is not available while the window drives a service that stores in the
-  clear, and the Storage settings say so. With the sealed inbox, encryption applies to your own
-  database, as usual.
-- The messages your own receiver stored stay in your own database; the window shows them again
-  when it is not driving the service.
+- With the sealed inbox, at-rest encryption applies to your own database, as usual, and your
+  history stays in it.
+- Storing unencrypted, the messages your own receiver stored stay in your own database unless
+  they were brought to the service at install. The window shows them again when it is not driving
+  the service.
+
+To encrypt later, while the window drives a service that stores in the clear, open
+**Settings > Storage > Encryption**. It asks for a new password, or for your own database's when
+that one is encrypted already. One administrator prompt then does the rest:
+
+1. Your own database is encrypted, and holds the history from then on.
+2. The service switches to the sealed inbox and restarts.
+3. The database the service had moves into its inbox. From there, it reaches your encrypted
+   history while the window is open and unlocked.
+4. The service's backup destinations come with it, when your own database has none.
+
+#### Removing the service
+
+**Uninstall…** first brings the service's messages back into your own database. This option is
+ticked by default:
+
+- It asks for your database's password when your database is encrypted.
+- The service stops receiving during the copy, so nothing is lost on the way.
+- Messages your database already holds are not copied twice.
+- If the copy fails, nothing is removed.
+
+With the sealed inbox, what still waits sealed on the service is collected first. **Also delete
+its data** then removes the service's directory. To bring the service's messages back, the window
+must be driving the service: start it first, or allow your account.
 
 While the service is stopped, **Update its configuration** copies the window's own settings to
 the service and restarts it; while the window drives the service there is nothing to copy, and

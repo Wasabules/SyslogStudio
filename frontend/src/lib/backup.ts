@@ -7,6 +7,7 @@
 import { writable } from 'svelte/store';
 import type { CleanupSchedule } from './stores';
 import { dbStatsVersion } from './stores';
+import type { HistoryCopy } from './historyCopy';
 
 export interface BackupConfig {
     enabled: boolean;
@@ -156,6 +157,23 @@ export const selectSSHKeyFile = (): Promise<string> => callGo('SelectSSHKeyFile'
 /** Restores a copy, opened with its password or the recovery key at keyPath. */
 export const restoreBackup = (ref: BackupRef, password: string, keyPath: string): Promise<void> =>
     callGo('RestoreBackupFile', ref, password, keyPath);
+
+/**
+ * Adds the messages of a copy — or of a database file — to the history:
+ * those it lacks; nothing it holds is changed or removed.
+ */
+export async function importBackup(ref: BackupRef, password: string, keyPath: string): Promise<HistoryCopy> {
+    const done: HistoryCopy = await callGo('ImportBackup', ref, password, keyPath);
+    dbStatsVersion.update(v => v + 1);
+    return done;
+}
+
+/** importBackup of the copy being read. */
+export async function importOpenBackup(): Promise<HistoryCopy> {
+    const done: HistoryCopy = await callGo('ImportOpenBackup');
+    dbStatsVersion.update(v => v + 1);
+    return done;
+}
 
 // --- Destinations ---
 /** Saves a destination as the form has it; keyPath is an SSH key file chosen for it. */

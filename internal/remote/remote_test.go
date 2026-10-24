@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"SyslogStudio/internal/engine"
+	"SyslogStudio/internal/history"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/storage"
 )
@@ -440,5 +442,47 @@ func TestServer_KeepsServingAfterAFailedAccept(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve did not return after Close")
+	}
+}
+
+// A window copies a history out of the service and into it, over the pipe,
+// a batch at a time; a message is stored once whichever way it goes.
+func TestClient_CopiesHistoryBothWays(t *testing.T) {
+	_, _, c, _ := pair(t, nil)
+	desk := engine.New(storage.NewConfigStoreAt(t.TempDir()))
+	if err := desk.Open(nil); err != nil {
+		t.Fatal(err)
+	}
+	defer desk.Close()
+
+	stamp := func(prefix string, n int) []models.SyslogMessage {
+		out := make([]models.SyslogMessage, n)
+		now := time.Now()
+		for i := range out {
+			out[i] = models.SyslogMessage{ID: fmt.Sprintf("%s-%05d", prefix, i), Hostname: "h",
+				Message: prefix, Timestamp: now, ReceivedAt: now}
+		}
+		return out
+	}
+	if n, err := c.MergeMessages(stamp("service", 450)); err != nil || n != 450 {
+		t.Fatalf("merged %d into the service: %v", n, err)
+	}
+	if n, err := desk.MergeMessages(stamp("desk", 120)); err != nil || n != 120 {
+		t.Fatalf("merged %d into the window's engine: %v", n, err)
+	}
+
+	p, err := history.Copy(context.Background(), c, desk, history.Progress{}, nil)
+	if err != nil || p.Read != 450 || p.Added != 450 {
+		t.Fatalf("from the service: %+v, %v", p, err)
+	}
+	p, err = history.Copy(context.Background(), desk, c, history.Progress{}, nil)
+	if err != nil || p.Read != 570 || p.Added != 120 {
+		t.Fatalf("to the service: %+v, %v", p, err)
+	}
+	if n := c.GetStorageStats().MessageCount; n != 570 {
+		t.Fatalf("the service holds %d messages, want 570", n)
+	}
+	if n := desk.GetStorageStats().MessageCount; n != 570 {
+		t.Fatalf("the window's engine holds %d messages, want 570", n)
 	}
 }

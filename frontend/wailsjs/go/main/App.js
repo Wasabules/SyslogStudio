@@ -186,6 +186,10 @@ export function GetDefaultConfig() {
   return window['go']['main']['App']['GetDefaultConfig']();
 }
 
+export function GetHistoryCopy() {
+  return window['go']['main']['App']['GetHistoryCopy']();
+}
+
 export function GetImportFormat() {
   return window['go']['main']['App']['GetImportFormat']();
 }
@@ -220,6 +224,10 @@ export function GetNotifySinks() {
 
 export function GetNotifyStats() {
   return window['go']['main']['App']['GetNotifyStats']();
+}
+
+export function GetOwnDatabase() {
+  return window['go']['main']['App']['GetOwnDatabase']();
 }
 
 export function GetRecoveryKey() {
@@ -282,12 +290,20 @@ export function HideToBackground() {
   return window['go']['main']['App']['HideToBackground']();
 }
 
+export function ImportBackup(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ImportBackup'](arg1, arg2, arg3);
+}
+
 export function ImportLogFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ImportLogFile'](arg1, arg2, arg3);
 }
 
-export function InstallSystemService(arg1) {
-  return window['go']['main']['App']['InstallSystemService'](arg1);
+export function ImportOpenBackup() {
+  return window['go']['main']['App']['ImportOpenBackup']();
+}
+
+export function InstallSystemService(arg1, arg2) {
+  return window['go']['main']['App']['InstallSystemService'](arg1, arg2);
 }
 
 export function IsCAKeyUnencrypted() {
@@ -388,6 +404,10 @@ export function SaveServerConfig(arg1) {
 
 export function SaveSimulatorConfig(arg1) {
   return window['go']['main']['App']['SaveSimulatorConfig'](arg1);
+}
+
+export function SealServiceHistory(arg1) {
+  return window['go']['main']['App']['SealServiceHistory'](arg1);
 }
 
 export function SelectBackupDir() {
@@ -498,8 +518,8 @@ export function TestNotifySink(arg1) {
   return window['go']['main']['App']['TestNotifySink'](arg1);
 }
 
-export function UninstallSystemService(arg1) {
-  return window['go']['main']['App']['UninstallSystemService'](arg1);
+export function UninstallSystemService(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UninstallSystemService'](arg1, arg2, arg3);
 }
 
 export function UnlockDatabase(arg1) {

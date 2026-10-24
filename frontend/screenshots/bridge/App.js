@@ -67,6 +67,9 @@ const DEMO_ONLY = {
   CreateRecoveryKey: 'A recovery key is saved to a file of your choosing, which a web page cannot write.',
   OpenBackup: 'There is no backup behind the demo to open — this one runs entirely in your browser.',
   RestoreBackupFile: 'There is no database behind the demo to restore into.',
+  ImportBackup: 'There is no database behind the demo to import into.',
+  ImportOpenBackup: 'There is no database behind the demo to import into.',
+  SealServiceHistory: 'There is no service behind the demo to seal.',
 };
 
 // --- mutable demo state ----------------------------------------------------
@@ -311,6 +314,9 @@ const HANDLERS = {
   CloseBackup: () => Promise.resolve(null),
   GetBackupView: () => Promise.resolve({ open: false, messages: 0 }),
   RestoreBackupFile: () => refuse('RestoreBackupFile'),
+  ImportBackup: () => delayed('ImportBackup', { kind: 'import', running: false, total: 18400, read: 18400, added: 16950 }),
+  ImportOpenBackup: () => delayed('ImportOpenBackup', { kind: 'import', running: false, total: 18400, read: 18400, added: 16950 }),
+  GetHistoryCopy: () => Promise.resolve({ kind: '', running: false, total: 0, read: 0, added: 0 }),
 
   // TLS
   GetDefaultCertOptions: () => Promise.resolve({
@@ -354,6 +360,8 @@ const HANDLERS = {
   StopSystemService: () => delayed('StopSystemService', null),
   GetServiceLink: () => Promise.resolve(clone(SERVICE_LINK)),
   AllowServiceAccess: () => delayed('AllowServiceAccess', null),
+  GetOwnDatabase: () => Promise.resolve({ enabled: true, encrypted: false }),
+  SealServiceHistory: () => delayed('SealServiceHistory', null),
   GetListenOnStart: () => Promise.resolve(true),
   SetListenOnStart: () => Promise.resolve(null),
 

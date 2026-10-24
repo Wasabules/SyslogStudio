@@ -245,6 +245,41 @@ func Uninstall(purge bool) error {
 	return nil
 }
 
+// Seal makes the installed service seal what it receives for the public key
+// in the file at keyPath, and keep no database: it stops, its configuration
+// says so, and it starts again, moving the database it had into its inbox
+// for the window holding the private key to collect. Nothing else of its
+// configuration changes. It must run elevated.
+func Seal(keyPath string) error {
+	if !IsElevated() {
+		return fmt.Errorf("changing the service needs administrator rights")
+	}
+	pub, err := readInboxKey(keyPath)
+	if err != nil {
+		return err
+	}
+	dataDir, err := DataDir()
+	if err != nil {
+		return err
+	}
+	statusDir, _ := StatusDir()
+	m, s, err := open()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+	defer s.Close()
+	if err := stopAndWait(s); err != nil {
+		return err
+	}
+	sealErr := engine.New(storage.NewConfigStoreAt(dataDir)).SealFor(pub)
+	// Started again either way: a service left stopped receives nothing.
+	if err := startAndWait(s, statusDir); sealErr == nil {
+		sealErr = err
+	}
+	return sealErr
+}
+
 // Start starts the installed service and waits until it runs, or fails.
 func Start() error {
 	m, s, err := open()

@@ -214,3 +214,133 @@ func TestWrite_LockedDatabaseKeepsTheMessages(t *testing.T) {
 		t.Fatalf("%d messages stored once the database is free, want 3", n)
 	}
 }
+
+// A database is read a batch at a time in the order it was written, to its
+// end — what is written meanwhile included — and a read at the end returns
+// nothing and does not move.
+func TestMessagesAfter_ReadsToTheEnd(t *testing.T) {
+	ls := newTestStore(t, models.StorageConfig{})
+	ls.WaitReady()
+	seed(t, ls, prefixed("first", 0, 250)...)
+
+	var got []string
+	cursor := int64(0)
+	for {
+		msgs, next, err := ls.MessagesAfter(cursor, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next == cursor {
+			if len(msgs) != 0 {
+				t.Fatalf("a read that did not move returned %d messages", len(msgs))
+			}
+			break
+		}
+		if len(msgs) > 100 {
+			t.Fatalf("asked for 100, read %d", len(msgs))
+		}
+		for _, m := range msgs {
+			got = append(got, m.ID)
+		}
+		cursor = next
+		if len(got) == 200 {
+			seed(t, ls, prefixed("later", 0, 10)...)
+		}
+	}
+	if len(got) != 260 {
+		t.Fatalf("read %d messages, want 260", len(got))
+	}
+	if got[0] != "first-0000" || got[249] != "first-0249" || got[250] != "later-0000" || got[259] != "later-0009" {
+		t.Fatalf("not in the order written: %s %s %s %s", got[0], got[249], got[250], got[259])
+	}
+
+	// A copy opened to be read reads the same way.
+	path := filepath.Join(t.TempDir(), "copy.db")
+	if err := ls.Snapshot(context.Background(), path); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := OpenSnapshot(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snap.Close()
+	if msgs, _, err := snap.MessagesAfter(0, 5000); err != nil || len(msgs) != 260 {
+		t.Fatalf("the copy read %d messages: %v", len(msgs), err)
+	}
+}
+
+// The cursor is the rowid, which the full-text index relies on as well: a
+// compaction in the middle of a copy must not make it skip or repeat.
+func TestMessagesAfter_CursorSurvivesCompaction(t *testing.T) {
+	ls := newTestStore(t, models.StorageConfig{})
+	ls.WaitReady()
+	seed(t, ls, prefixed("m", 0, 300)...)
+	ids := make([]string, 0, 100)
+	for i := 0; i < 100; i++ {
+		ids = append(ids, fmt.Sprintf("m-%04d", i*3))
+	}
+	if err := ls.DeleteMessages(ids); err != nil {
+		t.Fatal(err)
+	}
+
+	seen := map[string]int{}
+	msgs, cursor, err := ls.MessagesAfter(0, 90)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgs {
+		seen[m.ID]++
+	}
+	if err := ls.Compact(); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		msgs, next, err := ls.MessagesAfter(cursor, 90)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next == cursor {
+			break
+		}
+		for _, m := range msgs {
+			seen[m.ID]++
+		}
+		cursor = next
+	}
+	if len(seen) != 200 {
+		t.Fatalf("read %d distinct messages across a compaction, want 200", len(seen))
+	}
+	for id, n := range seen {
+		if n != 1 {
+			t.Fatalf("%s read %d times", id, n)
+		}
+	}
+}
+
+// Merging says how many messages were new; a message is known by its id.
+func TestMergeMessages_CountsWhatIsNew(t *testing.T) {
+	ls := newTestStore(t, models.StorageConfig{})
+	ls.WaitReady()
+	if n, err := ls.MergeMessages(prefixed("a", 0, 300)); err != nil || n != 300 {
+		t.Fatalf("first merge: %d, %v", n, err)
+	}
+	if n, err := ls.MergeMessages(prefixed("a", 200, 300)); err != nil || n != 200 {
+		t.Fatalf("overlapping merge added %d, want 200: %v", n, err)
+	}
+	if n, _, _ := ls.Span(); n != 500 {
+		t.Fatalf("the database holds %d messages, want 500", n)
+	}
+
+	path := filepath.Join(t.TempDir(), "copy.db")
+	if err := ls.Snapshot(context.Background(), path); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := OpenSnapshot(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snap.Close()
+	if _, err := snap.MergeMessages(prefixed("b", 0, 1)); err == nil {
+		t.Fatal("a copy opened to be read took a merge")
+	}
+}

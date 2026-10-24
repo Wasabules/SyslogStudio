@@ -1,8 +1,8 @@
 <script lang="ts">
-    // Opening a backup, to read it or to restore it: what it is, what opens
-    // it, and — for a restore — what will happen to the database. Asked here
-    // and only here, so that the password or key is typed once, at the moment
-    // it is needed.
+    // Opening a backup — to read it, to restore it, or to add its messages to
+    // the history: what it is, what opens it, and what will happen to the
+    // database. Asked here and only here, so that the password or key is
+    // typed once, at the moment it is needed.
     import { onDestroy, onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { activeZone, formatInZone } from '../lib/timezone';
@@ -10,12 +10,13 @@
     import { activeView, logViewMode } from '../lib/stores';
     import { toastSuccess } from '../lib/toast';
     import {
-        backupStatus, errorText, openBackup, refOf, restoreBackup, selectRecoveryKeyFile, sizeText,
+        backupStatus, errorText, importBackup, openBackup, refOf, restoreBackup, selectRecoveryKeyFile, sizeText,
     } from '../lib/backup';
     import type { BackupFile } from '../lib/backup';
+    import { copyPercent, historyCopy } from '../lib/historyCopy';
 
     export let file: BackupFile;
-    export let mode: 'view' | 'restore' = 'view';
+    export let mode: 'view' | 'restore' | 'import' = 'view';
     export let onClose: () => void = () => {};
     /** Called once the backup is open in the History, or restored. */
     export let onDone: () => void = () => {};
@@ -33,17 +34,21 @@
     $: canChoose = file.lock === 'both' || file.lock === '';
     $: ready = !needsSecret || (useKey ? !!keyPath : !!password);
     $: keyName = keyPath.split(/[\\/]/).pop() || '';
-    $: percent = mode === 'restore' ? $backupStatus.percent : openPercent;
-    $: phase = mode === 'restore' ? $backupStatus.phase : 'open';
+    // An import opens the copy, then adds its messages.
+    $: merging = mode === 'import' && $historyCopy.running && $historyCopy.kind === 'import';
+    $: percent = mode === 'restore' ? $backupStatus.percent : merging ? copyPercent($historyCopy) : openPercent;
+    $: phase = mode === 'restore' ? $backupStatus.phase : merging ? 'merge' : 'open';
 
     const PHASES: Record<string, string> = {
         snapshot: 'backup.phaseSnapshot', encrypt: 'backup.phaseEncrypt', verify: 'backup.phaseVerify',
-        open: 'backup.phaseOpen', restore: 'backup.phaseRestore',
+        open: 'backup.phaseOpen', restore: 'backup.phaseRestore', merge: 'backup.phaseMerge',
     };
+    const TITLES = { view: 'backup.openTitle', restore: 'backup.restoreTitle', import: 'backup.importTitle' };
+    const CONFIRMS = { view: 'backup.confirmOpen', restore: 'backup.confirmRestore', import: 'backup.confirmImport' };
 
     onMount(async () => {
         (window as any).runtime?.EventsOnMultiple?.('backup:openProgress', (p: number) => { openPercent = p || 0; }, -1);
-        if (mode === 'restore') {
+        if (mode !== 'view') {
             try { retentionDays = (await getStorageConfig())?.retentionDays ?? 0; } catch { /* no warning then */ }
         }
     });
@@ -69,6 +74,10 @@
                 $activeView = 'logs';
                 $logViewMode = 'history';
                 toastSuccess($_('backup.opened'));
+            } else if (mode === 'import') {
+                const done = await importBackup(refOf(file), secret, key);
+                toastSuccess($_('backup.imported', { values: {
+                    added: done.added.toLocaleString(), known: (done.read - done.added).toLocaleString() } }));
             } else {
                 await restoreBackup(refOf(file), secret, key);
                 toastSuccess($_('backup.restored'));
@@ -90,7 +99,7 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="overlay" role="presentation" on:click|self={() => !busy && onClose()}>
     <div class="card" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="backup-open-title">
-        <h4 id="backup-open-title">{mode === 'view' ? $_('backup.openTitle') : $_('backup.restoreTitle')}</h4>
+        <h4 id="backup-open-title">{$_(TITLES[mode])}</h4>
 
         <div class="file">
             <span class="name mono">{file.name}</span>
@@ -131,6 +140,13 @@
                     <p>{$_('backup.restoreRetention', { values: { days: retentionDays } })}</p>
                 {/if}
             </div>
+        {:else if mode === 'import'}
+            <p class="note">{$_('backup.importNote')}</p>
+            {#if retentionDays > 0}
+                <div class="warning">
+                    <p>{$_('backup.importRetention', { values: { days: retentionDays } })}</p>
+                </div>
+            {/if}
         {/if}
 
         {#if busy}
@@ -144,9 +160,9 @@
 
         <div class="actions">
             <button class="action-btn" on:click={onClose} disabled={busy}>{$_('backup.cancel')}</button>
-            <button class="action-btn" class:primary={mode === 'view'} class:danger={mode === 'restore'}
+            <button class="action-btn" class:primary={mode !== 'restore'} class:danger={mode === 'restore'}
                     on:click={confirm} disabled={!ready || busy}>
-                {mode === 'view' ? $_('backup.confirmOpen') : $_('backup.confirmRestore')}
+                {$_(CONFIRMS[mode])}
             </button>
         </div>
     </div>
