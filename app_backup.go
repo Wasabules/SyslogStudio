@@ -184,23 +184,6 @@ func (a *App) TestBackupDestinationForm(d models.BackupDestination, keyPath stri
 	return a.Backend.TestBackupDestination(d)
 }
 
-// backupOwner is the engine that keeps the backups: the service's, or the
-// window's own when it keeps the database — alone, or for a service that
-// seals.
-func (a *App) backupOwner() interface {
-	BackupDestinationAccess(id string) (models.BackupDestination, models.BackupAccess, error)
-} {
-	a.link.mu.Lock()
-	defer a.link.mu.Unlock()
-	switch {
-	case a.link.sealed && a.link.store != nil:
-		return a.link.store
-	case a.link.client != nil:
-		return a.link.client
-	}
-	return a.engine
-}
-
 func (a *App) viewPath() string {
 	return filepath.Join(a.prefs.Dir(), viewFile)
 }
@@ -218,41 +201,9 @@ func (a *App) OpenBackup(ref models.BackupRef, password, keyPath string) (models
 	dst := a.viewPath()
 	os.Remove(dst)
 
-	var src io.ReadCloser
-	var size int64
-	name, where := ref.Name, ""
-	if ref.Destination != "" {
-		d, access, err := a.backupOwner().BackupDestinationAccess(ref.Destination)
-		if err != nil {
-			return models.BackupView{}, err
-		}
-		if src, size, err = backup.Fetch(context.Background(), d, access, ref.Name); err != nil {
-			return models.BackupView{}, err
-		}
-		where = d.Name
-	} else {
-		if src, err = os.Open(ref.Path); err != nil {
-			return models.BackupView{}, err
-		}
-		if fi, err := os.Stat(ref.Path); err == nil {
-			size = fi.Size()
-		}
-		name = filepath.Base(ref.Path)
-	}
-	f, err := backup.Unseal(src, size, backup.Credentials{Password: password, KeyFile: key}, dst, func(p float64) {
-		if a.ctx != nil {
-			wailsRuntime.EventsEmit(a.ctx, "backup:openProgress", p*100)
-		}
-	})
-	src.Close()
+	f, err := a.fetchBackup(ref, backup.Credentials{Password: password, KeyFile: key}, dst)
 	if err != nil {
-		os.Remove(dst)
 		return models.BackupView{}, err
-	}
-	if f.Created == "" {
-		if described, err := backup.DescribeName(name); err == nil {
-			f.Created = described.Created
-		}
 	}
 	store, err := storage.OpenSnapshot(dst)
 	if err != nil {
@@ -261,14 +212,65 @@ func (a *App) OpenBackup(ref models.BackupRef, password, keyPath string) (models
 	}
 	count, oldest, newest := store.Span()
 	info := models.BackupView{
-		Open: true, Ref: ref, Name: name, Destination: where, Created: f.Created,
+		Open: true, Ref: ref, Name: f.Name, Destination: f.DestinationName, Created: f.Created,
 		Messages: count, Oldest: oldest, Newest: newest,
 	}
 	a.view.mu.Lock()
 	a.view.store, a.view.info = store, info
 	a.view.mu.Unlock()
-	slog.Info("backup opened for reading", "file", name, "from", where, "messages", count)
+	slog.Info("backup opened for reading", "file", f.Name, "from", f.DestinationName, "messages", count)
 	return info, nil
+}
+
+// fetchBackup decrypts the copy ref names into dst, here, reporting how far
+// it got as backup:openProgress, and says what it was: its name, the name of
+// the destination it came from, when it was made. A copy on a server is read
+// as it arrives, with this process's rights: nothing of it passes through a
+// service.
+func (a *App) fetchBackup(ref models.BackupRef, creds backup.Credentials, dst string) (models.BackupFile, error) {
+	var src io.ReadCloser
+	var size int64
+	name, where := ref.Name, ""
+	if ref.Destination != "" {
+		owner := a.historyOwner()
+		if owner == nil {
+			return models.BackupFile{}, storage.ErrNotOpen
+		}
+		d, access, err := owner.BackupDestinationAccess(ref.Destination)
+		if err != nil {
+			return models.BackupFile{}, err
+		}
+		if src, size, err = backup.Fetch(context.Background(), d, access, ref.Name); err != nil {
+			return models.BackupFile{}, err
+		}
+		where = d.Name
+	} else {
+		var err error
+		if src, err = os.Open(ref.Path); err != nil {
+			return models.BackupFile{}, err
+		}
+		if fi, err := os.Stat(ref.Path); err == nil {
+			size = fi.Size()
+		}
+		name = filepath.Base(ref.Path)
+	}
+	f, err := backup.Unseal(src, size, creds, dst, func(p float64) {
+		if a.ctx != nil {
+			wailsRuntime.EventsEmit(a.ctx, "backup:openProgress", p*100)
+		}
+	})
+	src.Close()
+	if err != nil {
+		os.Remove(dst)
+		return models.BackupFile{}, err
+	}
+	if f.Created == "" {
+		if described, err := backup.DescribeName(name); err == nil {
+			f.Created = described.Created
+		}
+	}
+	f.Name, f.DestinationName = name, where
+	return f, nil
 }
 
 // CloseBackup closes the copy being read, and removes it from the disk.

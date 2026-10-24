@@ -206,6 +206,29 @@ func (ls *LogStore) Replace(path string, since int64) error {
 	return replaceErr
 }
 
+// MessagesAfter reads up to limit messages written after the rowid after, in
+// the order they were written, and says where the next read starts. A
+// database is copied into another this way, a batch at a time, while it goes
+// on being written: what arrives meanwhile comes last. A read that returns
+// nothing is the end.
+func (ls *LogStore) MessagesAfter(after int64, limit int) ([]models.SyslogMessage, int64, error) {
+	db := ls.handle()
+	if db == nil {
+		return nil, after, ErrNotOpen
+	}
+	var upTo sql.NullInt64
+	err := db.QueryRow("SELECT MAX(rowid) FROM (SELECT rowid FROM messages WHERE rowid > ? ORDER BY rowid LIMIT ?)",
+		after, limit).Scan(&upTo)
+	if err != nil || !upTo.Valid {
+		return nil, after, err
+	}
+	msgs, err := ls.messagesBetween(db, after, upTo.Int64)
+	if err != nil {
+		return nil, after, err
+	}
+	return msgs, upTo.Int64, nil
+}
+
 // messagesBetween reads the messages written after the rowid from, up to the
 // rowid to included; -1 is no upper bound.
 func (ls *LogStore) messagesBetween(db *sql.DB, from, to int64) ([]models.SyslogMessage, error) {

@@ -625,6 +625,28 @@ export namespace models {
 	        this.count = source["count"];
 	    }
 	}
+	export class HistoryCopy {
+	    kind: string;
+	    running: boolean;
+	    total: number;
+	    read: number;
+	    added: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryCopy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.running = source["running"];
+	        this.total = source["total"];
+	        this.read = source["read"];
+	        this.added = source["added"];
+	        this.error = source["error"];
+	    }
+	}
 	export class HostListener {
 	    protocol: string;
 	    port: number;
@@ -766,6 +788,20 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.ip = source["ip"];
+	    }
+	}
+	export class OwnDatabase {
+	    enabled: boolean;
+	    encrypted: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new OwnDatabase(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.encrypted = source["encrypted"];
 	    }
 	}
 	export class SyslogMessage {

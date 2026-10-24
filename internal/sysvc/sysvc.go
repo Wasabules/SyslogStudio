@@ -115,6 +115,31 @@ func readBundle(path string) (engine.Bundle, error) {
 	return b, nil
 }
 
+// maxInboxKey bounds what is read as a public key to seal for.
+const maxInboxKey = 64 << 10
+
+// readInboxKey reads the public key the window wants the service to seal
+// for, and deletes the file: the window's temporary directory is left as it
+// was found.
+func readInboxKey(path string) ([]byte, error) {
+	if path == "" {
+		return nil, errors.New("--inbox-key is required; turn encryption on from Settings > Storage")
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("read the key to seal for: %w", err)
+	}
+	if fi.Size() > maxInboxKey {
+		return nil, errors.New("read the key to seal for: the file is too large")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read the key to seal for: %w", err)
+	}
+	_ = os.Remove(path)
+	return data, nil
+}
+
 // Info is the service manager's view of the service.
 type Info struct {
 	Installed bool

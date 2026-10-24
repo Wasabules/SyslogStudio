@@ -27,6 +27,7 @@ func DialControl(time.Duration) (net.Conn, error) {
 }
 
 func Uninstall(bool) error { return ErrUnsupported }
+func Seal(string) error    { return ErrUnsupported }
 func Start() error         { return ErrUnsupported }
 func Stop() error          { return ErrUnsupported }
 func Run(string) error     { return ErrUnsupported }

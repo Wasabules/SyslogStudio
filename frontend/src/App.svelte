@@ -36,6 +36,7 @@
     import { isEncryptionLocked, getUpdateConfig, isCAKeyUnencrypted, getAutoStartError, getDataDirConflict } from './lib/api';
     import { watchSystemService, unwatchSystemService } from './lib/systemService';
     import { watchServiceLink } from './lib/serviceLink';
+    import { watchHistoryCopy } from './lib/historyCopy';
     import { watchBackups } from './lib/backup';
     import ServiceBanner from './components/ServiceBanner.svelte';
     import DataDirConflict from './components/DataDirConflict.svelte';
@@ -113,6 +114,7 @@
         // First, so that whatever this window shows — even the unlock screen of
         // its own database — gives way when it starts driving the service.
         watchServiceLink();
+        watchHistoryCopy();
         try {
             dataDirConflict = await getDataDirConflict();
             if (dataDirConflict) return;

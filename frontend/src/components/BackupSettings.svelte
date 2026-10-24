@@ -14,6 +14,7 @@
     import type { CleanupSchedule } from '../lib/stores';
     import BackupOpenDialog from './BackupOpenDialog.svelte';
     import BackupDestinationEditor from './BackupDestinationEditor.svelte';
+    import { historyCopy } from '../lib/historyCopy';
 
     /** Called once a backup is open in the History: Settings closes. */
     export let onViewed: () => void = () => {};
@@ -24,7 +25,7 @@
     let listing: BackupListing = { files: [] };
     let listing_loading = false;
     let error = '';
-    let dialog: { file: BackupFile; mode: 'view' | 'restore' } | null = null;
+    let dialog: { file: BackupFile; mode: 'view' | 'restore' | 'import' } | null = null;
     let editing: { dest: BackupDestination | null } | null = null;
     $: overlayOpen = dialog !== null || editing !== null;
     $: destinations = cfg.destinations || [];
@@ -89,12 +90,12 @@
         }
     }
 
-    async function openFile() {
+    async function openFile(mode: 'view' | 'import' = 'view') {
         error = '';
         try {
             const path = await selectBackupFile();
             if (!path) return;
-            dialog = { file: await describeBackup(path), mode: 'view' };
+            dialog = { file: await describeBackup(path), mode };
         } catch (e) {
             error = errorText(e);
         }
@@ -255,7 +256,9 @@
             <button class="action-btn primary" on:click={runNow} disabled={destinations.length === 0 || $backupStatus.running}>
                 {$_('backup.now')}
             </button>
-            <button class="action-btn" on:click={openFile}>{$_('backup.openFile')}</button>
+            <button class="action-btn" on:click={() => openFile('view')}>{$_('backup.openFile')}</button>
+            <button class="action-btn" on:click={() => openFile('import')} disabled={$historyCopy.running}
+                    title={$_('backup.importFileHint')}>{$_('backup.importFile')}</button>
         </div>
     </div>
 
@@ -285,6 +288,8 @@
                                 </span>
                             </div>
                             <button class="action-btn" on:click={() => (dialog = { file: f, mode: 'view' })}>{$_('backup.open')}</button>
+                            <button class="action-btn" on:click={() => (dialog = { file: f, mode: 'import' })}
+                                    disabled={$historyCopy.running} title={$_('backup.importHint')}>{$_('backup.import')}</button>
                             <button class="action-btn danger" on:click={() => (dialog = { file: f, mode: 'restore' })}
                                     disabled={$backupStatus.running}>{$_('backup.restore')}</button>
                         </div>

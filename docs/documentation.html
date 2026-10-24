@@ -180,9 +180,10 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
         encrypted on this computer before it leaves, and opens on its own, with the password it
         was made under or the recovery key. A server's key or certificate is shown at the first
         connection and trusted from then on; plain FTP, which sends its password in the clear,
-        has to be acknowledged. A copy can be opened in the History to be read, or restored in
-        place of the database; restoring first copies the database as it was, so it can be
-        undone.
+        has to be acknowledged. A copy can be opened in the History to be read, restored in
+        place of the database — restoring first copies the database as it was, so it can be
+        undone — or imported: the messages it holds and the history lacks are added, and nothing
+        else changes. An old database file imports the same way.
       </p>
     </div>
   </section>
@@ -334,6 +335,12 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
         domain and private networks, and a restart after any failure. Its database is not
         encrypted — nobody is there to type a password at boot — and its directory is readable
         by administrators only. SyslogStudio has to be installed for all users to install it.
+      </p>
+      <p>
+        Your history follows. Installing the service can bring the messages stored here to it.
+        Uninstalling it brings its messages back into your own database first. Encrypting while
+        the window drives the service makes it seal what it receives for you, and its history
+        moves into your encrypted database.
       </p>
       <p>
         <code>SyslogStudio.exe service status</code> shows its state, listeners and last error;

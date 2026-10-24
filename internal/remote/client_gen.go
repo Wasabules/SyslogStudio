@@ -481,3 +481,16 @@ func (c *Client) BackupDestinationAccess(id string) (models.BackupDestination, m
 	err := c.call("BackupDestinationAccess", []any{id}, &r0, &r1)
 	return r0, r1, err
 }
+
+func (c *Client) MessagesAfter(after int64, limit int) ([]models.SyslogMessage, int64, error) {
+	var r0 []models.SyslogMessage
+	var r1 int64
+	err := c.call("MessagesAfter", []any{after, limit}, &r0, &r1)
+	return r0, r1, err
+}
+
+func (c *Client) MergeMessages(msgs []models.SyslogMessage) (int, error) {
+	var r0 int
+	err := c.call("MergeMessages", []any{msgs}, &r0)
+	return r0, err
+}

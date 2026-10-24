@@ -1,14 +1,31 @@
 <script lang="ts">
     // Says that the History shows a backup, not the database, for as long as
-    // one is open — and offers to restore it, or to close it.
+    // one is open — and offers to add its messages to the history, to
+    // restore it, or to close it.
     import { _, locale } from 'svelte-i18n';
     import { activeZone, formatInZone } from '../lib/timezone';
-    import { toastError } from '../lib/toast';
-    import { backupView, closeBackup, describeBackup, errorText } from '../lib/backup';
+    import { toastError, toastSuccess } from '../lib/toast';
+    import { backupView, closeBackup, describeBackup, errorText, importOpenBackup } from '../lib/backup';
     import type { BackupFile } from '../lib/backup';
+    import { copyPercent, historyCopy } from '../lib/historyCopy';
     import BackupOpenDialog from './BackupOpenDialog.svelte';
 
     let restoring: BackupFile | null = null;
+    let importing = false;
+
+    async function importIt() {
+        importing = true;
+        try {
+            const done = await importOpenBackup();
+            toastSuccess($_('backup.imported', { values: {
+                added: done.added.toLocaleString($locale || undefined),
+                known: (done.read - done.added).toLocaleString($locale || undefined) } }));
+        } catch (e) {
+            toastError(errorText(e));
+        } finally {
+            importing = false;
+        }
+    }
 
     async function restore() {
         const ref = $backupView.ref;
@@ -45,8 +62,14 @@
                 when: formatInZone($backupView.created || '', $activeZone) || $backupView.created,
                 count: ($backupView.messages || 0).toLocaleString($locale || undefined) } })}
         </span>
-        <button class="btn" on:click={restore}>{$_('backup.restore')}</button>
-        <button class="btn primary" on:click={close}>{$_('backup.closeView')}</button>
+        {#if importing}
+            <span class="progress">{$_('backup.importing', { values: { percent: Math.round(copyPercent($historyCopy)) } })}</span>
+        {:else}
+            <button class="btn" on:click={importIt} disabled={$historyCopy.running}
+                    title={$_('backup.importHint')}>{$_('backup.importView')}</button>
+        {/if}
+        <button class="btn" on:click={restore} disabled={importing}>{$_('backup.restore')}</button>
+        <button class="btn primary" on:click={close} disabled={importing}>{$_('backup.closeView')}</button>
     </div>
 {/if}
 
@@ -86,8 +109,19 @@
         white-space: nowrap;
     }
 
-    .btn:hover {
+    .btn:hover:not(:disabled) {
         background: var(--bg-hover);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .progress {
+        font-size: 11px;
+        color: var(--text-secondary);
+        white-space: nowrap;
     }
 
     .btn.primary {

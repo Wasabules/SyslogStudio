@@ -162,4 +162,11 @@ type Host interface {
 	// it, for the window to read a backup itself: with its user's rights,
 	// and without sending the copy through the service.
 	BackupDestinationAccess(id string) (models.BackupDestination, models.BackupAccess, error)
+
+	// MessagesAfter and MergeMessages read and write the database a batch at
+	// a time, for a window that copies a history between it and its own
+	// (package history): a backup it merges, its history brought to the
+	// service, or the service's taken back.
+	MessagesAfter(after int64, limit int) ([]models.SyslogMessage, int64, error)
+	MergeMessages(msgs []models.SyslogMessage) (int, error)
 }

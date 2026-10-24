@@ -228,3 +228,67 @@ func TestInbox_ClearDatabaseIsMovedIn(t *testing.T) {
 		t.Fatalf("collected %d of the 2500 stored in the clear", n)
 	}
 }
+
+// A service that stored in the clear is told to seal by the administrator
+// step (sysvc.Seal): stopped, SealFor, started. Its configuration stays as
+// it was, its quota with it, and the history it had reaches the window's
+// encrypted database through the inbox.
+func TestSealFor_MovesTheClearServiceIntoTheInbox(t *testing.T) {
+	desk := encryptedDesk(t, t.TempDir())
+	defer desk.Close()
+	pub, err := desk.PrepareInbox()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	svc := New(storage.NewConfigStoreAt(dir))
+	if err := svc.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	cfg := svc.GetDefaultConfig()
+	cfg.UDPPort = 5514
+	svc.SaveServerConfig(cfg)
+	if err := svc.logStore.InsertMessages(received(320, "kept in the clear")); err != nil {
+		t.Fatal(err)
+	}
+	svc.Close()
+	svc.configStore.SaveInbox(&models.InboxConfig{QuotaBytes: 5 << 20})
+
+	stopped := New(storage.NewConfigStoreAt(dir))
+	if err := stopped.SealFor([]byte("not a key")); err == nil {
+		t.Fatal("sealed for something that is not a key")
+	}
+	if err := stopped.SealFor(pub); err != nil {
+		t.Fatal(err)
+	}
+	if got := stopped.configStore.LoadInbox(); got == nil || got.QuotaBytes != 5<<20 {
+		t.Fatalf("the inbox configuration: %+v", got)
+	}
+
+	sealed := New(storage.NewConfigStoreAt(dir))
+	if err := sealed.Open(event.NewMockEventEmitter()); err != nil {
+		t.Fatal(err)
+	}
+	if got := sealed.GetDefaultConfig().UDPPort; got != 5514 {
+		t.Fatalf("sealing changed the listeners: UDP port %d", got)
+	}
+	dbPath := storage.DBPathIn(dir)
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the clear database was not moved into the inbox")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !sealed.GetInboxStatus().Sealed {
+		t.Fatal("the service does not seal")
+	}
+	if n := collect(t, sealed, desk); n != 320 {
+		t.Fatalf("collected %d of the 320 kept in the clear", n)
+	}
+	sealed.Close()
+}

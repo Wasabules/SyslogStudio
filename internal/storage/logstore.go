@@ -471,7 +471,7 @@ func (ls *LogStore) write() {
 	// transaction of all of them would keep every other writer out for longer
 	// than they wait.
 	for i := 0; i < len(batch); i += writeChunk {
-		if err := insertMessages(db, batch[i:min(i+writeChunk, len(batch))]); err != nil {
+		if _, err := insertMessages(db, batch[i:min(i+writeChunk, len(batch))]); err != nil {
 			// Put back, ahead of what came since, for the next tick: a write
 			// that waited too long for the database is not a reason to lose
 			// messages.
@@ -502,25 +502,37 @@ func (ls *LogStore) requeue(batch []models.SyslogMessage) {
 // they are. A message already stored — same id — is left as it is, so
 // writing a batch twice stores it once.
 func (ls *LogStore) InsertMessages(msgs []models.SyslogMessage) error {
+	_, err := ls.MergeMessages(msgs)
+	return err
+}
+
+// MergeMessages is InsertMessages saying how many of the messages were not
+// stored already: what merging a database into this one added.
+func (ls *LogStore) MergeMessages(msgs []models.SyslogMessage) (int, error) {
 	// Waits out a rewrite of the database rather than failing on it.
 	ls.gate.RLock()
 	defer ls.gate.RUnlock()
 	db := ls.handle()
 	if db == nil || ls.readOnly {
-		return fmt.Errorf("the database is not open")
+		return 0, ErrNotOpen
 	}
+	added := 0
 	for i := 0; i < len(msgs); i += writeChunk {
-		if err := insertMessages(db, msgs[i:min(i+writeChunk, len(msgs))]); err != nil {
-			return err
+		n, err := insertMessages(db, msgs[i:min(i+writeChunk, len(msgs))])
+		if err != nil {
+			return added, err
 		}
+		added += n
 	}
-	return nil
+	return added, nil
 }
 
-func insertMessages(db *sql.DB, batch []models.SyslogMessage) error {
+// insertMessages writes a batch in one transaction and says how many of its
+// messages were new.
+func insertMessages(db *sql.DB, batch []models.SyslogMessage) (int, error) {
 	tx, err := db.Begin()
 	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
+		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
 
 	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO messages
@@ -530,12 +542,13 @@ func insertMessages(db *sql.DB, batch []models.SyslogMessage) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("prepare statement: %w", err)
+		return 0, fmt.Errorf("prepare statement: %w", err)
 	}
 	defer stmt.Close()
 
+	added := 0
 	for _, msg := range batch {
-		_, err := stmt.Exec(
+		res, err := stmt.Exec(
 			msg.ID,
 			msg.Timestamp.UTC().Format(time.RFC3339Nano),
 			msg.ReceivedAt.UTC().Format(time.RFC3339Nano),
@@ -551,14 +564,17 @@ func insertMessages(db *sql.DB, batch []models.SyslogMessage) error {
 			// most often a write that waited out the busy timeout — would
 			// otherwise be lost while the caller is told the batch is stored.
 			tx.Rollback()
-			return fmt.Errorf("insert %s: %w", msg.ID, err)
+			return 0, fmt.Errorf("insert %s: %w", msg.ID, err)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			added++
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
+		return 0, fmt.Errorf("commit: %w", err)
 	}
-	return nil
+	return added, nil
 }
 
 // WaitReady waits for the background index rebuild a store starts with: it

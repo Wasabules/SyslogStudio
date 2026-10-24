@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"SyslogStudio/internal/backup"
-	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/storage"
@@ -218,14 +217,9 @@ func (e *Engine) ImportBundle(b Bundle) error {
 	}
 
 	if len(b.InboxPublicKey) > 0 {
-		if err := inbox.CheckPublicKey(b.InboxPublicKey); err != nil {
+		if err := e.SealFor(b.InboxPublicKey); err != nil {
 			return err
 		}
-		cfg := models.InboxConfig{PublicKey: b.InboxPublicKey}
-		if prev := e.configStore.LoadInbox(); prev != nil {
-			cfg.QuotaBytes = prev.QuotaBytes
-		}
-		e.configStore.SaveInbox(&cfg)
 	} else {
 		e.configStore.SaveInbox(nil)
 	}

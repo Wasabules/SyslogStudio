@@ -48,6 +48,11 @@ type App struct {
 	bg backgroundState
 	// view is a backup opened to be read.
 	view backupViewer
+	// copies is the history being copied between two databases.
+	copies historyCopies
+	// elevate stands in for the administrator step in tests: it is given
+	// what follows "service" on the elevated command line.
+	elevate func(args ...string) error
 }
 
 // NewApp creates a new App application struct.
