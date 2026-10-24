@@ -393,7 +393,7 @@ func (a *App) InstallSystemService(sealed, bringHistory bool) error {
 	}
 	err = a.runElevated(exe, dir, args...)
 	if err != nil && handOver {
-		os.Remove(a.handoverPath())
+		a.dropHandover()
 	}
 	a.pokeLink()
 	if err != nil {
