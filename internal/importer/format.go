@@ -46,7 +46,7 @@ var (
 	jsonTimeKeys  = []string{"time", "timestamp", "ts", "@timestamp", "eventTime", "datetime", "date"}
 	jsonLevelKeys = []string{"level", "severity", "lvl", "levelname", "loglevel", "log.level", "levelName"}
 	jsonMsgKeys   = []string{"msg", "message", "text", "@message", "event", "short_message"}
-	jsonHostKeys  = []string{"host", "hostname", "source_host", "machine", "host.name"}
+	jsonHostKeys  = []string{"host", "hostname", "source_host", "machine", "host.name", "devname"} // devname: FortiGate
 	jsonAppKeys   = []string{"app", "application", "service", "logger", "name", "component", "ident"}
 )
 
@@ -206,9 +206,10 @@ func (p *parser) applyLevel(msg *models.SyslogMessage, raw string, r *record) {
 // wide part being a guess — a JSON object, a klog line and an access line each
 // look like exactly one thing.
 func (p *parser) parseAuto(line, file string) record {
-	// A priority is not a guess at all.
+	// A priority is not a guess at all — and what follows it is read as the
+	// wire reads it.
 	if isSyslogLine(line) {
-		return record{msg: syslog.Parse([]byte(line), file, "file"), start: true, syslog: true, shape: ShapeSyslog}
+		return p.readSyslogLine(line, file)
 	}
 	// One JSON object per line, the shape most applications write today.
 	if looksLikeJSON(line) {
@@ -278,9 +279,8 @@ func isSyslogLine(line string) bool {
 // --- syslog ------------------------------------------------------------------
 
 func (p *parser) parseSyslog(line, file string) record {
-	msg := syslog.Parse([]byte(line), file, "file")
 	if isSyslogLine(line) {
-		return record{msg: msg, start: true, syslog: true, shape: ShapeSyslog}
+		return p.readSyslogLine(line, file)
 	}
 	// No priority. The priority exists only on the wire, so a captured file
 	// routinely has none — rsyslog's default on-disk format is a timestamp, a
@@ -474,7 +474,9 @@ func (p *parser) parseLogfmt(line, file string) record {
 	msg := base(text, line, file)
 	r := record{msg: msg, start: true, shape: ShapeLogfmt}
 
-	if v, ok := pickString(obj, p.format.JSONTime, jsonTimeKeys); ok {
+	if v, ok := splitDateTime(obj, p.format); ok {
+		p.applyTime(&r.msg, v, &r)
+	} else if v, ok := pickString(obj, p.format.JSONTime, jsonTimeKeys); ok {
 		p.applyTime(&r.msg, v, &r)
 	}
 	if v, ok := pickString(obj, p.format.JSONLevel, jsonLevelKeys); ok {
@@ -487,6 +489,29 @@ func (p *parser) parseLogfmt(line, file string) record {
 		r.msg.AppName = a
 	}
 	return r
+}
+
+// clockOnly is a time of day with no date in front of it.
+var clockOnly = regexp.MustCompile(`^\d{2}:\d{2}:\d{2}(?:[.,]\d+)?$`)
+
+// splitDateTime puts back together a moment written as two fields, as a
+// FortiGate writes it — date=2026-10-27 time=09:14:02, with tz=+0100 when the
+// zone is configured. Read on its own, "time" is the first time field found
+// and holds no date at all.
+func splitDateTime(obj map[string]any, f models.ImportFormat) (string, bool) {
+	if f.JSONTime != "" {
+		return "", false
+	}
+	date, okDate := obj["date"].(string)
+	clock, okClock := obj["time"].(string)
+	if !okDate || !okClock || !clockOnly.MatchString(clock) {
+		return "", false
+	}
+	stamp := date + " " + clock
+	if tz, ok := obj["tz"].(string); ok && tz != "" {
+		stamp += " " + tz
+	}
+	return stamp, true
 }
 
 // fieldNames lists the keys that are consumed as fields, so everything else can

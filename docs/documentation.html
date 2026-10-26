@@ -143,6 +143,15 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
         implausibly far in the future — a device whose clock runs a few days ahead still
         lands on the right date.
       </p>
+
+      <h3>Messages that bend the standard</h3>
+      <p>
+        A header that is not quite RFC 5424 or 3164 is read the way a file import reads a
+        line: rsyslog's forwarding format with its RFC 3339 timestamp, JSON, key=value as a
+        FortiGate sends it, Cisco IOS and ASA with their sequence numbers and mnemonics, and
+        messages with no priority at all. The priority's severity stands unless the message
+        declares a level in a field of its own, and the raw message is always kept.
+      </p>
     </div>
   </section>
 

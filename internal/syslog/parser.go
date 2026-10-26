@@ -19,6 +19,27 @@ func clone(s string) string {
 
 // Parse attempts to parse a raw syslog message. Tries RFC 5424 first, then RFC 3164.
 func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
+	msg, _ := Read(raw, sourceIP, protocol)
+	return msg
+}
+
+// Reading says how a message was read: what a more tolerant reader needs to
+// know before reading it again (importer.WireReader).
+type Reading struct {
+	// HasPRI is a valid <PRI> in front. Its severity and facility are then
+	// the sender's own, and the message's.
+	HasPRI bool
+	// Standard is a header this parser reads as an RFC defines it: an RFC
+	// 5424 one, or an RFC 3164 timestamp followed by a space. What is not —
+	// an ISO timestamp with no version, JSON, key=value, a Cisco sequence
+	// number — this parser can only keep as text.
+	Standard bool
+	// Body is what follows the PRI, or the whole message when there is none.
+	Body string
+}
+
+// Read is Parse, saying how the message was read.
+func Read(raw []byte, sourceIP string, protocol string) (models.SyslogMessage, Reading) {
 	rawStr := strings.TrimRight(string(raw), "\n\r\x00")
 
 	msg := models.SyslogMessage{
@@ -36,7 +57,7 @@ func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
 		msg.Facility = models.FacUser
 		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
-		return msg
+		return msg, Reading{}
 	}
 
 	// Must start with '<'
@@ -47,7 +68,7 @@ func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
 		msg.Facility = models.FacUser
 		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
-		return msg
+		return msg, Reading{Body: rawStr}
 	}
 
 	// Extract PRI
@@ -59,7 +80,7 @@ func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
 		msg.Facility = models.FacUser
 		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
-		return msg
+		return msg, Reading{Body: rawStr}
 	}
 
 	priStr := rawStr[1:closeIdx]
@@ -71,7 +92,7 @@ func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
 		msg.Facility = models.FacUser
 		msg.FacilityLabel = models.FacilityToLabel(models.FacUser)
 		msg.Timestamp = msg.ReceivedAt
-		return msg
+		return msg, Reading{Body: rawStr}
 	}
 
 	msg.Severity = severity
@@ -84,13 +105,13 @@ func Parse(raw []byte, sourceIP string, protocol string) models.SyslogMessage {
 	// Try RFC 5424: starts with version number (typically "1 ")
 	if len(remainder) > 1 && remainder[0] >= '1' && remainder[0] <= '9' && remainder[1] == ' ' {
 		if parseRFC5424(remainder, &msg) {
-			return msg
+			return msg, Reading{HasPRI: true, Standard: true, Body: remainder}
 		}
 	}
 
 	// Fall back to RFC 3164
-	parseRFC3164(remainder, &msg)
-	return msg
+	standard := parseRFC3164(remainder, &msg)
+	return msg, Reading{HasPRI: true, Standard: standard, Body: remainder}
 }
 
 // parsePriority extracts facility and severity from the PRI value.
@@ -250,6 +271,13 @@ func findSDEnd(s string) int {
 // year rather than jumping to next January, which is four months of skew and
 // far less likely than a log that is simply months late.
 func resolveBSDYear(t, receivedAt time.Time) time.Time {
+	return ResolveBSDYear(t, receivedAt)
+}
+
+// ResolveBSDYear gives a timestamp that carries no year — a BSD one — the year
+// nearest to its arrival, as described above. Exported for the readers that
+// meet such stamps in shapes this parser does not read (importer.WireReader).
+func ResolveBSDYear(t, receivedAt time.Time) time.Time {
 	if receivedAt.IsZero() {
 		receivedAt = time.Now()
 	}
@@ -288,13 +316,17 @@ func absDuration(d time.Duration) time.Duration {
 
 // parseRFC3164 parses a BSD-style syslog message.
 // Format: TIMESTAMP HOSTNAME MSG (after PRI is stripped)
-func parseRFC3164(remainder string, msg *models.SyslogMessage) {
+//
+// It reports whether the header was the RFC's: a timestamp followed by a
+// space. What is not is kept as text here, and read again by whoever knows
+// more shapes than this parser does.
+func parseRFC3164(remainder string, msg *models.SyslogMessage) bool {
 	msg.Version = 0
 
 	if len(remainder) == 0 {
 		msg.Message = ""
 		msg.Timestamp = msg.ReceivedAt
-		return
+		return true
 	}
 
 	// Try to parse BSD timestamp: "Mmm dd hh:mm:ss" or "Mmm  d hh:mm:ss"
@@ -309,7 +341,7 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 				msg.Timestamp = msg.ReceivedAt
 				msg.Message = remainder
 				extractAppFromMsg(msg)
-				return
+				return false
 			}
 			msg.Timestamp = resolveBSDYear(t, msg.ReceivedAt)
 			remainder = remainder[14:]
@@ -321,21 +353,40 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 		msg.Timestamp = msg.ReceivedAt
 		msg.Message = remainder
 		extractAppFromMsg(msg)
-		return
+		return false
 	}
+
+	// The RFC's header is the timestamp, a space and the host. A stamp
+	// followed by anything else — Cisco's ".123: %LINK-3-UPDOWN" — is
+	// another shape, read here as best this parser can.
+	standard := remainder == "" || remainder[0] == ' '
 
 	// Skip leading space
 	remainder = strings.TrimLeft(remainder, " ")
 
 	if len(remainder) == 0 {
-		return
+		return standard
 	}
 
 	// Next token is hostname (until space)
 	spaceIdx := strings.Index(remainder, " ")
 	if spaceIdx < 0 {
+		if isTagToken(remainder) {
+			msg.Message = clone(remainder)
+			extractAppFromMsg(msg)
+			return standard
+		}
 		msg.Hostname = clone(remainder)
-		return
+		return standard
+	}
+
+	// Many devices leave the host out — "Oct 27 09:14:02 dhcp: lease …" —
+	// and what stands in its place is then the tag. A hostname never ends in a
+	// colon.
+	if isTagToken(remainder[:spaceIdx]) {
+		msg.Message = clone(remainder)
+		extractAppFromMsg(msg)
+		return standard
 	}
 
 	msg.Hostname = clone(remainder[:spaceIdx])
@@ -345,6 +396,37 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) {
 	// TAG is typically "appname[pid]:" or "appname:"
 	msg.Message = clone(remainder)
 	extractAppFromMsg(msg)
+	return standard
+}
+
+// isTagToken is a token that ends the way a TAG does — "dhcp:", "sshd[812]:"
+// — and so cannot be a hostname. An IPv6 address may end in a colon too, but
+// has others before it.
+func isTagToken(tok string) bool {
+	name, ok := strings.CutSuffix(tok, ":")
+	if !ok || name == "" || strings.Contains(name, ":") {
+		return false
+	}
+	if i := strings.IndexByte(name, '['); i >= 0 {
+		name = name[:i]
+	}
+	return plausibleTag(name)
+}
+
+// plausibleTag is a name a TAG could be. A JSON key ("{\"level\""), a Cisco
+// sequence number ("123") or a key=value pair is the start of a message that
+// happens to contain a colon, and filing it as the application put garbage
+// in the App column.
+func plausibleTag(name string) bool {
+	if name == "" || strings.ContainsAny(name, "\"{}=<>") {
+		return false
+	}
+	for _, r := range name {
+		if r < '0' || r > '9' {
+			return true
+		}
+	}
+	return false // digits only
 }
 
 // extractAppFromMsg tries to extract app name and PID from the message TAG field.
@@ -373,6 +455,13 @@ func extractAppFromMsg(msg *models.SyslogMessage) {
 
 	// Check for [pid]
 	bracketOpen := strings.Index(tag, "[")
+	name := tag
+	if bracketOpen >= 0 {
+		name = tag[:bracketOpen]
+	}
+	if !plausibleTag(name) {
+		return
+	}
 	if bracketOpen >= 0 {
 		bracketClose := strings.Index(tag, "]")
 		if bracketClose > bracketOpen {

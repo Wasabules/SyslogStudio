@@ -829,3 +829,61 @@ func TestResolveBSDYear_NeverFarInTheFuture(t *testing.T) {
 		t.Errorf("stamped %v, which is after arrival at %v", got, received)
 	}
 }
+
+// Many devices leave the host out of an RFC 3164 header, and what stands in
+// its place is then the tag: a hostname never ends in a colon.
+func TestParse_RFC3164_TagWhereTheHostWouldBe(t *testing.T) {
+	for _, tc := range []struct{ raw, host, app, proc, msg string }{
+		{"<134>Oct 27 09:14:02 dhcp: lease 10.0.0.50 assigned", "", "dhcp", "", "lease 10.0.0.50 assigned"},
+		{"<134>Oct 27 09:14:02 ntpd[812]: time reset +0.2 s", "", "ntpd", "812", "time reset +0.2 s"},
+		{"<134>Oct 27 09:14:02 gw-01 dhcp: lease", "gw-01", "dhcp", "", "lease"},
+		{"<134>Oct 27 09:14:02 fe80::1 sshd: accepted", "fe80::1", "sshd", "", "accepted"},
+	} {
+		m := Parse([]byte(tc.raw), "10.0.0.9", "UDP")
+		if m.Hostname != tc.host || m.AppName != tc.app || m.ProcID != tc.proc || m.Message != tc.msg {
+			t.Errorf("%s\n  got host=%q app=%q proc=%q msg=%q", tc.raw, m.Hostname, m.AppName, m.ProcID, m.Message)
+		}
+	}
+}
+
+// A colon early in a message is not always a tag: a JSON key, a sequence
+// number or a key=value pair is not the name of an application.
+func TestParse_NoTagFromWhatIsNotOne(t *testing.T) {
+	for _, raw := range []string{
+		`<14>{"level":"error","msg":"disk full"}`,
+		`<189>123: *Oct 27 09:14:02.123: %LINK-3-UPDOWN: Interface Gi0/1, changed state to down`,
+		`<14>user="bob" action=login: failed`,
+		`<14>09:14:02 something happened`,
+	} {
+		if m := Parse([]byte(raw), "10.0.0.9", "UDP"); m.AppName != "" {
+			t.Errorf("%s\n  filed under the application %q", raw, m.AppName)
+		}
+	}
+	// What is a tag stays one, ASA's mnemonic included.
+	if m := Parse([]byte(`<166>%ASA-6-302013: Built outbound TCP connection`), "10.0.0.9", "UDP"); m.AppName != "%ASA-6-302013" {
+		t.Errorf("ASA tag: %q", m.AppName)
+	}
+}
+
+// Read says how a message was read: a tolerant reader reads again only what
+// the RFCs do not describe.
+func TestRead_SaysWhatIsStandard(t *testing.T) {
+	for _, tc := range []struct {
+		raw              string
+		hasPRI, standard bool
+	}{
+		{"<14>1 2026-10-27T09:14:02Z host app 12 ID - hello", true, true},
+		{"<38>Oct 27 09:14:02 webserver nginx: GET /", true, true},
+		{"<38>Oct  7 09:14:02 webserver nginx: GET /", true, true},
+		{"<30>2026-10-27T09:14:02+01:00 nas-01 smbd[812]: connection", true, false},
+		{"<189>Oct 27 09:14:02.123: %LINK-3-UPDOWN: down", true, false},
+		{`<14>{"msg":"x"}`, true, false},
+		{"2026-10-27 09:14:02 ERROR motion failed", false, false},
+		{"<999>x", false, false},
+	} {
+		_, rd := Read([]byte(tc.raw), "10.0.0.9", "UDP")
+		if rd.HasPRI != tc.hasPRI || rd.Standard != tc.standard {
+			t.Errorf("%s: hasPRI=%v standard=%v, want %v %v", tc.raw, rd.HasPRI, rd.Standard, tc.hasPRI, tc.standard)
+		}
+	}
+}

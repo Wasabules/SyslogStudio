@@ -129,6 +129,9 @@ starts with the computer, before anyone signs in, and that the window then drive
 - **UDP, TCP and TLS** listeners, any port, bound to one interface or all of them
 - **RFC 5424 with an RFC 3164 fallback**, on every transport — the switch that has not been
   updated since 2009 still parses
+- **What bends the RFCs is read too**: rsyslog's forwarding format, JSON, key=value
+  (FortiGate), Cisco IOS and ASA, messages with no priority — with the same readers a file
+  import uses
 - **Mutual TLS** where senders must prove who they are
 - **Allowed sources** by IP literal or CIDR (hygiene, not authentication — see the note below)
 - **Per-IP connection cap** so one host cannot occupy every slot
