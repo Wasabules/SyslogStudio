@@ -103,7 +103,8 @@ const BASE = [
     nav: NAV.logs,
     // Two presses: Import in the toolbar, then the file chooser in the dialog.
     click: [
-      { selector: '.action-btn', nth: 0 },
+      // By its label: the toolbar's first button is now Saved filters.
+      { selector: '.action-btn:text-is("Import")' },
       { selector: '.modal .btn.primary' },
     ],
     // Choosing a file needs a dialog the browser does not have, so the scene
@@ -119,7 +120,8 @@ const BASE = [
     nav: NAV.logs,
     // Import, then the file chooser, then the format panel.
     click: [
-      { selector: '.action-btn', nth: 0 },
+      // By its label: the toolbar's first button is now Saved filters.
+      { selector: '.action-btn:text-is("Import")' },
       { selector: '.modal .btn.primary' },
       { selector: '.modal .disclosure' },
       // A mode with fields of its own, since a picture of the automatic one

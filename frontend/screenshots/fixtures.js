@@ -397,8 +397,9 @@ export const STORAGE_STATS = {
 
 export const SIMULATOR_CONFIG = {
   mode: 'continuous',
-  profile: 'mixed',
-  ratePerSecond: 25,
+  format: 'rfc5424',
+  profile: 'normal',
+  rate: 25,
   durationSeconds: 0,
   destinations: [
     { id: 'sim-1', name: 'This collector', host: '127.0.0.1', port: 514, protocol: 'udp', enabled: true },
@@ -549,7 +550,7 @@ export const SERVICE_LINK = { mode: 'local', installed: false, state: '' };
 
 /** Driving the running service: what the background scene shows. */
 export const SERVICE_LINK_DRIVING = {
-  mode: 'service', installed: true, state: 'running', serviceVersion: 'v1.7.0', sealed: true,
+  mode: 'service', installed: true, state: 'running', serviceVersion: 'v1.9.0', sealed: true,
 };
 
 /** The same, installed and receiving: what the background scene shows. */
@@ -566,7 +567,7 @@ export const SYSTEM_SERVICE_RUNNING = {
   dataDir: 'C:\\ProgramData\\SyslogStudio',
   host: {
     state: 'running',
-    version: 'v1.7.0',
+    version: 'v1.9.0',
     pid: 4120,
     dataDir: 'C:\\ProgramData\\SyslogStudio',
     startedAt: new Date(NOW.getTime() - 3 * 86400_000).toISOString(),
@@ -588,8 +589,15 @@ export const SYSTEM_SERVICE_RUNNING = {
 // --- backups -----------------------------------------------------------------
 
 /** 03:00 on the night `daysAgo` before the evening, local time. */
+// The night at three, daysAgo nights before the last one. Counted in calendar
+// days, not 24-hour steps: across a change of clock, two steps landed on the
+// same night in the hour before midnight, and the demo listed one backup
+// twice — under one key, which broke the whole list.
 function backupNight(daysAgo) {
-  const d = new Date(NOW.getTime() - daysAgo * 86400_000);
+  const d = new Date(NOW);
+  // Before three, last night's has not run yet: the latest is the night before.
+  if (d.getHours() < 3) d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - daysAgo);
   d.setHours(3, 0, 0, 0);
   return d;
 }

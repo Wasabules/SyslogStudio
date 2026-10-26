@@ -42,6 +42,10 @@ const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 /** Calls that need a real machine. Refused in the demo, said plainly. */
 const DEMO_ONLY = {
   ExportLogs: 'Exporting writes a file, which a web page cannot do. The desktop application can.',
+  ExportMessages: 'Exporting writes a file, which a web page cannot do. The desktop application can.',
+  ExportSelection: 'Exporting writes a file, which a web page cannot do. The desktop application can.',
+  HideToBackground: 'A web page has no system tray to hide in. The desktop application keeps receiving from there.',
+  QuitApplication: 'There is no application to quit here — close the tab instead.',
   ExportCertificate: 'Exporting writes a file, which a web page cannot do.',
   ExportCACertificate: 'Exporting writes a file, which a web page cannot do.',
   ExportServerCertificate: 'Exporting writes a file, which a web page cannot do.',
@@ -90,6 +94,7 @@ let simulatorConfig = clone(SIMULATOR_CONFIG);
 let backupConfig = clone(BACKUP_CONFIG);
 let recoveryKey = clone(RECOVERY_KEY);
 let updateConfig = { checkOnStartup: true, channel: 'stable', skippedVersion: '' };
+let closeAction = 'ask';
 
 const nextId = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -145,6 +150,7 @@ const HANDLERS = {
   },
   GetServerStatus: () => Promise.resolve(clone(serverStatus)),
   GetDefaultConfig: () => Promise.resolve(clone(SERVER_CONFIG)),
+  SaveServerConfig: () => Promise.resolve(null),
   GetLocalIPs: () => Promise.resolve(NETWORK_INTERFACES.map((i) => i.ip)),
   GetNetworkInterfaces: () => Promise.resolve(clone(NETWORK_INTERFACES)),
 
@@ -154,6 +160,8 @@ const HANDLERS = {
   ClearMessages: () => { messages = []; return Promise.resolve(null); },
   GetStats: () => Promise.resolve(clone(STATS)),
   ExportLogs: () => refuse('ExportLogs'),
+  ExportMessages: () => refuse('ExportMessages'),
+  ExportSelection: () => refuse('ExportSelection'),
 
   // importing a log file (#46). Choosing and reading a file both need the
   // machine, so both are refused here and said plainly; the PREVIEW is
@@ -366,15 +374,26 @@ const HANDLERS = {
   SetListenOnStart: () => Promise.resolve(null),
 
   // updates and shell
-  GetAppVersion: () => Promise.resolve('v1.4.0'),
+  GetAppVersion: () => Promise.resolve('v1.9.0'),
   CheckForUpdate: () => Promise.resolve({
-    available: false, currentVersion: 'v1.4.0', latestVersion: 'v1.4.0',
+    available: false, currentVersion: 'v1.9.0', latestVersion: 'v1.9.0',
     releaseNotes: '', downloadURL: '', publishedAt: '',
   }),
   GetUpdateConfig: () => Promise.resolve(clone(updateConfig)),
   SetUpdateConfig: (cfg) => { updateConfig = { ...updateConfig, ...cfg }; return Promise.resolve(null); },
   SkipUpdateVersion: (v) => { updateConfig = { ...updateConfig, skippedVersion: v }; return Promise.resolve(null); },
   DownloadAndApplyUpdate: () => refuse('DownloadAndApplyUpdate'),
+
+  // closing the window. A browser has no tray, so closing can only quit,
+  // which a page cannot do either: both are refused, and said plainly.
+  GetCloseAction: () => Promise.resolve(closeAction),
+  SetCloseAction: (a) => { closeAction = a; return Promise.resolve(null); },
+  IsTrayAvailable: () => Promise.resolve(false),
+  SetTrayLabels: () => Promise.resolve(null),
+  HideToBackground: () => refuse('HideToBackground'),
+  QuitApplication: () => refuse('QuitApplication'),
+  RevealWindow: () => Promise.resolve(null),
+  CancelClose: () => Promise.resolve(null),
   OpenURL: (url) => {
     try { window.open(url, '_blank', 'noopener'); } catch { /* popup blocked */ }
     return Promise.resolve(null);

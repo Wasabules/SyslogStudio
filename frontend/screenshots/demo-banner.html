@@ -7,10 +7,22 @@
   inherit or leak.
 -->
 <style>
+  /* The banner takes a strip of its own rather than covering the bottom of
+     the application, where its status bar is — Live and History, the
+     grouping, the counters. The application is made that much shorter while
+     the banner is there, and gets the whole page back when it is closed:
+     :has() stops matching once the banner is removed. One line, of a fixed
+     height, so that the two always agree. */
+  :root { --demo-banner-h: 34px; }
+  body:has(#demo-banner) #app,
+  body:has(#demo-banner) .app-layout { height: calc(100vh - var(--demo-banner-h)); }
+  body:has(#demo-banner) .toast-container { bottom: calc(var(--demo-banner-h) + 16px); }
+
   #demo-banner {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+    height: var(--demo-banner-h); white-space: nowrap; overflow: hidden;
     display: flex; gap: 12px; align-items: center; justify-content: center;
-    padding: 8px 16px; box-sizing: border-box;
+    padding: 0 16px; box-sizing: border-box;
     font: 500 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
     color: #e6edf3; background: rgba(13, 17, 23, 0.94);
     border-top: 1px solid rgba(255, 255, 255, 0.12);
@@ -18,14 +30,14 @@
   }
   #demo-banner a { color: #58a6ff; text-decoration: none; font-weight: 600; }
   #demo-banner a:hover { text-decoration: underline; }
-  #demo-banner .db-text { opacity: 0.85; }
+  #demo-banner .db-text { opacity: 0.85; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   #demo-banner .db-close {
     background: none; border: 0; color: inherit; opacity: 0.6;
     cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px;
   }
   #demo-banner .db-close:hover { opacity: 1; }
   @media (max-width: 720px) {
-    #demo-banner { font-size: 11px; padding: 7px 10px; gap: 8px; }
+    #demo-banner { font-size: 11px; padding: 0 10px; gap: 8px; }
     #demo-banner .db-text { display: none; }
   }
 </style>
