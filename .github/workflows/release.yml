@@ -57,7 +57,7 @@ jobs:
         # Kept in step with the wails/v2 requirement in go.mod. This pin is a
         # `go install` argument, so Dependabot does not manage it: bumping the
         # library without this leaves releases built by an older CLI.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -108,7 +108,7 @@ jobs:
         # produces the binaries that are then checksummed and signed, so an
         # unpinned @latest would make releases non-reproducible and would put a
         # compromised Wails release straight into a signed artifact.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -166,7 +166,7 @@ jobs:
         # produces the binaries that are then checksummed and signed, so an
         # unpinned @latest would make releases non-reproducible and would put a
         # compromised Wails release straight into a signed artifact.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
