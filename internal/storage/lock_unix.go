@@ -9,9 +9,11 @@ import (
 )
 
 // lockFile takes an exclusive, non-blocking flock on the lock file. The lock
-// belongs to the open descriptor, so it goes when the process does.
+// belongs to the open descriptor, so it goes when the process does. Nothing is
+// written to the file — flock needs no write access — so it is opened
+// read-only.
 func lockFile(path string) (func(), error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0600)
+	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}

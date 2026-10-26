@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,8 +39,7 @@ func (l *LogFile) open() error {
 	}
 	info, err := f.Stat()
 	if err != nil {
-		f.Close()
-		return err
+		return errors.Join(err, f.Close())
 	}
 	l.f, l.size = f, info.Size()
 	return nil

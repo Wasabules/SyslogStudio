@@ -104,17 +104,16 @@ func (b Box) write(id string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return err
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
 	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return err
+	// The first failure is the one reported: a close that fails is a batch
+	// that may not be on disk, as much as a write that does.
+	if cerr := f.Close(); err == nil {
+		err = cerr
 	}
-	if err := f.Close(); err != nil {
+	if err != nil {
 		os.Remove(tmp)
 		return err
 	}
