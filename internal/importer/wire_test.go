@@ -151,10 +151,13 @@ func TestWireReader_LeavesStandardMessagesAlone(t *testing.T) {
 	} {
 		got := w.Read([]byte(raw), "10.0.0.9", "UDP")
 		want := syslog.Parse([]byte(raw), "10.0.0.9", "UDP")
-		got.ID, got.ReceivedAt, want.ID, want.ReceivedAt = "", time.Time{}, "", time.Time{}
-		if !got.Timestamp.Equal(want.Timestamp) {
+		// A message with no timestamp is stamped with its arrival, which is a
+		// moment apart from one reading to the other.
+		arrival := func(m models.SyslogMessage) bool { return m.Timestamp.Equal(m.ReceivedAt) }
+		if arrival(got) != arrival(want) || (!arrival(want) && !got.Timestamp.Equal(want.Timestamp)) {
 			t.Errorf("%s: timestamp %v, the wire parser's %v", raw, got.Timestamp, want.Timestamp)
 		}
+		got.ID, got.ReceivedAt, want.ID, want.ReceivedAt = "", time.Time{}, "", time.Time{}
 		got.Timestamp, want.Timestamp = time.Time{}, time.Time{}
 		if got != want {
 			t.Errorf("%s\n  read again: %+v\n  wire:       %+v", raw, got, want)
