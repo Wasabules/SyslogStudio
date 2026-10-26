@@ -25,6 +25,8 @@
     import { SEVERITY_COLORS, SEVERITY_LABELS } from '../lib/constants';
     import { toastError, toastSuccess } from '../lib/toast';
     import { pendingImportPath, frozen } from '../lib/stores';
+    import { entryFor } from '../lib/formats';
+    import FormatFields from './FormatFields.svelte';
 
     // The counts come back keyed by LABEL, while the colours are keyed by
     // severity number. Inverting the label table once is what keeps the two
@@ -37,79 +39,9 @@
 
     const dispatch = createEventDispatcher<{ imported: ImportResult }>();
 
-    /**
-     * The formats offered, by category.
-     *
-     * The list used to name the six parsing ENGINES, while the recogniser knew
-     * twenty formats — so a file could be reported as "Kubernetes klog" and
-     * then not be in the list at all. What a reader thinks in is a format's
-     * name, not an engine's, so the entries are names; several map to the same
-     * engine, and a couple carry field names with them.
-     *
-     * An entry's label is the same string the verdict uses, so the file cannot
-     * be called one thing above and another below.
-     */
-    type FormatEntry = {
-        id: string;
-        group: string;
-        label: string;
-        hint: string;
-        mode: ImportMode;
-        preset?: Partial<ImportFormat>;
-    };
-
-    const FORMATS: FormatEntry[] = [
-        { id: 'auto', group: '', label: 'import.format_auto', hint: 'import.hint_auto', mode: 'auto' },
-
-        { id: 'syslog', group: 'import.group_syslog', label: 'import.format_syslog', hint: 'import.hint_syslog', mode: 'syslog' },
-        { id: 'bsd', group: 'import.group_syslog', label: 'import.shape_bsd', hint: 'import.hint_bsd', mode: 'bsd' },
-
-        { id: 'access', group: 'import.group_web', label: 'import.format_access', hint: 'import.hint_access', mode: 'access' },
-        { id: 'apache', group: 'import.group_web', label: 'import.shape_apache', hint: 'import.hint_apache', mode: 'apache' },
-
-        { id: 'json', group: 'import.group_structured', label: 'import.format_json', hint: 'import.hint_json', mode: 'json' },
-        {
-            id: 'clef', group: 'import.group_structured', label: 'import.format_clef',
-            hint: 'import.hint_clef', mode: 'json',
-            preset: { jsonTime: '@t', jsonLevel: '@l', jsonMessage: '@m' },
-        },
-        { id: 'logfmt', group: 'import.group_structured', label: 'import.format_logfmt', hint: 'import.hint_logfmt', mode: 'logfmt' },
-
-        { id: 'klog', group: 'import.group_platform', label: 'import.shape_klog', hint: 'import.hint_klog', mode: 'klog' },
-        { id: 'logcat', group: 'import.group_platform', label: 'import.shape_logcat', hint: 'import.hint_logcat', mode: 'logcat' },
-        { id: 'epoch', group: 'import.group_platform', label: 'import.shape_epoch', hint: 'import.hint_epoch', mode: 'epoch' },
-
-        { id: 'custom', group: 'import.group_custom', label: 'import.format_custom', hint: 'import.hint_custom', mode: 'custom' },
-    ];
-
-    // Grouped for the markup, in the order above.
-    const GROUPED: { key: string; entries: FormatEntry[] }[] = FORMATS.reduce((acc, entry) => {
-        const last = acc[acc.length - 1];
-        if (last && last.key === entry.group) last.entries.push(entry);
-        else acc.push({ key: entry.group, entries: [entry] });
-        return acc;
-    }, [] as { key: string; entries: FormatEntry[] }[]);
-
-    /** Which entry a format IS, so the list shows what is in force. */
-    function entryFor(f: ImportFormat): FormatEntry {
-        const sameMode = FORMATS.filter(e => e.mode === f.mode);
-        const withPreset = sameMode.find(e => e.preset
-            && Object.entries(e.preset).every(([k, v]) =>
-                (f as unknown as Record<string, unknown>)[k] === v));
-        return withPreset ?? sameMode.find(e => !e.preset) ?? FORMATS[0];
-    }
-
-    /** Choosing an entry gives exactly that entry's configuration. */
-    function pickFormat(id: string) {
-        const entry = FORMATS.find(e => e.id === id) ?? FORMATS[0];
+    /** Choosing an entry by hand: a decision, not the detector's. */
+    function pickedByHand() {
         adopted = false;
-        format = {
-            ...format,
-            mode: entry.mode,
-            jsonTime: '', jsonLevel: '', jsonMessage: '', jsonHost: '', jsonApp: '',
-            ...(entry.preset ?? {}),
-        };
-        refresh();
     }
 
     let path = '';
@@ -378,91 +310,8 @@
                     </button>
 
                     {#if showFormat}
-                        <div class="format">
-                            <label class="row">
-                                <span class="row-label">{$_('import.format')}</span>
-                                <select value={current.id} on:change={e => pickFormat(e.currentTarget.value)}>
-                                    {#each GROUPED as group}
-                                        {#if group.key === ''}
-                                            {#each group.entries as entry (entry.id)}
-                                                <option value={entry.id}>{$_(entry.label)}</option>
-                                            {/each}
-                                        {:else}
-                                            <optgroup label={$_(group.key)}>
-                                                {#each group.entries as entry (entry.id)}
-                                                    <option value={entry.id}>{$_(entry.label)}</option>
-                                                {/each}
-                                            </optgroup>
-                                        {/if}
-                                    {/each}
-                                </select>
-                            </label>
-                            <p class="note">{$_(current.hint)}</p>
-
-                            {#if format.mode === 'json' || format.mode === 'logfmt'}
-                                <p class="note">{$_('import.fieldsHint')}</p>
-                                <!-- The placeholders are the default field NAMES, not labels:
-                                     what goes in the box is a key from the file, so showing
-                                     a translated word here would invite typing it in. -->
-                                <div class="fields">
-                                    <input class="mono" placeholder="time" bind:value={format.jsonTime} on:input={refresh} />
-                                    <input class="mono" placeholder="level" bind:value={format.jsonLevel} on:input={refresh} />
-                                    <input class="mono" placeholder="msg" bind:value={format.jsonMessage} on:input={refresh} />
-                                    <input class="mono" placeholder="host" bind:value={format.jsonHost} on:input={refresh} />
-                                    <input class="mono" placeholder="service" bind:value={format.jsonApp} on:input={refresh} />
-                                </div>
-                            {/if}
-
-                            {#if format.mode === 'custom'}
-                                <label class="row stack">
-                                    <span class="row-label">{$_('import.pattern')}</span>
-                                    <input class="mono" spellcheck="false"
-                                           placeholder="^(?P<time>\S+) (?P<level>\w+) (?P<msg>.*)$"
-                                           bind:value={format.pattern} on:input={refresh} />
-                                </label>
-                                <p class="note">{$_('import.patternHint')}</p>
-                            {/if}
-
-                            {#if format.mode === 'custom' || format.mode === 'json' || format.mode === 'logfmt'}
-                                <label class="row">
-                                    <span class="row-label">{$_('import.timeLayout')}</span>
-                                    <input class="mono" spellcheck="false"
-                                           placeholder="2006-01-02T15:04:05Z07:00"
-                                           bind:value={format.timeLayout} on:input={refresh} />
-                                </label>
-                                <p class="note">{$_('import.timeLayoutHint')}</p>
-                            {/if}
-
-                            <div class="row split">
-                                <label class="row">
-                                    <span class="row-label">{$_('import.year')}</span>
-                                    <input class="short" type="number" min="1970" max="9999"
-                                           placeholder={String(new Date().getFullYear())}
-                                           bind:value={format.year} on:input={refresh} />
-                                </label>
-                                <label class="row">
-                                    <span class="row-label">{$_('import.timezone')}</span>
-                                    <input placeholder={$_('import.timezoneAuto')}
-                                           bind:value={format.timezone} on:input={refresh} />
-                                </label>
-                            </div>
-
-                            <label class="check">
-                                <input type="checkbox" bind:checked={format.joinContinuations} on:change={refresh} />
-                                {$_('import.join')}
-                            </label>
-                            <p class="note">{$_('import.joinHint')}</p>
-
-                            <label class="check">
-                                <input type="checkbox" bind:checked={format.skipUnmatched} on:change={refresh} />
-                                {$_('import.skip')}
-                            </label>
-                            <p class="note">{$_('import.skipHint')}</p>
-
-                            {#if formatError}
-                                <p class="error">{formatError}</p>
-                            {/if}
-                        </div>
+                        <FormatFields bind:format fileOptions {formatError}
+                                      on:pick={pickedByHand} on:change={refresh} />
                     {/if}
 
                     <label class="check">
@@ -513,10 +362,6 @@
     .note { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
     .verdict { margin: 0; font-size: 12px; color: var(--text-primary); line-height: 1.5; }
     .note-inline { font-size: 10px; color: var(--text-secondary); }
-    .error {
-        margin: 0; font-size: 11px; line-height: 1.5;
-        color: var(--severity-error, #ff5555);
-    }
 
     .file-line {
         font-family: monospace; font-size: 12px; color: var(--text-primary);
@@ -556,27 +401,6 @@
     .disclosure .caret { display: inline-block; transition: transform 0.12s; font-size: 10px; }
     .disclosure .caret.openarrow { transform: rotate(90deg); }
     .disclosure .current { color: var(--text-secondary); }
-
-    .format {
-        display: flex; flex-direction: column; gap: 8px;
-        border: 1px solid var(--border-color); border-radius: 4px;
-        background: var(--bg-primary); padding: 10px;
-    }
-    .row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-primary); }
-    .row.stack { align-items: stretch; flex-direction: column; gap: 4px; }
-    .row.split { gap: 16px; flex-wrap: wrap; }
-    .row-label { flex-shrink: 0; color: var(--text-secondary); font-size: 11px; }
-
-    .format input, .format select {
-        flex: 1; min-width: 0;
-        padding: 4px 7px; font-size: 11px;
-        background: var(--bg-secondary); color: var(--text-primary);
-        border: 1px solid var(--border-color); border-radius: 3px;
-    }
-    .format input.mono { font-family: monospace; }
-    .format input.short { flex: 0 0 76px; }
-
-    .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
     .check {
         display: flex; align-items: center; gap: 8px;

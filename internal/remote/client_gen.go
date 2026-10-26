@@ -418,6 +418,33 @@ func (c *Client) AreSinkCredentialsUnencrypted() bool {
 	return r0
 }
 
+func (c *Client) GetSourceRules() []models.SourceRule {
+	var r0 []models.SourceRule
+	c.logLost("GetSourceRules", c.call("GetSourceRules", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) SaveSourceRule(rule models.SourceRule) (models.SourceRule, error) {
+	var r0 models.SourceRule
+	err := c.call("SaveSourceRule", []any{rule}, &r0)
+	return r0, err
+}
+
+func (c *Client) DeleteSourceRule(id string) {
+	c.logLost("DeleteSourceRule", c.call("DeleteSourceRule", []any{id}))
+}
+
+func (c *Client) ReorderSourceRules(ids []string) error {
+	err := c.call("ReorderSourceRules", []any{ids})
+	return err
+}
+
+func (c *Client) TrySourceRule(rule models.SourceRule, samples []models.SourceSample) ([]models.SourceTrial, error) {
+	var r0 []models.SourceTrial
+	err := c.call("TrySourceRule", []any{rule, samples}, &r0)
+	return r0, err
+}
+
 func (c *Client) GetImportFormat() models.ImportFormat {
 	var r0 models.ImportFormat
 	c.logLost("GetImportFormat", c.call("GetImportFormat", []any{}, &r0))

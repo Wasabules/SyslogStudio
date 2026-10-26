@@ -651,6 +651,32 @@ export const BACKUP_FILES = [
 
 export const BACKUP_LISTING = { files: BACKUP_FILES, problems: [] };
 
+/**
+ * Source rules: a FortiGate that says its level in a field, and a camera that
+ * sends no hostname. Read the way the engine reads them, as far as a page can
+ * pretend to (bridge/App.js, TrySourceRule).
+ */
+export const SOURCE_RULES = [
+  {
+    id: 'source-forti', name: 'Edge firewall', enabled: true,
+    match: { sources: ['10.10.0.1'] },
+    format: { mode: 'logfmt', joinContinuations: false, skipUnmatched: false, timezone: 'Europe/Paris' },
+    levelFrom: '',
+  },
+  {
+    id: 'source-cams', name: 'Lobby cameras', enabled: true,
+    match: { sources: ['10.10.7.0/24'] },
+    format: { mode: 'auto', joinContinuations: false, skipUnmatched: false },
+    hostnameFromSource: true, appName: 'camera', levelFrom: 'message',
+  },
+  {
+    id: 'source-legacy', name: 'Old print server', enabled: false,
+    match: { sources: ['10.10.3.40'] },
+    format: { mode: 'auto', joinContinuations: false, skipUnmatched: false },
+    encoding: 'windows-1252', arrivalTime: true,
+  },
+];
+
 export const BACKUP_STATUS = {
   running: false,
   percent: 0,

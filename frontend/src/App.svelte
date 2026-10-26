@@ -37,6 +37,8 @@
     import { watchSystemService, unwatchSystemService } from './lib/systemService';
     import { watchServiceLink } from './lib/serviceLink';
     import { watchHistoryCopy } from './lib/historyCopy';
+    import { ruleDraft } from './lib/sources';
+    import SourceRuleEditor from './components/SourceRuleEditor.svelte';
     import { watchBackups } from './lib/backup';
     import ServiceBanner from './components/ServiceBanner.svelte';
     import DataDirConflict from './components/DataDirConflict.svelte';
@@ -292,6 +294,9 @@
 />
 
 <CloseDialog />
+{#if $ruleDraft}
+    <SourceRuleEditor rule={$ruleDraft.rule} samples={$ruleDraft.samples} />
+{/if}
 <ToastContainer />
 {/if}
 

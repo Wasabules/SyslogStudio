@@ -824,6 +824,7 @@ export namespace models {
 	    protocol: string;
 	    version: number;
 	    structuredData: string;
+	    readBy?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SyslogMessage(source);
@@ -848,6 +849,7 @@ export namespace models {
 	        this.protocol = source["protocol"];
 	        this.version = source["version"];
 	        this.structuredData = source["structuredData"];
+	        this.readBy = source["readBy"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1280,6 +1282,124 @@ export namespace models {
 		}
 	}
 	
+	export class SourceMatch {
+	    sources?: string[];
+	    hostnames?: string[];
+	    appNames?: string[];
+	    pattern?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceMatch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sources = source["sources"];
+	        this.hostnames = source["hostnames"];
+	        this.appNames = source["appNames"];
+	        this.pattern = source["pattern"];
+	    }
+	}
+	export class SourceRule {
+	    id: string;
+	    name: string;
+	    enabled: boolean;
+	    match: SourceMatch;
+	    format: ImportFormat;
+	    hostname?: string;
+	    hostnameFromSource?: boolean;
+	    appName?: string;
+	    arrivalTime?: boolean;
+	    levelFrom?: string;
+	    encoding?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.match = this.convertValues(source["match"], SourceMatch);
+	        this.format = this.convertValues(source["format"], ImportFormat);
+	        this.hostname = source["hostname"];
+	        this.hostnameFromSource = source["hostnameFromSource"];
+	        this.appName = source["appName"];
+	        this.arrivalTime = source["arrivalTime"];
+	        this.levelFrom = source["levelFrom"];
+	        this.encoding = source["encoding"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SourceSample {
+	    raw: string;
+	    sourceIP: string;
+	    protocol: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceSample(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.raw = source["raw"];
+	        this.sourceIP = source["sourceIP"];
+	        this.protocol = source["protocol"];
+	    }
+	}
+	export class SourceTrial {
+	    matched: boolean;
+	    before: SyslogMessage;
+	    after: SyslogMessage;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceTrial(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.matched = source["matched"];
+	        this.before = this.convertValues(source["before"], SyslogMessage);
+	        this.after = this.convertValues(source["after"], SyslogMessage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class StorageConfig {
 	    enabled: boolean;
 	    path: string;

@@ -43,6 +43,8 @@ export function DeleteNotifyRoute(arg1:string):Promise<void>;
 
 export function DeleteNotifySink(arg1:string):Promise<void>;
 
+export function DeleteSourceRule(arg1:string):Promise<void>;
+
 export function DescribeBackup(arg1:string):Promise<models.BackupFile>;
 
 export function DisableEncryption(arg1:string):Promise<void>;
@@ -133,6 +135,8 @@ export function GetSimulatorConfig():Promise<models.SimulatorConfig>;
 
 export function GetSimulatorStatus():Promise<models.SimulatorStatus>;
 
+export function GetSourceRules():Promise<Array<models.SourceRule>>;
+
 export function GetStats():Promise<models.ServerStats>;
 
 export function GetStorageConfig():Promise<models.StorageConfig>;
@@ -187,6 +191,8 @@ export function QuitApplication():Promise<void>;
 
 export function RemoveRecoveryKey():Promise<void>;
 
+export function ReorderSourceRules(arg1:Array<string>):Promise<void>;
+
 export function ResetEncryptionPassword(arg1:string):Promise<void>;
 
 export function RestoreBackup(arg1:models.BackupRef,arg2:string,arg3:Array<number>):Promise<void>;
@@ -206,6 +212,8 @@ export function SaveNotifySink(arg1:notify.SinkConfig):Promise<void>;
 export function SaveServerConfig(arg1:models.ServerConfig):Promise<void>;
 
 export function SaveSimulatorConfig(arg1:models.SimulatorConfig):Promise<void>;
+
+export function SaveSourceRule(arg1:models.SourceRule):Promise<models.SourceRule>;
 
 export function SealServiceHistory(arg1:string):Promise<void>;
 
@@ -262,6 +270,8 @@ export function TestBackupDestination(arg1:models.BackupDestination):Promise<mod
 export function TestBackupDestinationForm(arg1:models.BackupDestination,arg2:string):Promise<models.BackupDestinationCheck>;
 
 export function TestNotifySink(arg1:notify.SinkConfig):Promise<void>;
+
+export function TrySourceRule(arg1:models.SourceRule,arg2:Array<models.SourceSample>):Promise<Array<models.SourceTrial>>;
 
 export function UninstallSystemService(arg1:boolean,arg2:boolean,arg3:string):Promise<void>;
 

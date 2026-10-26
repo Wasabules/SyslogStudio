@@ -122,6 +122,13 @@ type Backend interface {
 	GetNotifyStats() notify.Stats
 	AreSinkCredentialsUnencrypted() bool
 
+	// Source rules: how the messages of particular devices are read.
+	GetSourceRules() []models.SourceRule
+	SaveSourceRule(rule models.SourceRule) (models.SourceRule, error)
+	DeleteSourceRule(id string)
+	ReorderSourceRules(ids []string) error
+	TrySourceRule(rule models.SourceRule, samples []models.SourceSample) ([]models.SourceTrial, error)
+
 	// Import
 	PreviewLogFile(path string, format models.ImportFormat) (importer.Preview, error)
 	ImportLogFile(path string, persist bool, format models.ImportFormat) (importer.Result, error)

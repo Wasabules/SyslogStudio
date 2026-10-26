@@ -16,12 +16,12 @@ import (
 	"path/filepath"
 
 	"SyslogStudio/internal/event"
-	"SyslogStudio/internal/importer"
 	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
 	"SyslogStudio/internal/simulator"
+	"SyslogStudio/internal/sources"
 	"SyslogStudio/internal/storage"
 	"SyslogStudio/internal/syslog"
 )
@@ -37,9 +37,11 @@ type Engine struct {
 	// presents the certificate clients were told to trust.
 	serverCertStore *storage.PEMStore
 	logStore        *storage.LogStore
-	simulator       *simulator.Simulator
-	dispatcher      *notify.Dispatcher
-	secretStore     *storage.SecretStore
+	// reader reads what the server receives: the source rules' reading.
+	reader      *sources.Reader
+	simulator   *simulator.Simulator
+	dispatcher  *notify.Dispatcher
+	secretStore *storage.SecretStore
 
 	// inbox seals what a service receives, in place of a database; inboxErr
 	// is why a service meant to seal cannot.
@@ -118,8 +120,11 @@ func (e *Engine) withDBPath(cfg models.StorageConfig) models.StorageConfig {
 func (e *Engine) Open(emitter event.EventEmitter) error {
 	e.emitter = emitter
 	e.server = syslog.NewSyslogServer(emitter, e.tlsManager)
-	// What is not quite syslog is read the way a file is (importer.WireReader).
-	e.server.SetReader(importer.NewWireReader().Read)
+	// What is not quite syslog is read the way a file is, and a device with a
+	// source rule the way its rule says (package sources).
+	e.reader = sources.New()
+	e.applySourceRules()
+	e.server.SetReader(e.reader.Read)
 	e.simulator = simulator.New(emitter)
 
 	// The dispatcher resolves a credential by sink id AND destination, so a

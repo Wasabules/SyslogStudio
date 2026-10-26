@@ -132,6 +132,9 @@ starts with the computer, before anyone signs in, and that the window then drive
 - **What bends the RFCs is read too**: rsyslog's forwarding format, JSON, key=value
   (FortiGate), Cisco IOS and ASA, messages with no priority — with the same readers a file
   import uses
+- **Source rules** for the devices that bend it further: right-click a message, say how that
+  device is read (any import format, a regex), fix its hostname, application, clock, severity
+  or encoding, and watch its latest messages change before saving
 - **Mutual TLS** where senders must prove who they are
 - **Allowed sources** by IP literal or CIDR (hygiene, not authentication — see the note below)
 - **Per-IP connection cap** so one host cannot occupy every slot

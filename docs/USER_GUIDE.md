@@ -143,6 +143,57 @@ of a sentence is not.
 
 The raw message is always kept as it arrived, shown in the detail panel.
 
+### Source rules: reading a device differently
+
+Some devices bend the standard further than reading it automatically can follow: no hostname,
+a format of their own, the same priority on every message, a clock in another time zone,
+Windows-1252 instead of UTF-8. A **source rule** says how the messages of such a device are
+read. It applies as they arrive, before the live view, the history, the alert rules and the
+routing see them, so an alert on errors fires on the error the device meant.
+
+The quickest way to write one is from a message: **right-click** it, then **Read this device's
+messages differently…**. The rule is opened on that device's address; if a rule already names
+the address, that rule opens instead. Rules are listed, ordered, turned off and removed in
+**Settings > Sources**.
+
+A rule has three parts.
+
+**Which messages**
+- **Addresses**: an IP, a CIDR (`10.0.7.0/24`) or a pattern, comma-separated.
+- **Hostnames** and **Applications**: patterns such as `fw-*`, matched against the message as
+  read without the rule.
+- **Raw text contains**: a regular expression, case-insensitive. Behind a relay every device
+  arrives from the same address, and this is what tells them apart.
+
+Every condition given has to match. Rules are tried in the order listed, and the first that
+matches applies.
+
+**How they are read** — the same formats as a file import: JSON, key=value, a regular
+expression with named groups (`time`, `level`, `host`, `app`, `msg`), and the others.
+- When the header is not standard, the format reads what follows the priority.
+- When the header is standard, the format reads the message text. A container logging JSON
+  through a syslog driver keeps its host and application, and gains its level and message.
+- **Automatic detection** keeps the reading as received. The time zone then applies to the
+  timestamps that carry none, RFC 3164 ones included.
+
+**Corrections**
+
+| Setting | What it does |
+|---|---|
+| Hostname | As sent, the address the message came from, or a name you give |
+| Application | Replaces the one sent |
+| Severity | *Automatic*: the priority, unless the message declares a level in a field. *Always the priority*. *From the message text*: a level word anywhere in the text wins |
+| Encoding | UTF-8, Windows-1252, ISO-8859-1 or ISO-8859-15, for a device that garbles accents |
+| Use the arrival time | For a device whose clock cannot be trusted |
+
+While a rule is written, every change is tried on the device's latest messages. The preview shows
+each one as read with the rule, with what it was without the rule struck through. A rule applies
+to the messages that arrive once it is saved; messages already received keep their reading. In
+the live view, the detail panel names the rule that read a message.
+
+Rules belong to the engine the window drives: while it drives the system service, they are the
+service's. Installing the service copies the window's rules to it.
+
 ### Auto-Scroll
 
 By default, the log viewer automatically scrolls to show the newest messages as they arrive. You can toggle auto-scroll on or off. When auto-scroll is off, you can freely scroll through the log history without being interrupted by new arrivals.
