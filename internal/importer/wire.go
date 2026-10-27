@@ -50,6 +50,93 @@ func (w *WireReader) Read(raw []byte, sourceIP, protocol string) models.SyslogMe
 	return msg
 }
 
+// Reread is Read for a message syslog.Read has read already.
+func (w *WireReader) Reread(msg *models.SyslogMessage, rd syslog.Reading) {
+	w.p.reread(msg, rd)
+}
+
+// FormatReader reads a received message again as a declared format says: what
+// a source rule (internal/sources) gives for one device. It is safe for
+// concurrent use.
+type FormatReader struct {
+	p *parser
+}
+
+// NewFormatReader makes a reader for f, or says what is wrong with it. What
+// only means something for a file — joining lines, skipping those that do not
+// match — does not apply to a message.
+func NewFormatReader(f models.ImportFormat) (*FormatReader, error) {
+	f.JoinContinuations, f.SkipUnmatched = false, false
+	p, err := newParser(f)
+	if err != nil {
+		return nil, err
+	}
+	return &FormatReader{p: p}, nil
+}
+
+// Location is the zone a stamp that carries none is read in.
+func (r *FormatReader) Location() *time.Location {
+	return r.p.loc
+}
+
+// Text is what the format reads in a message: what follows the priority when
+// the header is not the RFCs', and the message text when it is — the host,
+// the application and the time are then read already.
+func Text(msg models.SyslogMessage, rd syslog.Reading) string {
+	if rd.Standard {
+		return msg.Message
+	}
+	return rd.Body
+}
+
+// Reread reads msg again from what Text gives, and reports whether it fitted
+// the format. A field the format does not give is left as it was read; one
+// it gives replaces it. Automatic detection reads only a header that is not
+// the RFCs', in this reader's zone.
+func (r *FormatReader) Reread(msg *models.SyslogMessage, rd syslog.Reading) bool {
+	text := Text(*msg, rd)
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	var rec record
+	var declared bool
+	switch r.p.format.Mode {
+	case models.ImportAuto, models.ImportSyslog:
+		if rd.Standard {
+			return false
+		}
+		rec, declared = r.p.readBody(text, msg.ReceivedAt)
+	default:
+		rec = r.p.parse(text, "")
+		if !rec.start {
+			return false
+		}
+		declared = rec.shape != ShapePlain && rec.shape != ShapeBSD && rec.shape != ShapeNone
+	}
+	if rec.hasTime {
+		msg.Timestamp = rec.msg.Timestamp
+	}
+	if rec.msg.Hostname != "" {
+		msg.Hostname = rec.msg.Hostname
+	}
+	if rec.msg.AppName != "" {
+		msg.AppName = rec.msg.AppName
+		msg.ProcID = rec.msg.ProcID
+	}
+	msg.Message = rec.msg.Message
+	if rec.hasLevel && (declared || !rd.HasPRI) {
+		msg.Severity = rec.msg.Severity
+		msg.SeverityLabel = rec.msg.SeverityLabel
+	}
+	return true
+}
+
+// FindLevel finds a level word standing on its own anywhere in text: for a
+// device that says its level in words and puts the same priority on all.
+func FindLevel(text string) (models.Severity, bool) {
+	return detectSeverity(text)
+}
+
 // readSyslogLine reads a line that starts with a priority, in a file: as the
 // wire does.
 func (p *parser) readSyslogLine(line, file string) record {

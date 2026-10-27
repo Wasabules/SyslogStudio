@@ -28,6 +28,8 @@
     import { updateStore } from '../lib/updateStore';
     import BackgroundSettings from './BackgroundSettings.svelte';
     import BackupSettings from './BackupSettings.svelte';
+    import SourceRules from './SourceRules.svelte';
+    import { ruleDraft } from '../lib/sources';
     import RecoveryKeySettings from './RecoveryKeySettings.svelte';
     import { serviceLink } from '../lib/serviceLink';
 
@@ -36,7 +38,7 @@
     // Opens Settings on a given tab — the service banner opens Background.
     export let initialTab: Tab | '' = '';
 
-    type Tab = 'general' | 'storage' | 'backups' | 'background' | 'about';
+    type Tab = 'general' | 'storage' | 'backups' | 'background' | 'sources' | 'about';
     let activeTab: Tab = 'general';
     $: if (visible && initialTab) activeTab = initialTab;
     // A dialog open inside the Background or Backups tab takes Escape first.
@@ -66,7 +68,8 @@
 
     function handleKeydown(e: KeyboardEvent) {
         if (!visible || e.key !== 'Escape') return;
-        if (backgroundOverlayOpen || backupsOverlayOpen) return;
+        // The rule editor, opened from the Sources tab, sits above Settings.
+        if (backgroundOverlayOpen || backupsOverlayOpen || $ruleDraft) return;
         // Escape dismisses the confirmation overlay first, if open, rather than
         // closing the whole Settings panel underneath it.
         if (showEncryptionWarning) {
@@ -500,6 +503,10 @@
                         on:click={() => activeTab = 'background'}>
                     {$_('background.tab')}
                 </button>
+                <button class="tab" class:active={activeTab === 'sources'}
+                        on:click={() => activeTab = 'sources'}>
+                    {$_('sources.tab')}
+                </button>
                 <button class="tab" class:active={activeTab === 'about'}
                         on:click={() => activeTab = 'about'}>
                     {$_('settings.about')}
@@ -859,6 +866,9 @@
 
                 {:else if activeTab === 'background'}
                     <BackgroundSettings bind:overlayOpen={backgroundOverlayOpen} />
+
+                {:else if activeTab === 'sources'}
+                    <SourceRules />
 
                 {:else if activeTab === 'about'}
                     <div class="about-section">

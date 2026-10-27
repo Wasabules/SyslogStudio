@@ -80,9 +80,9 @@ type Window struct {
 	Days []int `json:"days,omitempty"`
 }
 
-// matchesGlob reports whether value matches one of the patterns. An empty list
+// MatchesGlob reports whether value matches one of the patterns. An empty list
 // is "no constraint". Matching is case-insensitive, because hostnames are.
-func matchesGlob(patterns []string, value string) bool {
+func MatchesGlob(patterns []string, value string) bool {
 	if len(patterns) == 0 {
 		return true
 	}
@@ -114,8 +114,8 @@ func matchesInt(list []int, value int) bool {
 	return false
 }
 
-// matchesSource accepts a CIDR or a glob against the sending address.
-func matchesSource(patterns []string, source string) bool {
+// MatchesSource accepts a CIDR or a glob against the sending address.
+func MatchesSource(patterns []string, source string) bool {
 	if len(patterns) == 0 {
 		return true
 	}
@@ -196,13 +196,13 @@ func (m RouteMatch) Matches(msg models.SyslogMessage, compiled *regexp.Regexp, n
 	if !matchesInt(m.Facilities, int(msg.Facility)) {
 		return false
 	}
-	if !matchesGlob(m.Hostnames, msg.Hostname) {
+	if !MatchesGlob(m.Hostnames, msg.Hostname) {
 		return false
 	}
-	if !matchesGlob(m.AppNames, msg.AppName) {
+	if !MatchesGlob(m.AppNames, msg.AppName) {
 		return false
 	}
-	if !matchesSource(m.Sources, msg.SourceIP) {
+	if !MatchesSource(m.Sources, msg.SourceIP) {
 		return false
 	}
 	if m.Pattern != "" {

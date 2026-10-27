@@ -416,6 +416,23 @@ func (cs *ConfigStore) SaveListenOnStart(enabled bool) {
 	cs.saveAll(all)
 }
 
+// LoadSourceRules reads how the messages of particular devices are read, in
+// the order the rules are tried.
+func (cs *ConfigStore) LoadSourceRules() []models.SourceRule {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.loadAll().SourceRules
+}
+
+// SaveSourceRules writes them.
+func (cs *ConfigStore) SaveSourceRules(rules []models.SourceRule) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.SourceRules = rules
+	cs.saveAll(all)
+}
+
 // LoadInbox reads the sealed inbox configuration: nil when what is received
 // is stored in the clear.
 func (cs *ConfigStore) LoadInbox() *models.InboxConfig {

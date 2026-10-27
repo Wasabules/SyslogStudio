@@ -148,6 +148,13 @@
                 <span class="value">{msg.version === 1 ? $_('log.rfc5424') : $_('log.rfc3164')}</span>
             </div>
 
+            {#if msg.readBy}
+                <div class="field">
+                    <span class="label">{$_('log.readBy')}</span>
+                    <span class="value">{msg.readBy}</span>
+                </div>
+            {/if}
+
             {#if msg.structuredData}
                 <div class="field full">
                     <span class="label">{$_('log.structuredData')}</span>

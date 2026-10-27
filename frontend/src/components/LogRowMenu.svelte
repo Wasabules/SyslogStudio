@@ -25,6 +25,8 @@
     import { EXPORT_FORMATS, asDisplayed } from '../lib/exportFormats';
     import { toastSuccess, toastError } from '../lib/toast';
     import { redactText } from '../lib/anonymize';
+    import { messages } from '../lib/stores';
+    import { getSourceRules, ruleDraft, ruleForSource, ruleFromMessage, samplesOf } from '../lib/sources';
 
     export let msg: SyslogMessage;
     export let column: AnyColumn | null = null;
@@ -117,6 +119,18 @@
         activeView.set('alerts');
         onClose();
     }
+
+    // How this device's messages are read: its rule if it has one, a new one
+    // otherwise — tried on its own latest messages either way.
+    async function readDevice() {
+        let rule = ruleFromMessage(msg);
+        try {
+            const existing = ruleForSource(await getSourceRules(), msg.sourceIP);
+            if (existing) rule = structuredClone(existing);
+        } catch { /* a new rule, then */ }
+        ruleDraft.set({ rule, samples: samplesOf($messages, msg) });
+        onClose();
+    }
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -167,6 +181,9 @@
     <div class="sep"></div>
 
     <button on:click={alertFromLine}>{$_('log.createAlert')}</button>
+    {#if msg.protocol !== 'file'}
+        <button on:click={readDevice}>{$_('log.readDevice')}</button>
+    {/if}
 </div>
 
 <style>

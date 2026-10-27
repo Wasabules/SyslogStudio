@@ -308,6 +308,26 @@ func (s *Switch) AreSinkCredentialsUnencrypted() bool {
 	return s.Current().AreSinkCredentialsUnencrypted()
 }
 
+func (s *Switch) GetSourceRules() []models.SourceRule {
+	return s.Current().GetSourceRules()
+}
+
+func (s *Switch) SaveSourceRule(rule models.SourceRule) (models.SourceRule, error) {
+	return s.Current().SaveSourceRule(rule)
+}
+
+func (s *Switch) DeleteSourceRule(id string) {
+	s.Current().DeleteSourceRule(id)
+}
+
+func (s *Switch) ReorderSourceRules(ids []string) error {
+	return s.Current().ReorderSourceRules(ids)
+}
+
+func (s *Switch) TrySourceRule(rule models.SourceRule, samples []models.SourceSample) ([]models.SourceTrial, error) {
+	return s.Current().TrySourceRule(rule, samples)
+}
+
 func (s *Switch) PreviewLogFile(path string, format models.ImportFormat) (importer.Preview, error) {
 	return s.Current().PreviewLogFile(path, format)
 }

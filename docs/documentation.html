@@ -152,6 +152,17 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
         messages with no priority at all. The priority's severity stands unless the message
         declares a level in a field of its own, and the raw message is always kept.
       </p>
+      <p>
+        For a device that bends it further, right-click one of its messages and choose
+        <strong>Read this device's messages differently</strong>. A <em>source rule</em> says
+        which messages it covers (addresses, hostnames, applications, a pattern on the raw
+        text), how they are read (any of the import's formats, or a regular expression), and
+        what to correct: the hostname, the application, the time zone or the clock, the
+        severity, the encoding. Its latest messages are read again at every change, before and
+        after side by side, and the rule applies as messages arrive — before the live view, the
+        history, the alerts and the routing. Rules are kept in order in
+        <strong>Settings › Sources</strong>.
+      </p>
     </div>
   </section>
 

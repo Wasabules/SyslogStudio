@@ -21,6 +21,8 @@ export interface SyslogMessage {
     protocol: string;
     version: number;
     structuredData: string;
+    /** The source rule that read the message, in the live view. */
+    readBy?: string;
 }
 
 export interface CertOptions {

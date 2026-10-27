@@ -73,6 +73,9 @@ type SyslogMessage struct {
 	Protocol       string    `json:"protocol"`
 	Version        int       `json:"version"`
 	StructuredData string    `json:"structuredData"`
+	// ReadBy names the source rule that read the message, when one did. Said
+	// in the live view only: the history does not store it.
+	ReadBy string `json:"readBy,omitempty"`
 }
 
 // CertOptions holds parameters for certificate generation.
@@ -307,6 +310,9 @@ type AppConfig struct {
 	// Inbox, on a service, seals what it receives for the window that
 	// installed it, instead of storing it in a database in the clear.
 	Inbox *InboxConfig `json:"inbox,omitempty"`
+	// SourceRules say how the messages of devices that bend the syslog RFCs
+	// are read, in the order they are tried.
+	SourceRules []SourceRule `json:"sourceRules,omitempty"`
 	// Backup is where copies of the database go, and when.
 	Backup BackupConfig `json:"backup"`
 }

@@ -33,7 +33,7 @@ import {
   IMPORT_PREVIEW,
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
-  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK,
+  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK, SOURCE_RULES,
   BACKUP_CONFIG, BACKUP_STATUS, BACKUP_FILES, BACKUP_LISTING, RECOVERY_KEY,
 } from '../fixtures.js';
 
@@ -95,6 +95,30 @@ let backupConfig = clone(BACKUP_CONFIG);
 let recoveryKey = clone(RECOVERY_KEY);
 let updateConfig = { checkOnStartup: true, channel: 'stable', skippedVersion: '' };
 let closeAction = 'ask';
+let sourceRules = clone(SOURCE_RULES);
+
+/**
+ * What a rule makes of a message, as far as a page can say without the
+ * engine: whether its addresses name the sender, and the corrections it
+ * applies. Reading a format is the engine's; the demo does not pretend to.
+ */
+function trySource(rule, samples) {
+  const named = (rule.match.sources || []).map((s) => s.trim()).filter(Boolean);
+  const matches = (ip) => named.some((s) => s === ip || (s.endsWith('.0/24') && ip.startsWith(s.slice(0, -4))));
+  return samples.map((s) => {
+    const before = messages.find((m) => m.rawMessage === s.raw)
+      || { ...messages[0], rawMessage: s.raw, message: s.raw, sourceIP: s.sourceIP };
+    const matched = named.length > 0 && matches(s.sourceIP);
+    const after = { ...before };
+    if (matched) {
+      if (rule.hostnameFromSource) after.hostname = s.sourceIP;
+      else if (rule.hostname) after.hostname = rule.hostname;
+      if (rule.appName) after.appName = rule.appName;
+      after.readBy = rule.name;
+    }
+    return { matched, before: clone(before), after: clone(after) };
+  });
+}
 
 const nextId = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -321,6 +345,23 @@ const HANDLERS = {
   OpenBackup: () => refuse('OpenBackup'),
   CloseBackup: () => Promise.resolve(null),
   GetBackupView: () => Promise.resolve({ open: false, messages: 0 }),
+
+  // source rules
+  GetSourceRules: () => Promise.resolve(clone(sourceRules)),
+  SaveSourceRule: (rule) => {
+    const saved = { ...rule, id: rule.id || `source-${Date.now()}` };
+    if (!saved.name) saved.name = (saved.match.sources || [])[0] || 'Source rule';
+    sourceRules = sourceRules.some((r) => r.id === saved.id)
+      ? sourceRules.map((r) => (r.id === saved.id ? saved : r))
+      : [...sourceRules, saved];
+    return Promise.resolve(clone(saved));
+  },
+  DeleteSourceRule: (id) => { sourceRules = sourceRules.filter((r) => r.id !== id); return Promise.resolve(null); },
+  ReorderSourceRules: (ids) => {
+    sourceRules = ids.map((id) => sourceRules.find((r) => r.id === id)).filter(Boolean);
+    return Promise.resolve(null);
+  },
+  TrySourceRule: (rule, samples) => Promise.resolve(trySource(rule, samples || [])),
   RestoreBackupFile: () => refuse('RestoreBackupFile'),
   ImportBackup: () => delayed('ImportBackup', { kind: 'import', running: false, total: 18400, read: 18400, added: 16950 }),
   ImportOpenBackup: () => delayed('ImportOpenBackup', { kind: 'import', running: false, total: 18400, read: 18400, added: 16950 }),

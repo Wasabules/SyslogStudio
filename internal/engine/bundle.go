@@ -50,6 +50,9 @@ type Bundle struct {
 	// database. Unset, it stores in a database in the clear.
 	InboxPublicKey []byte `json:"inboxPublicKey,omitempty"`
 
+	// SourceRules say how the messages of particular devices are read.
+	SourceRules []models.SourceRule `json:"sourceRules,omitempty"`
+
 	// Backup is when copies are made and where they go, for an engine that
 	// keeps a database of its own: its destinations carry their credential
 	// in Secret, as the sinks do. A sealing engine keeps no database, and
@@ -72,6 +75,8 @@ func (e *Engine) ExportBundle() (Bundle, error) {
 		Server:  e.configStore.Load(),
 		Alerts:  e.configStore.LoadAlertRules(),
 		Routes:  e.configStore.LoadRoutes(),
+
+		SourceRules: e.configStore.LoadSourceRules(),
 	}
 
 	// The receiving engine keeps its database in its own directory, and in the
@@ -228,6 +233,7 @@ func (e *Engine) ImportBundle(b Bundle) error {
 	e.configStore.SaveStorage(storageCfg)
 	e.configStore.SaveAlertRules(b.Alerts)
 	e.configStore.SaveRoutes(b.Routes)
+	e.configStore.SaveSourceRules(b.SourceRules)
 	e.configStore.SaveSinks(sinks)
 	return nil
 }

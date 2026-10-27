@@ -78,6 +78,10 @@ export function DeleteNotifySink(arg1) {
   return window['go']['main']['App']['DeleteNotifySink'](arg1);
 }
 
+export function DeleteSourceRule(arg1) {
+  return window['go']['main']['App']['DeleteSourceRule'](arg1);
+}
+
 export function DescribeBackup(arg1) {
   return window['go']['main']['App']['DescribeBackup'](arg1);
 }
@@ -258,6 +262,10 @@ export function GetSimulatorStatus() {
   return window['go']['main']['App']['GetSimulatorStatus']();
 }
 
+export function GetSourceRules() {
+  return window['go']['main']['App']['GetSourceRules']();
+}
+
 export function GetStats() {
   return window['go']['main']['App']['GetStats']();
 }
@@ -366,6 +374,10 @@ export function RemoveRecoveryKey() {
   return window['go']['main']['App']['RemoveRecoveryKey']();
 }
 
+export function ReorderSourceRules(arg1) {
+  return window['go']['main']['App']['ReorderSourceRules'](arg1);
+}
+
 export function ResetEncryptionPassword(arg1) {
   return window['go']['main']['App']['ResetEncryptionPassword'](arg1);
 }
@@ -404,6 +416,10 @@ export function SaveServerConfig(arg1) {
 
 export function SaveSimulatorConfig(arg1) {
   return window['go']['main']['App']['SaveSimulatorConfig'](arg1);
+}
+
+export function SaveSourceRule(arg1) {
+  return window['go']['main']['App']['SaveSourceRule'](arg1);
 }
 
 export function SealServiceHistory(arg1) {
@@ -516,6 +532,10 @@ export function TestBackupDestinationForm(arg1, arg2) {
 
 export function TestNotifySink(arg1) {
   return window['go']['main']['App']['TestNotifySink'](arg1);
+}
+
+export function TrySourceRule(arg1, arg2) {
+  return window['go']['main']['App']['TrySourceRule'](arg1, arg2);
 }
 
 export function UninstallSystemService(arg1, arg2, arg3) {
