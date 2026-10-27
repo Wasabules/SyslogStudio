@@ -550,7 +550,7 @@ export const SERVICE_LINK = { mode: 'local', installed: false, state: '' };
 
 /** Driving the running service: what the background scene shows. */
 export const SERVICE_LINK_DRIVING = {
-  mode: 'service', installed: true, state: 'running', serviceVersion: 'v1.9.0', sealed: true,
+  mode: 'service', installed: true, state: 'running', serviceVersion: 'v1.11.0', sealed: true,
 };
 
 /** The same, installed and receiving: what the background scene shows. */
@@ -567,7 +567,7 @@ export const SYSTEM_SERVICE_RUNNING = {
   dataDir: 'C:\\ProgramData\\SyslogStudio',
   host: {
     state: 'running',
-    version: 'v1.9.0',
+    version: 'v1.11.0',
     pid: 4120,
     dataDir: 'C:\\ProgramData\\SyslogStudio',
     startedAt: new Date(NOW.getTime() - 3 * 86400_000).toISOString(),

@@ -74,6 +74,9 @@ const DEMO_ONLY = {
   ImportBackup: 'There is no database behind the demo to import into.',
   ImportOpenBackup: 'There is no database behind the demo to import into.',
   SealServiceHistory: 'There is no service behind the demo to seal.',
+  ExportSourceRules: 'Exporting writes a file, which a web page cannot do. The desktop application can.',
+  ReadSourceRulesFile: 'Choosing a file needs a native dialog, which a web page does not have.',
+  RereadHistory: 'There is no database behind the demo to read again — this one runs entirely in your browser.',
 };
 
 // --- mutable demo state ----------------------------------------------------
@@ -97,6 +100,7 @@ let updateConfig = { checkOnStartup: true, channel: 'stable', skippedVersion: ''
 let closeAction = 'ask';
 let sourceRules = clone(SOURCE_RULES);
 let sourceTemplates = clone(SOURCE_TEMPLATES);
+let sourceDevices = clone(SOURCE_DEVICES);
 
 /**
  * What a rule makes of a message, as far as a page can say without the
@@ -302,6 +306,7 @@ const HANDLERS = {
   // encryption
   IsEncryptionEnabled: () => Promise.resolve(false),
   IsEncryptionLocked: () => Promise.resolve(false),
+  IsDatabaseLeftClear: () => Promise.resolve(false),
   EnableEncryption: () => Promise.resolve(null),
   DisableEncryption: () => Promise.resolve(null),
   ChangeEncryptionPassword: () => Promise.resolve(null),
@@ -369,8 +374,8 @@ const HANDLERS = {
     return Promise.resolve(null);
   },
   TrySourceRule: (rule, samples) => Promise.resolve(trySource(rule, samples || [])),
-  GetSourceDevices: () => Promise.resolve(clone(SOURCE_DEVICES)),
-  ClearSourceDevices: () => Promise.resolve(null),
+  GetSourceDevices: () => Promise.resolve(clone(sourceDevices)),
+  ClearSourceDevices: () => { sourceDevices = []; return Promise.resolve(null); },
   LookupAddress: (address) => {
     const d = SOURCE_DEVICES.find((x) => x.address === address);
     return Promise.resolve(d
@@ -443,9 +448,9 @@ const HANDLERS = {
   SetListenOnStart: () => Promise.resolve(null),
 
   // updates and shell
-  GetAppVersion: () => Promise.resolve('v1.9.0'),
+  GetAppVersion: () => Promise.resolve('v1.11.0'),
   CheckForUpdate: () => Promise.resolve({
-    available: false, currentVersion: 'v1.9.0', latestVersion: 'v1.9.0',
+    available: false, currentVersion: 'v1.11.0', latestVersion: 'v1.11.0',
     releaseNotes: '', downloadURL: '', publishedAt: '',
   }),
   GetUpdateConfig: () => Promise.resolve(clone(updateConfig)),
