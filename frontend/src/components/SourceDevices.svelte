@@ -237,30 +237,33 @@
     .spacer { flex: 1; }
     .summary { margin: 0 0 8px; font-size: 11px; color: var(--text-secondary); }
     .muted { font-size: 12px; color: var(--text-secondary); }
+    /* Headers, badges and "not since start" wrap: held on one line, the table
+       was wider than the dialog in six languages of eight. */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th {
         text-align: left; font-weight: 600; font-size: 11px; color: var(--text-secondary);
-        padding: 6px 6px; border-bottom: 1px solid var(--border-color); white-space: nowrap;
+        padding: 6px 6px; border-bottom: 1px solid var(--border-color);
     }
     td { padding: 6px 6px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
     tr.attention td:first-child { box-shadow: inset 3px 0 0 var(--warning, #e5a50a); }
-    .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.num { white-space: nowrap; }
     .mono { font-family: var(--font-mono, monospace); white-space: nowrap; }
     .proto { margin-left: 6px; font-size: 10px; color: var(--text-secondary); font-family: inherit; }
     .host { margin-top: 2px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
     .mac {
         margin-top: 2px; font-size: 10px; color: var(--text-secondary);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
     }
     .mac-note {
         margin: 0 0 12px; padding: 6px 10px; font-size: 11px; line-height: 1.5;
         color: var(--text-secondary); border-left: 3px solid var(--accent); background: var(--accent-bg);
     }
-    .muted-cell { color: var(--text-secondary); white-space: nowrap; }
+    .muted-cell { color: var(--text-secondary); }
     .badges { display: flex; flex-wrap: wrap; gap: 4px; }
     .badge {
-        display: inline-block; padding: 1px 6px; border-radius: 9px; font-size: 10px; white-space: nowrap;
+        display: inline-block; padding: 1px 6px; border-radius: 9px; font-size: 10px;
         border: 1px solid var(--border-color); color: var(--text-secondary);
     }
     .badge.warn { border-color: var(--warning, #e5a50a); color: var(--warning, #e5a50a); }
