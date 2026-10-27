@@ -387,6 +387,7 @@
     "disableSuccess": "Crittografia disabilitata.",
     "unlockTitle": "Database bloccato",
     "unlockMessage": "Il database dei log è cifrato. Inserisci la password per sbloccarlo.",
+    "leftClear": "Questo database è stato trovato non cifrato: SyslogStudio lo aveva decifrato e si è fermato senza chiudersi — un crash, un arresto forzato, un’interruzione di corrente. Inserisci la password: viene verificata, il database si apre com’era e viene cifrato di nuovo alla chiusura di SyslogStudio.",
     "unlock": "Sblocca",
     "unlocking": "Sblocco in corso…",
     "lockedOutSeconds": "Troppi tentativi falliti. Bloccato per {seconds}s.",

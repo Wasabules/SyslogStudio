@@ -164,6 +164,10 @@ func (s *Switch) IsEncryptionLocked() bool {
 	return s.Current().IsEncryptionLocked()
 }
 
+func (s *Switch) IsDatabaseLeftClear() bool {
+	return s.Current().IsDatabaseLeftClear()
+}
+
 func (s *Switch) UnlockDatabase(password string) error {
 	return s.Current().UnlockDatabase(password)
 }

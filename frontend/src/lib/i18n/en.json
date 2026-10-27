@@ -389,6 +389,7 @@
     "disableSuccess": "Encryption disabled.",
     "unlockTitle": "Database Locked",
     "unlockMessage": "The log database is encrypted. Enter your password to unlock.",
+    "leftClear": "This database was found unencrypted: SyslogStudio had decrypted it and then stopped without closing — a crash, a forced stop, a power cut. Type your password: it is checked, the database opens as it was, and it is encrypted again when SyslogStudio closes.",
     "unlock": "Unlock",
     "unlocking": "Unlocking...",
     "warningTitle": "Important — Read carefully",

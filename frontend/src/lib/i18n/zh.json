@@ -387,6 +387,7 @@
     "disableSuccess": "已禁用加密。",
     "unlockTitle": "数据库已锁定",
     "unlockMessage": "日志数据库已加密。请输入密码以解锁。",
+    "leftClear": "发现此数据库未加密：SyslogStudio 解密后未正常关闭就停止了（崩溃、强制停止或断电）。请输入密码：密码验证通过后，数据库按原样打开，并在 SyslogStudio 关闭时重新加密。",
     "unlock": "解锁",
     "unlocking": "正在解锁…",
     "lockedOutSeconds": "失败次数过多。已锁定 {seconds} 秒。",

@@ -64,6 +64,7 @@ func (b sealedBackend) GetUnlockAttemptsRemaining() int { return b.store.GetUnlo
 func (b sealedBackend) GetUnlockLockoutSeconds() int    { return b.store.GetUnlockLockoutSeconds() }
 func (b sealedBackend) IsEncryptionEnabled() bool       { return b.store.IsEncryptionEnabled() }
 func (b sealedBackend) IsEncryptionLocked() bool        { return b.store.IsEncryptionLocked() }
+func (b sealedBackend) IsDatabaseLeftClear() bool       { return b.store.IsDatabaseLeftClear() }
 func (b sealedBackend) UnlockDatabase(password string) error {
 	return b.store.UnlockDatabase(password)
 }

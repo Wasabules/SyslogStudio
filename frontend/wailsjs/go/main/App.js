@@ -346,6 +346,10 @@ export function IsCAKeyUnencrypted() {
   return window['go']['main']['App']['IsCAKeyUnencrypted']();
 }
 
+export function IsDatabaseLeftClear() {
+  return window['go']['main']['App']['IsDatabaseLeftClear']();
+}
+
 export function IsEncryptionEnabled() {
   return window['go']['main']['App']['IsEncryptionEnabled']();
 }

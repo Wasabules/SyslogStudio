@@ -63,6 +63,11 @@ type LogStore struct {
 
 	locked             bool   // true if encrypted db exists but not yet unlocked
 	encryptionPassword string // in-memory only, set when unlocked or encryption enabled
+	// leftClear is a database encryption is on for, found in the clear: a
+	// session decrypted it and ended without closing (a crash, a kill, the
+	// power), so it was never encrypted again. It waits for the password
+	// like an encrypted one, is opened as it is, and encrypted when closed.
+	leftClear bool
 
 	// gate lets the flush write while nothing rewrites the whole database:
 	// flushes hold it shared, a VACUUM or an index rebuild exclusively — and
@@ -102,6 +107,14 @@ func NewLogStore(config models.StorageConfig, emitter event.EventEmitter) (*LogS
 	if EncryptedFileExists(dbPath) {
 		slog.Info("encrypted database found, awaiting unlock", "path", dbPath+".enc")
 		return &LogStore{config: config, emitter: emitter, locked: true}, nil
+	}
+	// Opened in the clear without its password, it was never encrypted again:
+	// the next close had no password to encrypt it with.
+	if config.EncryptionEnabled {
+		if _, err := os.Stat(dbPath); err == nil {
+			slog.Warn("database left in the clear by a session that did not close, awaiting unlock", "path", dbPath)
+			return &LogStore{config: config, emitter: emitter, locked: true, leftClear: true}, nil
+		}
 	}
 
 	return openDatabase(dbPath, config, emitter)
@@ -178,9 +191,14 @@ func (ls *LogStore) UnlockAndOpen(password string) error {
 		p.Percent = p.Percent * 0.70
 		ls.emitCryptoProgress(p)
 	}
-	// The current format is decrypted a chunk at a time; a file written
-	// before it, whole, as it always was.
-	if vault.IsVaultFile(encPath) {
+	switch {
+	case ls.leftClear && !EncryptedFileExists(dbPath):
+		// Nothing to decrypt: the database is there, as the interrupted
+		// session left it. The password, checked by the caller, encrypts
+		// it again when the store closes.
+	case vault.IsVaultFile(encPath):
+		// The current format is decrypted a chunk at a time; a file
+		// written before it, whole, as it always was.
 		size := fileSize(encPath)
 		_, err := vault.DecryptFile(encPath, dbPath, password, func(done int64) {
 			scaledProgress(CryptoProgress{Phase: "decrypting", Percent: percentOf(done, size), SizeMB: float64(size) / (1 << 20)})
@@ -188,8 +206,10 @@ func (ls *LogStore) UnlockAndOpen(password string) error {
 		if err != nil {
 			return err
 		}
-	} else if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
-		return err
+	default:
+		if err := DecryptFileWithProgress(encPath, dbPath, password, scaledProgress); err != nil {
+			return err
+		}
 	}
 
 	// Decryption succeeded — remove encrypted file
@@ -219,6 +239,7 @@ func (ls *LogStore) UnlockAndOpen(password string) error {
 	ls.buffer = make([]models.SyslogMessage, 0, 256)
 	ls.stopCh = make(chan struct{})
 	ls.locked = false
+	ls.leftClear = false
 	ls.encryptionPassword = password
 	ls.ftsReadyCh = make(chan struct{})
 	ls.mu.Unlock()
@@ -259,6 +280,14 @@ func (ls *LogStore) IsReady() bool {
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
 	return ls.ftsReady
+}
+
+// LeftClear says the locked database was found in the clear: a session that
+// had decrypted it ended without closing. Unlocking it encrypts it again.
+func (ls *LogStore) LeftClear() bool {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.locked && ls.leftClear
 }
 
 // IsLocked returns true if the database is encrypted and not yet unlocked.

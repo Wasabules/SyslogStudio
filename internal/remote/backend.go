@@ -76,6 +76,7 @@ type Backend interface {
 	GetUnlockLockoutSeconds() int
 	IsEncryptionEnabled() bool
 	IsEncryptionLocked() bool
+	IsDatabaseLeftClear() bool
 	UnlockDatabase(password string) error
 	EnableEncryption(password string) error
 	DisableEncryption(password string) error
