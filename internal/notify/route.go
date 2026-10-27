@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/search"
 )
 
 // Route is one rule: what to match, and where matches go.
@@ -56,9 +57,8 @@ type RouteMatch struct {
 	Hostnames []string `json:"hostnames,omitempty"`
 	AppNames  []string `json:"appNames,omitempty"`
 
-	// Sources accept a CIDR or a glob. Anything that parses as a prefix is
-	// treated as CIDR; the rest falls back to path.Match, whose syntax has no
-	// backtracking and therefore cannot hang on a hostile pattern.
+	// Sources accept an address, a CIDR or a pattern with "*" and "?", read
+	// as the Source IP filter reads them (search.Address).
 	Sources []string `json:"sources,omitempty"`
 
 	// Pattern matches the message text. UseRegex switches from a
@@ -114,35 +114,13 @@ func matchesInt(list []int, value int) bool {
 	return false
 }
 
-// MatchesSource accepts a CIDR or a glob against the sending address.
+// MatchesSource reports whether the sending address matches one of the
+// entries: an address, a CIDR or a pattern (search.Address). A zero-length
+// prefix is how an operator writes "everything", and takes both families:
+// 0.0.0.0/0 dropping every IPv6 sender would make the pattern that looks
+// most like "all" the one that halves the estate.
 func MatchesSource(patterns []string, source string) bool {
-	if len(patterns) == 0 {
-		return true
-	}
-	ip := net.ParseIP(source)
-	for _, p := range patterns {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		if _, cidr, err := net.ParseCIDR(p); err == nil {
-			// A zero-length prefix is how an operator writes "everything".
-			// Contains across families is false, so 0.0.0.0/0 would otherwise
-			// silently drop every IPv6 sender — the pattern that looks most
-			// like "all" being the one that halves the estate.
-			if ones, _ := cidr.Mask.Size(); ones == 0 {
-				return true
-			}
-			if ip != nil && cidr.Contains(ip) {
-				return true
-			}
-			continue
-		}
-		if ok, err := path.Match(strings.ToLower(p), strings.ToLower(source)); err == nil && ok {
-			return true
-		}
-	}
-	return false
+	return search.MatchAddresses(search.CompileAddresses(patterns), source)
 }
 
 func parseHHMM(s string) (int, bool) {
@@ -312,9 +290,6 @@ func ValidateRoute(r Route) error {
 		}
 		if _, _, err := net.ParseCIDR(s); err == nil {
 			continue
-		}
-		if _, err := path.Match(s, ""); err != nil {
-			return errf("source pattern %q is not a valid CIDR or glob", s)
 		}
 	}
 	if w := r.Match.Window; w != nil {

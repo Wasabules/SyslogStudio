@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"SyslogStudio/internal/search"
@@ -30,7 +31,24 @@ func init() {
 			}
 			return args[0], nil
 		})
+	// ss_addr is search.Address.Match in SQL, for what plain SQL cannot say:
+	// whether an address is inside a CIDR.
+	sqlite.MustRegisterDeterministicScalarFunction("ss_addr", 2,
+		func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+			value, _ := args[0].(string)
+			typed, _ := args[1].(string)
+			if a, ok := compiledAddresses.Load(typed); ok {
+				return a.(search.Address).Match(value), nil
+			}
+			a := search.CompileAddress(typed, false)
+			compiledAddresses.Store(typed, a)
+			return a.Match(value), nil
+		})
 }
+
+// compiledAddresses keeps ss_addr from compiling its CIDR once per row. One
+// entry per CIDR filtered on in this run, which a person types.
+var compiledAddresses sync.Map
 
 // buildWhereClause turns a compiled filter into SQL. A search plan that needs
 // a scan — a regex — is left for the caller to apply to the rows.
@@ -56,13 +74,16 @@ func buildWhereClause(f *search.Filter) (string, []any) {
 	}{
 		{"hostname", f.Hostname.Needle},
 		{"app_name", f.AppName.Needle},
-		{"source_ip", f.SourceIP.Needle},
 	} {
 		if field.needle != "" {
 			cond, a := containsCondition(field.col, field.needle)
 			conditions = append(conditions, cond)
 			args = append(args, a...)
 		}
+	}
+	if cond, a := addressCondition("source_ip", f.SourceIP); cond != "" {
+		conditions = append(conditions, cond)
+		args = append(args, a...)
 	}
 
 	if match := f.Plan.FTS5(); match != "" {
@@ -119,6 +140,39 @@ func containsCondition(col, needle string) (string, []any) {
 		" OR (length(" + col + ") <> length(CAST(" + col + " AS BLOB)) AND instr(ss_fold(" + col + "), ?) > 0))"
 	return cond, []any{"%" + escapeLike(needle) + "%", needle}
 }
+
+// addressCondition is search.Address's test in SQL. An exact address and a
+// pattern are answered as containsCondition answers text: by the column's
+// own comparison for a row of plain ASCII, through ss_fold for the others. A
+// CIDR goes through ss_addr, after the index has narrowed the rows to those
+// starting with its whole octets when it has some.
+func addressCondition(col string, a search.Address) (string, []any) {
+	ascii := "length(" + col + ") = length(CAST(" + col + " AS BLOB))"
+	switch a.Kind {
+	case search.AddressExact:
+		return "(" + col + " = ? COLLATE NOCASE OR (NOT " + ascii + " AND ss_fold(" + col + ") = ?))",
+			[]any{a.Text, a.Text}
+	case search.AddressNet:
+		if a.Bits == 0 {
+			return "", nil
+		}
+		if a.Prefix != "" {
+			return "(" + col + ` LIKE ? ESCAPE '\' AND ss_addr(` + col + ", ?))",
+				[]any{escapeLike(a.Prefix) + "%", a.CIDR()}
+		}
+		return "ss_addr(" + col + ", ?)", []any{a.CIDR()}
+	case search.AddressGlob:
+		like := globEscaper.Replace(escapeLike(a.Text))
+		return "((" + ascii + " AND " + col + ` LIKE ? ESCAPE '\') OR (NOT ` + ascii +
+			" AND ss_fold(" + col + `) LIKE ? ESCAPE '\'))`, []any{like, like}
+	case search.AddressText:
+		return containsCondition(col, a.Text)
+	}
+	return "", nil
+}
+
+// globEscaper turns a glob, its LIKE wildcards already escaped, into LIKE.
+var globEscaper = strings.NewReplacer("*", "%", "?", "_")
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 

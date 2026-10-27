@@ -159,7 +159,9 @@ the address, that rule opens instead. Rules are listed, ordered, turned off and 
 A rule has three parts.
 
 **Which messages**
-- **Addresses**: an IP, a CIDR (`10.0.7.0/24`) or a pattern, comma-separated.
+- **Addresses**: comma-separated, each matched whole: an address (`10.0.7.12`), a CIDR range
+  (`10.0.7.0/24`) or a pattern (`10.0.7.*`). An address is that device only; a rule naming
+  `10.0.7.1` does not read `10.0.7.12`.
 - **Hostnames** and **Applications**: patterns such as `fw-*`, matched against the message as
   read without the rule.
 - **Raw text contains**: a regular expression, case-insensitive. Behind a relay every device
@@ -232,12 +234,23 @@ Select one or more facilities to filter by the source subsystem. Common faciliti
 
 ### Hostname, App Name and Source IP Filters
 
-Enter part of a hostname, an application name or an IP address. Messages whose field contains the
-entered text are displayed:
+Enter part of a hostname or an application name. Messages whose field contains the entered text are
+displayed:
 
 - Case does not matter, and neither does an accent on a Latin letter: `cafe` finds `CAFÉ-01`.
 - Everything else counts as typed, spaces included. `web_01` finds `web_01` and not `web-01`, and
   `50%` is a percent sign, not a wildcard.
+
+The **Source IP** box takes an address the way a network is described:
+
+| Typed | Shows the messages from |
+|---|---|
+| `10.10.1.1` | that address only — not `10.10.1.10` or `10.10.1.100` |
+| `10.10.1.0/24` | the CIDR range, here `10.10.1.0` to `10.10.1.255` |
+| `10.10.1.*` | the addresses matching the pattern: `*` stands for any characters, `?` for one |
+| `10.10.1.` | the addresses containing the text, while it is being typed |
+
+An IPv6 address matches however it is written: `fe80:0::1` finds `fe80::1`.
 
 ### Search
 

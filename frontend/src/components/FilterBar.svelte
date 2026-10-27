@@ -210,7 +210,7 @@
         </div>
 
         <input type="text" placeholder={$_('filter.sourceIP')} bind:value={sourceIPText}
-               on:input={setSourceIP} class="filter-input" />
+               title={$_('filter.sourceIPHint')} on:input={setSourceIP} class="filter-input" />
 
         <input type="text" placeholder={$_('filter.hostname')} bind:value={hostnameText}
                on:input={setHostname} class="filter-input" />

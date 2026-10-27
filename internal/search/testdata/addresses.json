@@ -1,0 +1,466 @@
+{
+  "ips": [
+    {
+      "text": "",
+      "want": null
+    },
+    {
+      "text": "10.0.0.1",
+      "want": "10.0.0.1"
+    },
+    {
+      "text": "0.0.0.0",
+      "want": "0.0.0.0"
+    },
+    {
+      "text": "255.255.255.255",
+      "want": "255.255.255.255"
+    },
+    {
+      "text": "256.0.0.1",
+      "want": null
+    },
+    {
+      "text": "010.0.0.1",
+      "want": null
+    },
+    {
+      "text": "10.0.0",
+      "want": null
+    },
+    {
+      "text": "10.0.0.1.2",
+      "want": null
+    },
+    {
+      "text": "10..0.1",
+      "want": null
+    },
+    {
+      "text": ".10.0.0.1",
+      "want": null
+    },
+    {
+      "text": "10.0.0.1.",
+      "want": null
+    },
+    {
+      "text": "1.2.3.4 ",
+      "want": null
+    },
+    {
+      "text": " 1.2.3.4",
+      "want": null
+    },
+    {
+      "text": "1.2.3.a",
+      "want": null
+    },
+    {
+      "text": "1.2.3.4:514",
+      "want": null
+    },
+    {
+      "text": "::",
+      "want": "::"
+    },
+    {
+      "text": "::1",
+      "want": "::1"
+    },
+    {
+      "text": "1::",
+      "want": "1::"
+    },
+    {
+      "text": "fe80::1",
+      "want": "fe80::1"
+    },
+    {
+      "text": "FE80::0001",
+      "want": "fe80::1"
+    },
+    {
+      "text": "fe80:0:0:0:0:0:0:1",
+      "want": "fe80::1"
+    },
+    {
+      "text": "1:2:3:4:5:6:7:8",
+      "want": "1:2:3:4:5:6:7:8"
+    },
+    {
+      "text": "1:2:3:4:5:6:7::",
+      "want": "1:2:3:4:5:6:7:0"
+    },
+    {
+      "text": "::2:3:4:5:6:7:8",
+      "want": "0:2:3:4:5:6:7:8"
+    },
+    {
+      "text": "1:2:3:4:5:6:7:8::",
+      "want": null
+    },
+    {
+      "text": "1:2:3:4:5:6:7:8:9",
+      "want": null
+    },
+    {
+      "text": "1:2:3:4:5:6:7",
+      "want": null
+    },
+    {
+      "text": "1::2::3",
+      "want": null
+    },
+    {
+      "text": ":1::2",
+      "want": null
+    },
+    {
+      "text": "1:::2",
+      "want": null
+    },
+    {
+      "text": "1:2:",
+      "want": null
+    },
+    {
+      "text": "12345::",
+      "want": null
+    },
+    {
+      "text": "fe80::1%eth0",
+      "want": null
+    },
+    {
+      "text": "%eth0",
+      "want": null
+    },
+    {
+      "text": "::ffff:10.0.0.5",
+      "want": "10.0.0.5"
+    },
+    {
+      "text": "::ffff:a00:5",
+      "want": "10.0.0.5"
+    },
+    {
+      "text": "::10.0.0.5",
+      "want": "::a00:5"
+    },
+    {
+      "text": "1:2:3:4:5:6:10.0.0.5",
+      "want": "1:2:3:4:5:6:a00:5"
+    },
+    {
+      "text": "1:2:3:4:5:10.0.0.5",
+      "want": null
+    },
+    {
+      "text": "1:2:3:4:5:6:7:10.0.0.5",
+      "want": null
+    },
+    {
+      "text": "::01.2.3.4",
+      "want": null
+    },
+    {
+      "text": "::1.2.3.4.5",
+      "want": null
+    },
+    {
+      "text": "2001:db8:0:0:1:0:0:1",
+      "want": "2001:db8::1:0:0:1"
+    },
+    {
+      "text": "2001:db8::1:0:0:1",
+      "want": "2001:db8::1:0:0:1"
+    },
+    {
+      "text": "2001:0:0:1:0:0:0:1",
+      "want": "2001:0:0:1::1"
+    },
+    {
+      "text": "0:0:1:0:0:1:0:0",
+      "want": "::1:0:0:1:0:0"
+    },
+    {
+      "text": "2001:db8:0:1:1:1:1:1",
+      "want": "2001:db8:0:1:1:1:1:1"
+    },
+    {
+      "text": "1:0:0:0:0:0:0:0",
+      "want": "1::"
+    },
+    {
+      "text": "0:0:0:0:0:0:0:1",
+      "want": "::1"
+    },
+    {
+      "text": "ABCD:EF01::",
+      "want": "abcd:ef01::"
+    },
+    {
+      "text": "g::1",
+      "want": null
+    },
+    {
+      "text": "::ffff:255.255.255.255",
+      "want": "255.255.255.255"
+    }
+  ],
+  "matches": [
+    {
+      "typed": "10.10.1.1",
+      "partial": true,
+      "value": "10.10.1.1",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.1",
+      "partial": true,
+      "value": "10.10.1.10",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.1",
+      "partial": true,
+      "value": "10.10.1.199",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.1",
+      "partial": false,
+      "value": "10.10.1.1",
+      "match": true
+    },
+    {
+      "typed": " 10.10.1.1 ",
+      "partial": false,
+      "value": "10.10.1.1",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.",
+      "partial": true,
+      "value": "10.10.1.199",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.",
+      "partial": false,
+      "value": "10.10.1.199",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.0/24",
+      "partial": false,
+      "value": "10.10.1.199",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.0/24",
+      "partial": false,
+      "value": "10.10.2.1",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.0/24",
+      "partial": false,
+      "value": "::ffff:10.10.1.5",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.128/25",
+      "partial": false,
+      "value": "10.10.1.127",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.128/25",
+      "partial": false,
+      "value": "10.10.1.128",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.7/32",
+      "partial": false,
+      "value": "10.10.1.7",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.7/32",
+      "partial": false,
+      "value": "10.10.1.8",
+      "match": false
+    },
+    {
+      "typed": "0.0.0.0/0",
+      "partial": false,
+      "value": "fe80::1",
+      "match": true
+    },
+    {
+      "typed": "::/0",
+      "partial": false,
+      "value": "10.0.0.1",
+      "match": true
+    },
+    {
+      "typed": "0.0.0.0/1",
+      "partial": false,
+      "value": "fe80::1",
+      "match": false
+    },
+    {
+      "typed": "::/1",
+      "partial": false,
+      "value": "10.0.0.1",
+      "match": true
+    },
+    {
+      "typed": "::ffff:0:0/96",
+      "partial": false,
+      "value": "10.0.0.1",
+      "match": true
+    },
+    {
+      "typed": "::ffff:0:0/96",
+      "partial": false,
+      "value": "fe80::1",
+      "match": false
+    },
+    {
+      "typed": "::/80",
+      "partial": false,
+      "value": "10.0.0.1",
+      "match": true
+    },
+    {
+      "typed": "::/80",
+      "partial": false,
+      "value": "::1",
+      "match": true
+    },
+    {
+      "typed": "fe80::/10",
+      "partial": false,
+      "value": "FE80::1",
+      "match": true
+    },
+    {
+      "typed": "fe80::/10",
+      "partial": false,
+      "value": "fec0::1",
+      "match": false
+    },
+    {
+      "typed": "2001:db8::/32",
+      "partial": false,
+      "value": "2001:db8:0:0:0:0:0:1",
+      "match": false
+    },
+    {
+      "typed": "2001:db8::/32",
+      "partial": false,
+      "value": "2001:db8::1",
+      "match": true
+    },
+    {
+      "typed": "10.0.0.0/8",
+      "partial": false,
+      "value": "not an address",
+      "match": false
+    },
+    {
+      "typed": "10.0.0.0/033",
+      "partial": false,
+      "value": "10.0.0.1",
+      "match": false
+    },
+    {
+      "typed": "10.0.0.0/0x8",
+      "partial": true,
+      "value": "10.0.0.0/0x8",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.*",
+      "partial": false,
+      "value": "10.10.1.1",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.*",
+      "partial": false,
+      "value": "10.10.10.1",
+      "match": false
+    },
+    {
+      "typed": "10.10.*.1",
+      "partial": false,
+      "value": "10.10.200.1",
+      "match": true
+    },
+    {
+      "typed": "10.10.1.?",
+      "partial": false,
+      "value": "10.10.1.12",
+      "match": false
+    },
+    {
+      "typed": "10.10.1.??",
+      "partial": false,
+      "value": "10.10.1.12",
+      "match": true
+    },
+    {
+      "typed": "*",
+      "partial": false,
+      "value": "",
+      "match": true
+    },
+    {
+      "typed": "FE80::*",
+      "partial": false,
+      "value": "fe80::1",
+      "match": true
+    },
+    {
+      "typed": "fe80:0::1",
+      "partial": false,
+      "value": "fe80::1",
+      "match": true
+    },
+    {
+      "typed": "gateway",
+      "partial": false,
+      "value": "GATEWAY",
+      "match": true
+    },
+    {
+      "typed": "gateway",
+      "partial": false,
+      "value": "gateway-2",
+      "match": false
+    },
+    {
+      "typed": "gate",
+      "partial": true,
+      "value": "gateway-2",
+      "match": true
+    },
+    {
+      "typed": "10.0.0.1%",
+      "partial": false,
+      "value": "10.0.0.1%",
+      "match": true
+    },
+    {
+      "typed": "",
+      "partial": false,
+      "value": "10.0.0.1",
+      "match": true
+    }
+  ]
+}

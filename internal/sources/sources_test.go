@@ -40,6 +40,33 @@ func TestRule_AppliesToWhatItMatches(t *testing.T) {
 	}
 }
 
+// An address is that device, not the ones it is the start of (#98); a CIDR
+// and a pattern take a range.
+func TestRule_Addresses(t *testing.T) {
+	for _, c := range []struct {
+		entry string
+		take  []string
+		leave []string
+	}{
+		{"10.10.1.1", []string{"10.10.1.1"}, []string{"10.10.1.10", "10.10.1.100", "10.10.1.199"}},
+		{"10.10.1.0/24", []string{"10.10.1.1", "10.10.1.254"}, []string{"10.10.2.1", "fe80::1"}},
+		{"10.10.1.*", []string{"10.10.1.1", "10.10.1.199"}, []string{"10.10.10.1"}},
+		{"fe80::/10", []string{"fe80::1"}, []string{"10.10.1.1"}},
+	} {
+		r := reader(t, models.SourceRule{Name: "device", Enabled: true, Match: bySource(c.entry), AppName: "x"})
+		for _, ip := range c.take {
+			if m := r.Read([]byte("<14>hello"), ip, "UDP"); m.ReadBy != "device" {
+				t.Errorf("%s: %s not taken", c.entry, ip)
+			}
+		}
+		for _, ip := range c.leave {
+			if m := r.Read([]byte("<14>hello"), ip, "UDP"); m.ReadBy != "" {
+				t.Errorf("%s: %s taken", c.entry, ip)
+			}
+		}
+	}
+}
+
 // Behind a relay every device arrives from the same address: the raw message
 // tells them apart, and the first rule that matches is the one applied.
 func TestRules_InOrder_PatternTellsDevicesApart(t *testing.T) {
@@ -185,6 +212,9 @@ func TestCompile_Refuses(t *testing.T) {
 		"an unknown zone":     {Match: bySource("10.0.0.1"), Format: models.ImportFormat{Timezone: "Mars/Olympus"}},
 		"an unknown level":    {Match: bySource("10.0.0.1"), LevelFrom: "guess"},
 		"an unknown encoding": {Match: bySource("10.0.0.1"), Encoding: "ebcdic"},
+		"half an address":     {Match: bySource("10.0.0")},
+		"a name for address":  {Match: bySource("gateway")},
+		"a CIDR too long":     {Match: bySource("10.0.0.0/33")},
 	} {
 		if err := Compile(r); err == nil {
 			t.Errorf("%s: accepted", name)

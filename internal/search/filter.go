@@ -19,9 +19,12 @@ type Filter struct {
 	Severities map[int]bool
 	Facilities map[int]bool
 
-	// Hostname, AppName and SourceIP are the text boxes: a field passes when
-	// it contains what was typed, case and Latin accents aside.
-	Hostname, AppName, SourceIP Field
+	// Hostname and AppName are text boxes: a field passes when it contains
+	// what was typed, case and Latin accents aside.
+	Hostname, AppName Field
+	// SourceIP is the address box: one address exactly, a CIDR, a pattern
+	// with "*", or text the address contains (Address).
+	SourceIP Address
 
 	// From and To bound the time range: From included, To excluded. Zero
 	// means unbounded.
@@ -46,7 +49,7 @@ func CompileFilter(c models.FilterCriteria) Filter {
 		Plan:       Compile(c.Search, c.SearchMode),
 		Hostname:   NewField(c.Hostname),
 		AppName:    NewField(c.AppName),
-		SourceIP:   NewField(c.SourceIP),
+		SourceIP:   CompileAddress(c.SourceIP, true),
 		GroupField: c.GroupField,
 		GroupKey:   c.GroupKey,
 	}
@@ -134,7 +137,7 @@ func GroupKey(msg models.SyslogMessage, field string) string {
 	return ""
 }
 
-// Field is a field box: hostname, application, source IP.
+// Field is a text field box: hostname, application.
 type Field struct {
 	// Needle is what was typed, folded.
 	Needle string

@@ -325,6 +325,218 @@ function containsMatcher(needle: string): (text: string) => boolean {
     return text => re.test(text) || (NON_ASCII.test(text) && foldText(text).includes(needle));
 }
 
+// --- Addresses: search.Address in address.go. ---
+
+// An IPv4 address's four fields, as Go's netip reads them: decimal, no
+// leading zero, none above 255.
+function parseV4(s: string): number[] | null {
+    const out: number[] = [];
+    let val = 0;
+    let digits = 0;
+    for (let i = 0; i < s.length; i++) {
+        const c = s.charCodeAt(i);
+        if (c >= 48 && c <= 57) {
+            if (digits === 1 && val === 0) return null;
+            val = val * 10 + (c - 48);
+            digits++;
+            if (val > 255) return null;
+        } else if (c === 46) {
+            if (i === 0 || i === s.length - 1 || s.charCodeAt(i - 1) === 46 || out.length === 3) return null;
+            out.push(val);
+            val = 0;
+            digits = 0;
+        } else {
+            return null;
+        }
+    }
+    if (out.length < 3) return null;
+    out.push(val);
+    return out;
+}
+
+// An IPv6 address as Go's netip reads it, step for step: groups of one to
+// four hex digits, one "::" standing for at least one group of zeros, an
+// IPv4 address in the last two groups. No zone.
+function parseV6(input: string): Uint8Array | null {
+    if (input.includes('%')) return null;
+    let s = input;
+    const ip = new Uint8Array(16);
+    let ellipsis = -1;
+    if (s.length >= 2 && s[0] === ':' && s[1] === ':') {
+        ellipsis = 0;
+        s = s.slice(2);
+        if (s.length === 0) return ip;
+    }
+    let i = 0;
+    while (i < 16) {
+        let off = 0;
+        let acc = 0;
+        for (; off < s.length; off++) {
+            const c = s.charCodeAt(off);
+            let d: number;
+            if (c >= 48 && c <= 57) d = c - 48;
+            else if (c >= 97 && c <= 102) d = c - 87;
+            else if (c >= 65 && c <= 70) d = c - 55;
+            else break;
+            acc = acc * 16 + d;
+            if (off > 3 || acc > 0xffff) return null;
+        }
+        if (off === 0) return null;
+        if (off < s.length && s[off] === '.') {
+            if ((ellipsis < 0 && i !== 12) || i + 4 > 16) return null;
+            const v4 = parseV4(s);
+            if (!v4) return null;
+            ip.set(v4, i);
+            s = '';
+            i += 4;
+            break;
+        }
+        ip[i] = acc >> 8;
+        ip[i + 1] = acc & 0xff;
+        i += 2;
+        s = s.slice(off);
+        if (s.length === 0) break;
+        if (s[0] !== ':' || s.length === 1) return null;
+        s = s.slice(1);
+        if (s[0] === ':') {
+            if (ellipsis >= 0) return null;
+            ellipsis = i;
+            s = s.slice(1);
+            if (s.length === 0) break;
+        }
+    }
+    if (s.length !== 0) return null;
+    if (i < 16) {
+        if (ellipsis < 0) return null;
+        const n = 16 - i;
+        for (let j = i - 1; j >= ellipsis; j--) ip[j + n] = ip[j];
+        ip.fill(0, ellipsis, ellipsis + n);
+    } else if (ellipsis >= 0) {
+        return null;
+    }
+    return ip;
+}
+
+/**
+ * An IP address as Go's net.ParseIP reads it, in the 16-byte form where an
+ * IPv4 address is ::ffff:a.b.c.d; null when the text is not one.
+ */
+export function parseIP(s: string): Uint8Array | null {
+    for (let i = 0; i < s.length; i++) {
+        if (s[i] === '.') {
+            const v4 = parseV4(s);
+            if (!v4) return null;
+            const ip = new Uint8Array(16);
+            ip[10] = ip[11] = 0xff;
+            ip.set(v4, 12);
+            return ip;
+        }
+        if (s[i] === ':') return parseV6(s);
+        if (s[i] === '%') return null;
+    }
+    return null;
+}
+
+function isV4(ip: Uint8Array): boolean {
+    for (let i = 0; i < 10; i++) if (ip[i]) return false;
+    return ip[10] === 0xff && ip[11] === 0xff;
+}
+
+/**
+ * An address written as the receiver writes it (Go's net.IP.String): IPv4
+ * dotted, IPv6 in lowercase with its longest run of two zero groups or more,
+ * the first of equals, written "::".
+ */
+export function ipString(ip: Uint8Array): string {
+    if (isV4(ip)) return `${ip[12]}.${ip[13]}.${ip[14]}.${ip[15]}`;
+    const group = (k: number) => (ip[2 * k] << 8) | ip[2 * k + 1];
+    let zeroStart = 255;
+    let zeroEnd = 255;
+    for (let i = 0; i < 8; i++) {
+        let j = i;
+        while (j < 8 && group(j) === 0) j++;
+        if (j - i >= 2 && j - i > zeroEnd - zeroStart) {
+            zeroStart = i;
+            zeroEnd = j;
+        }
+    }
+    let out = '';
+    for (let i = 0; i < 8; i++) {
+        if (i === zeroStart) {
+            out += '::';
+            i = zeroEnd;
+            if (i >= 8) break;
+        } else if (i > 0) {
+            out += ':';
+        }
+        out += group(i).toString(16);
+    }
+    return out;
+}
+
+// address/length, as parseCIDR in address.go reads it; bits counted in the
+// 16-byte form, so an IPv4 length plus 96.
+function parseCIDR(s: string): { base: Uint8Array; bits: number } | null {
+    const slash = s.indexOf('/');
+    if (slash < 0) return null;
+    const addr = s.slice(0, slash);
+    const length = s.slice(slash + 1);
+    if (!/^[0-9]{1,3}$/.test(length)) return null;
+    const ip = parseIP(addr);
+    if (!ip) return null;
+    const ones = Number(length);
+    const v4 = !addr.includes(':');
+    if ((v4 && ones > 32) || ones > 128) return null;
+    return { base: ip, bits: ones === 0 ? 0 : v4 ? ones + 96 : ones };
+}
+
+function sameBits(a: Uint8Array, b: Uint8Array, n: number): boolean {
+    for (let i = 0; i < 16; i++) {
+        const keep = n >= 8 * (i + 1) ? 0xff : n <= 8 * i ? 0 : (0xff << (8 - (n - 8 * i))) & 0xff;
+        if ((a[i] & keep) !== (b[i] & keep)) return false;
+    }
+    return true;
+}
+
+// A glob, whole: "*" any run of characters, "?" one.
+function globMatcher(pattern: string): RegExp {
+    let src = '';
+    for (const ch of pattern) {
+        src += ch === '*' ? '[^]*' : ch === '?' ? '[^]' : ch.replace(REGEX_SPECIALS, '\\$&');
+    }
+    return new RegExp('^' + src + '$', 'u');
+}
+
+/**
+ * What an address is matched against, as typed: one address exactly, a CIDR
+ * (10.10.1.0/24), a pattern with "*" or "?" (10.10.1.*), or anything else —
+ * text the address contains for the Source IP box (partial), the address
+ * itself for a rule's list.
+ */
+export function addressMatcher(typed: string, partial: boolean): (value: string) => boolean {
+    const t = typed.trim();
+    if (!t) return () => true;
+    const net = parseCIDR(t);
+    if (net) {
+        if (net.bits === 0) return () => true;
+        return value => {
+            const ip = parseIP(value);
+            return !!ip && ipString(ip) === foldText(value) && sameBits(ip, net.base, net.bits);
+        };
+    }
+    const ip = parseIP(t);
+    if (ip) {
+        const want = ipString(ip);
+        return value => foldText(value) === want;
+    }
+    if (/[*?]/.test(t)) {
+        const re = globMatcher(foldText(t));
+        return value => re.test(foldText(value));
+    }
+    const needle = foldText(t);
+    return partial ? containsMatcher(needle) : value => foldText(value) === needle;
+}
+
 // A bound of the time range: its instant and how long it stands for. The
 // window sends instants; a bare date or time — a filter saved before it did —
 // is the machine's wall clock, for that whole day, minute or second.
@@ -367,10 +579,11 @@ export function filterMatcher(c: Criteria, plan: SearchPlan | null): (m: Filtera
     const sev = c.severities?.length ? new Set(c.severities) : null;
     const fac = c.facilities?.length ? new Set(c.facilities) : null;
     const fields: [keyof Filterable, (text: string) => boolean][] = [];
-    for (const [key, typed] of [['hostname', c.hostname], ['appName', c.appName], ['sourceIP', c.sourceIP]] as const) {
+    for (const [key, typed] of [['hostname', c.hostname], ['appName', c.appName]] as const) {
         const needle = typed ? foldText(typed) : '';
         if (needle) fields.push([key, containsMatcher(needle)]);
     }
+    if (c.sourceIP?.trim()) fields.push(['sourceIP', addressMatcher(c.sourceIP, true)]);
     const [from, to] = timeRange(c);
     const group = c.groupField || '';
     const search = c.search ? planMatcher(plan) : null;

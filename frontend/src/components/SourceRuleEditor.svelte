@@ -7,13 +7,15 @@
      * preview is here to prevent.
      */
     import { onDestroy, onMount } from 'svelte';
+    import { get } from 'svelte/store';
     import { _ } from 'svelte-i18n';
+    import { messages } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, formatInZone } from '../lib/timezone';
     import { toastError, toastSuccess } from '../lib/toast';
     import FormatFields from './FormatFields.svelte';
     import {
-        deleteSourceRule, listText, parseList, ruleDraft, rulesVersion, saveSourceRule, trySourceRule,
+        deleteSourceRule, listText, parseList, ruleDraft, rulesVersion, samplesForRule, saveSourceRule, trySourceRule,
     } from '../lib/sources';
     import type { SourceRule, SourceSample, SourceTrial } from '../lib/sources';
 
@@ -28,6 +30,9 @@
     rule.levelFrom = rule.levelFrom || '';
     rule.encoding = rule.encoding || '';
     let sourcesText = listText(rule.match.sources);
+    // The samples it opened with, until the addresses change: then the
+    // latest messages from the addresses as now written.
+    const openedWith = sourcesText;
     let hostnamesText = listText(rule.match.hostnames);
     let appNamesText = listText(rule.match.appNames);
     let hostMode: 'sent' | 'source' | 'fixed' =
@@ -62,6 +67,7 @@
         clearTimeout(debounce);
         debounce = setTimeout(async () => {
             const mine = ++generation;
+            if (sourcesText !== openedWith) samples = samplesForRule(get(messages), current());
             try {
                 const got = samples.length ? await trySourceRule(current(), samples) : [];
                 if (mine !== generation) return;
@@ -156,8 +162,9 @@
             <h5>{$_('sources.which')}</h5>
             <label class="row">
                 <span class="row-label">{$_('sources.sources')}</span>
-                <input class="mono" placeholder="10.0.0.9, 10.0.1.0/24" bind:value={sourcesText} on:input={retry} />
+                <input class="mono" placeholder="10.0.0.9, 10.0.1.0/24, 10.0.2.*" bind:value={sourcesText} on:input={retry} />
             </label>
+            <p class="note">{$_('sources.sourcesHint')}</p>
             <div class="line">
                 <label class="row grow">
                     <span class="row-label">{$_('sources.hostnames')}</span>
