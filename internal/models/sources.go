@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"time"
 )
 
 // SourceRule says how the messages from a device, or a group of devices, are
@@ -118,6 +119,39 @@ type SourceTemplate struct {
 func (r SourceRule) AsTemplate() SourceRule {
 	r.ID, r.Name, r.Enabled, r.Match = "", "", false, SourceMatch{}
 	return r
+}
+
+// SourceDevice is one address messages arrive from, as the engine has seen
+// it since it started: what it sends, how much, and how it is read — so that
+// a device that bends the RFCs, or sends no hostname, shows before anyone
+// wonders why its messages look wrong.
+type SourceDevice struct {
+	Address string `json:"address"`
+	// Hostname and AppName are those of its last message, as read; Hostnames
+	// the different ones read lately, the last first — several behind one
+	// address is a relay.
+	Hostname  string    `json:"hostname"`
+	Hostnames []string  `json:"hostnames"`
+	AppName   string    `json:"appName"`
+	Protocol  string    `json:"protocol"`
+	FirstSeen time.Time `json:"firstSeen"`
+	LastSeen  time.Time `json:"lastSeen"`
+	Messages  int64     `json:"messages"`
+	// PerMinute is how many arrived in the last minute.
+	PerMinute int64 `json:"perMinute"`
+	// NonStandard is how many had a header that is not the RFCs' (no
+	// priority included), NoPriority how many had no priority at all, and
+	// NoHostname how many were left without a hostname once read.
+	NonStandard int64 `json:"nonStandard"`
+	NoPriority  int64 `json:"noPriority"`
+	NoHostname  int64 `json:"noHostname"`
+	// Ruled is how many a source rule read; ReadBy the rule that read the
+	// last one, "" if none did.
+	Ruled  int64  `json:"ruled"`
+	ReadBy string `json:"readBy,omitempty"`
+	// LastRaw is its last message as it arrived, cut short: what to try a
+	// rule on when the live view holds none of its messages.
+	LastRaw string `json:"lastRaw"`
 }
 
 // RereadOptions says which stored messages to read again with the source

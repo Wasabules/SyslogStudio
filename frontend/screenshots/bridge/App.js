@@ -33,7 +33,7 @@ import {
   IMPORT_PREVIEW,
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
-  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK, SOURCE_RULES, SOURCE_TEMPLATES,
+  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK, SOURCE_RULES, SOURCE_TEMPLATES, SOURCE_DEVICES,
   BACKUP_CONFIG, BACKUP_STATUS, BACKUP_FILES, BACKUP_LISTING, RECOVERY_KEY,
 } from '../fixtures.js';
 
@@ -363,6 +363,8 @@ const HANDLERS = {
     return Promise.resolve(null);
   },
   TrySourceRule: (rule, samples) => Promise.resolve(trySource(rule, samples || [])),
+  GetSourceDevices: () => Promise.resolve(clone(SOURCE_DEVICES)),
+  ClearSourceDevices: () => Promise.resolve(null),
   GetSourceTemplates: () => Promise.resolve(clone(sourceTemplates)),
   SaveSourceTemplate: (t) => {
     const saved = { ...t, id: t.id || `mine-${Date.now()}` };

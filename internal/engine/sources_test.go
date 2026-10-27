@@ -2,6 +2,7 @@ package engine
 
 import (
 	"testing"
+	"time"
 
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/models"
@@ -69,5 +70,24 @@ func TestSourceRules_SavedOrderedAppliedAndBundled(t *testing.T) {
 	}
 	if got := read(); got != "camera" {
 		t.Fatalf("after deleting: %q", got)
+	}
+}
+
+// What the server reads is counted, by address; reading again is not.
+func TestSourceDevices(t *testing.T) {
+	e, _ := openEngine(t, nil)
+	if d := e.GetSourceDevices(); d == nil || len(d) != 0 {
+		t.Fatalf("before any message: %v", d)
+	}
+	e.reader.Read([]byte("<14>Oct 27 09:14:02 dhcp: lease assigned"), "10.0.0.5", "UDP")
+	e.reader.Read([]byte("no priority at all"), "10.0.0.5", "UDP")
+	e.reader.ReadAt([]byte("<14>Oct 27 09:14:02 dhcp: lease assigned"), "10.0.0.6", "UDP", time.Now())
+	devs := e.GetSourceDevices()
+	if len(devs) != 1 || devs[0].Address != "10.0.0.5" || devs[0].Messages != 2 || devs[0].NoPriority != 1 {
+		t.Fatalf("devices: %+v", devs)
+	}
+	e.ClearSourceDevices()
+	if len(e.GetSourceDevices()) != 0 {
+		t.Fatal("not cleared")
 	}
 }

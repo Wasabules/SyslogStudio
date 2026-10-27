@@ -656,6 +656,21 @@ export const BACKUP_LISTING = { files: BACKUP_FILES, problems: [] };
  * sends no hostname. Read the way the engine reads them, as far as a page can
  * pretend to (bridge/App.js, TrySourceRule).
  */
+/**
+ * The devices heard from since the engine started, as GetSourceDevices says
+ * them: one its rule reads, a switch that bends the RFCs with no rule yet, a
+ * relay, and plain ones.
+ */
+const ago = (s) => new Date(Date.now() - s * 1000).toISOString();
+export const SOURCE_DEVICES = [
+  { address: '10.10.0.1', hostname: 'FGT60F', hostnames: ['FGT60F'], appName: '', protocol: 'UDP', firstSeen: ago(86400), lastSeen: ago(2), messages: 182340, perMinute: 214, nonStandard: 182340, noPriority: 0, noHostname: 0, ruled: 182340, readBy: 'Edge firewall', lastRaw: '<189>date=2026-10-27 time=09:14:02 devname="FGT60F" level="warning" msg="Admin login failed"' },
+  { address: '10.10.0.23', hostname: '', hostnames: [], appName: '%LINK-3-UPDOWN', protocol: 'UDP', firstSeen: ago(86400), lastSeen: ago(6), messages: 4821, perMinute: 12, nonStandard: 4821, noPriority: 0, noHostname: 4821, ruled: 0, lastRaw: '<187>123: *Oct 27 09:14:02.123: %LINK-3-UPDOWN: Interface Gi0/1, changed state to down' },
+  { address: '10.10.0.2', hostname: 'sw-core-01', hostnames: ['sw-core-01'], appName: 'stp', protocol: 'UDP', firstSeen: ago(86400), lastSeen: ago(9), messages: 9120, perMinute: 7, nonStandard: 0, noPriority: 0, noHostname: 0, ruled: 0, lastRaw: '<190>Oct 27 09:14:00 sw-core-01 stp: topology change on vlan 20' },
+  { address: '10.10.7.21', hostname: '10.10.7.21', hostnames: ['10.10.7.21'], appName: 'camera', protocol: 'UDP', firstSeen: ago(7200), lastSeen: ago(31), messages: 640, perMinute: 2, nonStandard: 640, noPriority: 640, noHostname: 0, ruled: 640, readBy: 'Lobby cameras', lastRaw: '2026-10-27 09:13:31 ERROR motion detection failed on channel 2' },
+  { address: '10.10.1.15', hostname: 'app-prod-02', hostnames: ['app-prod-02', 'jump-01', 'db-prod-01', 'backup-01'], appName: 'sshd', protocol: 'TCP', firstSeen: ago(86400), lastSeen: ago(44), messages: 25310, perMinute: 31, nonStandard: 0, noPriority: 0, noHostname: 0, ruled: 0, lastRaw: '<38>Oct 27 09:13:18 app-prod-02 sshd[4410]: Accepted publickey for deploy' },
+  { address: '10.10.3.40', hostname: 'printsrv', hostnames: ['printsrv'], appName: 'spooler', protocol: 'UDP', firstSeen: ago(5400), lastSeen: ago(380), messages: 58, perMinute: 0, nonStandard: 0, noPriority: 0, noHostname: 0, ruled: 0, lastRaw: '<13>Oct 27 09:07:42 printsrv spooler: Impression termin\uFFFDe' },
+];
+
 /** The templates that come with SyslogStudio (sources.Templates), and one saved. */
 export const SOURCE_TEMPLATES = [
   { id: 'no-hostname', rule: { format: { mode: 'auto' }, noHostname: true } },

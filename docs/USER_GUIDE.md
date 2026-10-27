@@ -196,6 +196,24 @@ that read a message.
 Rules belong to the engine the window drives: while it drives the system service, they are the
 service's. Installing the service copies the window's rules to it.
 
+#### Devices
+
+**Settings > Devices** lists every address messages arrive from: those heard since SyslogStudio
+started — or the service, while the window drives it — and those kept in the history.
+
+| Column | What it says |
+|---|---|
+| Device | The address and protocol, and the hostname of its last message. *N hostnames*: several behind one address — a relay, or a device that sends none and has the first word of each message taken for one |
+| Last heard, Since start, /min | When its last message arrived, how many since the start, how many in the last minute |
+| Stored | How many of its messages the history holds |
+| Reading | The rule that reads it; the share of its messages whose header bends the RFCs; *no priority*; *no hostname*; or *standard* |
+
+A device whose messages bend the RFCs or come without a hostname, and that no rule reads, is marked
+in the margin: it could use a rule. **Only those that could use a rule** lists just them, and the
+button on each line opens the editor on the rule that reads it, or on a new one for its address,
+tried on its latest messages — its last one at least, even when the live view holds none.
+**Count again** starts the counts from now.
+
 #### Templates, and sharing rules
 
 **Start from** in the rule editor fills the format and the corrections from a template, keeping the

@@ -29,6 +29,7 @@
     import BackgroundSettings from './BackgroundSettings.svelte';
     import BackupSettings from './BackupSettings.svelte';
     import SourceRules from './SourceRules.svelte';
+    import SourceDevices from './SourceDevices.svelte';
     import { ruleDraft } from '../lib/sources';
     import RecoveryKeySettings from './RecoveryKeySettings.svelte';
     import { serviceLink } from '../lib/serviceLink';
@@ -38,7 +39,7 @@
     // Opens Settings on a given tab — the service banner opens Background.
     export let initialTab: Tab | '' = '';
 
-    type Tab = 'general' | 'storage' | 'backups' | 'background' | 'sources' | 'about';
+    type Tab = 'general' | 'storage' | 'backups' | 'background' | 'sources' | 'devices' | 'about';
     let activeTab: Tab = 'general';
     const TABS: { id: Tab; label: string }[] = [
         { id: 'general', label: 'settings.general' },
@@ -46,6 +47,7 @@
         { id: 'backups', label: 'backup.tab' },
         { id: 'background', label: 'background.tab' },
         { id: 'sources', label: 'sources.tab' },
+        { id: 'devices', label: 'sources.devicesTab' },
         { id: 'about', label: 'settings.about' },
     ];
     let tabButtons: HTMLButtonElement[] = [];
@@ -872,6 +874,9 @@
 
                 {:else if activeTab === 'sources'}
                     <SourceRules />
+
+                {:else if activeTab === 'devices'}
+                    <SourceDevices />
 
                 {:else if activeTab === 'about'}
                     <div class="about-section">

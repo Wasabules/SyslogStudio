@@ -113,6 +113,40 @@ export function withTemplate(rule: SourceRule, t: SourceTemplate): SourceRule {
     };
 }
 
+/** One address messages arrive from, as the engine has heard it since it started. */
+export interface SourceDevice {
+    address: string;
+    hostname: string;
+    /** The different hostnames read lately, the last first. */
+    hostnames: string[];
+    appName: string;
+    protocol: string;
+    firstSeen: string;
+    lastSeen: string;
+    messages: number;
+    perMinute: number;
+    /** With a header that is not the RFCs' (no priority included). */
+    nonStandard: number;
+    noPriority: number;
+    /** Left without a hostname once read. */
+    noHostname: number;
+    ruled: number;
+    readBy?: string;
+    /** Its last message as it arrived, cut short. */
+    lastRaw: string;
+}
+
+export const getSourceDevices = async (): Promise<SourceDevice[]> => (await callGo('GetSourceDevices')) || [];
+export const clearSourceDevices = (): Promise<void> => callGo('ClearSourceDevices');
+
+/** A new rule for a device of the inventory. */
+export function ruleForDevice(address: string, d?: SourceDevice): SourceRule {
+    const rule = emptyRule();
+    rule.match = { sources: [address] };
+    rule.name = d?.hostname && d.hostname !== address ? `${d.hostname} (${address})` : address;
+    return rule;
+}
+
 /** Which stored messages to read again with the rules. */
 export interface RereadOptions {
     /** Received at or after this instant (RFC 3339); '' is every one. */

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/sources"
@@ -23,6 +24,22 @@ func (e *Engine) applySourceRules() {
 	}
 	if err := e.reader.SetRules(e.configStore.LoadSourceRules()); err != nil {
 		slog.Warn("source rules", "error", err)
+	}
+}
+
+// GetSourceDevices returns the devices messages have arrived from since the
+// engine started, the last heard from first.
+func (e *Engine) GetSourceDevices() []models.SourceDevice {
+	if e.inventory == nil {
+		return []models.SourceDevice{}
+	}
+	return e.inventory.Devices(time.Now())
+}
+
+// ClearSourceDevices forgets them: counting starts again from now.
+func (e *Engine) ClearSourceDevices() {
+	if e.inventory != nil {
+		e.inventory.Clear()
 	}
 }
 

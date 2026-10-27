@@ -445,6 +445,16 @@ func (c *Client) TrySourceRule(rule models.SourceRule, samples []models.SourceSa
 	return r0, err
 }
 
+func (c *Client) GetSourceDevices() []models.SourceDevice {
+	var r0 []models.SourceDevice
+	c.logLost("GetSourceDevices", c.call("GetSourceDevices", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) ClearSourceDevices() {
+	c.logLost("ClearSourceDevices", c.call("ClearSourceDevices", []any{}))
+}
+
 func (c *Client) RereadHistory(opts models.RereadOptions) error {
 	err := c.call("RereadHistory", []any{opts})
 	return err

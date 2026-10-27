@@ -50,6 +50,10 @@ export function ClearNotifyLog() {
   return window['go']['main']['App']['ClearNotifyLog']();
 }
 
+export function ClearSourceDevices() {
+  return window['go']['main']['App']['ClearSourceDevices']();
+}
+
 export function CloseBackup() {
   return window['go']['main']['App']['CloseBackup']();
 }
@@ -276,6 +280,10 @@ export function GetSimulatorConfig() {
 
 export function GetSimulatorStatus() {
   return window['go']['main']['App']['GetSimulatorStatus']();
+}
+
+export function GetSourceDevices() {
+  return window['go']['main']['App']['GetSourceDevices']();
 }
 
 export function GetSourceRules() {

@@ -165,7 +165,9 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
         start from a template — a device that sends no hostname, a camera, JSON behind a syslog
         header, garbled accents, a clock nobody set — and its way of reading, a regular
         expression of your own included, can be saved as a template for the next rule or a file
-        import. The messages already stored can be read
+        import. <strong>Settings › Devices</strong> lists every address messages arrive from,
+        how much each sends and how it is read, and marks the devices that bend the RFCs or
+        send no hostname with no rule to read them. The messages already stored can be read
         again from their raw text with the rules as they are now — from every device or from
         one rule's addresses, over the last day, week, month or all of it.
       </p>

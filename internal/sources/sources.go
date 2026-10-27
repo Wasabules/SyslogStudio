@@ -31,7 +31,13 @@ import (
 type Reader struct {
 	wire  *importer.WireReader
 	rules atomic.Pointer[[]*rule]
+	// inventory, when set, counts what Read reads: messages received, not
+	// those read again or tried.
+	inventory atomic.Pointer[Inventory]
 }
+
+// SetInventory has what is read from now on counted in inv.
+func (r *Reader) SetInventory(inv *Inventory) { r.inventory.Store(inv) }
 
 // New makes a reader with no rules.
 func New() *Reader {
@@ -115,25 +121,35 @@ func (r *Reader) SetRules(rules []models.SourceRule) error {
 
 // Read reads one message received from sourceIP over protocol.
 func (r *Reader) Read(raw []byte, sourceIP, protocol string) models.SyslogMessage {
-	return r.ReadAt(raw, sourceIP, protocol, time.Now())
+	msg, rd := r.read(raw, sourceIP, protocol, time.Now())
+	if inv := r.inventory.Load(); inv != nil {
+		inv.note(msg, rd)
+	}
+	return msg
 }
 
 // ReadAt is Read for a message that arrived at a given time: a stored one,
 // read again with the rules as they are now.
 func (r *Reader) ReadAt(raw []byte, sourceIP, protocol string, at time.Time) models.SyslogMessage {
+	msg, _ := r.read(raw, sourceIP, protocol, at)
+	return msg
+}
+
+// read reads a message, and says how its header was as it arrived.
+func (r *Reader) read(raw []byte, sourceIP, protocol string, at time.Time) (models.SyslogMessage, syslog.Reading) {
 	msg, rd := syslog.ReadAt(raw, sourceIP, protocol, at)
 	pri := msg.Severity
 	r.wire.Reread(&msg, rd)
 	rules := r.rules.Load()
 	if rules == nil {
-		return msg
+		return msg, rd
 	}
 	for _, c := range *rules {
 		if c.matches(msg) {
-			return r.apply(c, raw, msg, rd, pri)
+			return r.apply(c, raw, msg, rd, pri), rd
 		}
 	}
-	return msg
+	return msg, rd
 }
 
 func (c *rule) matches(msg models.SyslogMessage) bool {
