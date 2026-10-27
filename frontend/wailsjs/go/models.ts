@@ -1010,6 +1010,7 @@ export namespace models {
 	    format: ImportFormat;
 	    hostname?: string;
 	    hostnameFromSource?: boolean;
+	    noHostname?: boolean;
 	    appName?: string;
 	    arrivalTime?: boolean;
 	    levelFrom?: string;
@@ -1028,6 +1029,7 @@ export namespace models {
 	        this.format = this.convertValues(source["format"], ImportFormat);
 	        this.hostname = source["hostname"];
 	        this.hostnameFromSource = source["hostnameFromSource"];
+	        this.noHostname = source["noHostname"];
 	        this.appName = source["appName"];
 	        this.arrivalTime = source["arrivalTime"];
 	        this.levelFrom = source["levelFrom"];
@@ -1423,6 +1425,40 @@ export namespace models {
 	        this.sourceIP = source["sourceIP"];
 	        this.protocol = source["protocol"];
 	    }
+	}
+	export class SourceTemplate {
+	    id: string;
+	    name?: string;
+	    rule: SourceRule;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.rule = this.convertValues(source["rule"], SourceRule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SourceTrial {
 	    matched: boolean;
@@ -2122,6 +2158,47 @@ export namespace search {
 	        this.literal = source["literal"];
 	        this.pattern = source["pattern"];
 	        this.error = this.convertValues(source["error"], Error);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace sources {
+	
+	export class RuleFile {
+	    format: string;
+	    version: number;
+	    rules: models.SourceRule[];
+	    templates?: models.SourceTemplate[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RuleFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.format = source["format"];
+	        this.version = source["version"];
+	        this.rules = this.convertValues(source["rules"], models.SourceRule);
+	        this.templates = this.convertValues(source["templates"], models.SourceTemplate);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

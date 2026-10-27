@@ -887,3 +887,33 @@ func TestRead_SaysWhatIsStandard(t *testing.T) {
 		}
 	}
 }
+
+// A device that sends no hostname: the word after the timestamp goes back to
+// the tag or the text, and nothing else of the message changes.
+func TestRereadWithoutHost(t *testing.T) {
+	for raw, want := range map[string][3]string{
+		"<14>Oct 27 09:14:02 motion detected on channel 2": {"", "", "motion detected on channel 2"},
+		"<14>Oct 27 09:14:02 cam-7 recorder: low light":    {"", "", "cam-7 recorder: low light"},
+		"<14>Oct 27 09:14:02 recorder[12]: low light":      {"", "recorder", "low light"},
+	} {
+		msg, rd := Read([]byte(raw), "10.0.0.2", "UDP")
+		ts := msg.Timestamp
+		RereadWithoutHost(&msg, rd)
+		if msg.Hostname != want[0] || msg.AppName != want[1] || msg.Message != want[2] || !msg.Timestamp.Equal(ts) {
+			t.Errorf("%q: host %q app %q message %q at %v", raw, msg.Hostname, msg.AppName, msg.Message, msg.Timestamp)
+		}
+	}
+	// RFC 5424 says where its hostname is; a header that is not the RFCs' was
+	// read by someone else.
+	for _, raw := range []string{
+		"<14>1 2026-10-27T09:14:02Z web-01 nginx - - - hello",
+		"<187>123: *Oct 27 09:14:02.123: %LINK-3-UPDOWN: Interface Gi0/1, changed state to down",
+	} {
+		msg, rd := Read([]byte(raw), "10.0.0.2", "UDP")
+		before := msg
+		RereadWithoutHost(&msg, rd)
+		if msg != before {
+			t.Errorf("%q changed: %+v", raw, msg)
+		}
+	}
+}

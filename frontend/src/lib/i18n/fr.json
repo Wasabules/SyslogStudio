@@ -767,7 +767,54 @@
     "rereadRunning": "{read} messages parcourus sur {total} · {changed} lus autrement",
     "rereadDone": "Terminé : {read} messages parcourus, {changed} lus autrement.",
     "rereadStopped": "Arrêté après {read} messages : les {changed} lus autrement le restent.",
-    "rereadFailed": "La relecture s’est arrêtée : {error}"
+    "rereadFailed": "La relecture s’est arrêtée : {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "N’envoie pas de nom d’hôte",
+        "hint": "Routeurs, commutateurs et boîtiers qui omettent le nom d’hôte : le mot qui suit l’horodatage reste dans le message, et le nom d’hôte est l’adresse d’origine."
+      },
+      "camera": {
+        "name": "Caméra ou objet connecté",
+        "hint": "Pas de nom d’hôte, et la même priorité partout : le nom d’hôte est l’adresse d’origine, et le niveau le mot qui le dit dans le texte."
+      },
+      "level-in-text": {
+        "name": "Niveau dans le texte",
+        "hint": "La même priorité sur tous les messages : le niveau est le mot qui le dit dans le texte — ERROR, warning, crit…"
+      },
+      "json": {
+        "name": "JSON derrière un en-tête syslog",
+        "hint": "Un conteneur ou une application qui journalise du JSON via syslog (Docker, Kubernetes) : le niveau, l’heure, l’hôte et le message sont lus dans le JSON."
+      },
+      "windows-1252": {
+        "name": "Accents illisibles (Windows-1252)",
+        "hint": "Un appareil Windows ou ancien qui n’envoie pas d’UTF-8 : son texte est décodé en Windows-1252."
+      },
+      "bad-clock": {
+        "name": "Horloge peu fiable",
+        "hint": "Un appareil dont personne n’a réglé l’horloge : ses messages prennent l’heure de leur arrivée."
+      },
+      "own-format": {
+        "name": "Un format bien à lui",
+        "hint": "Une expression régulière à groupes nommés — time, level, host, app, msg — à adapter aux lignes de l’appareil."
+      }
+    },
+    "tplStart": "Partir de",
+    "tplChoose": "Choisir un modèle…",
+    "tplBuiltIn": "Modèles",
+    "myTemplates": "Vos modèles",
+    "myTemplatesHint": "Des façons de lire enregistrées sous un nom de votre choix, proposées à l’écriture d’une règle et à l’import d’un fichier. Elles restent dans les réglages de cette fenêtre, quel que soit le moteur qu’elle pilote, et voyagent dans les fichiers exportés.",
+    "myTemplatesEmpty": "Aucun pour l’instant : dans l’éditeur d’une règle, ou dans le format d’un import de fichier, « Enregistrer comme modèle… » garde la façon de lire.",
+    "saveTemplate": "Enregistrer comme modèle…",
+    "templateName": "Nom du modèle",
+    "templateSaved": "Modèle enregistré",
+    "templateDeleted": "Modèle supprimé",
+    "fromTemplate": "D’un de vos modèles",
+    "import": "Importer…",
+    "export": "Exporter…",
+    "exported": "Règles exportées dans {path}",
+    "imported": "{rules} règles importées, désactivées — vérifiez leurs adresses, puis activez-les. {templates} modèles ajoutés.",
+    "hostNone": "Il n’en envoie pas : l’adresse d’origine",
+    "sumNoHost": "n’envoie pas de nom d’hôte"
   },
   "storage": {
     "custom": "Personnalisé…",

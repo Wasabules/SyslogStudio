@@ -767,7 +767,54 @@
     "rereadRunning": "{read} de {total} mensajes recorridos · {changed} leídos de otra forma",
     "rereadDone": "Hecho: {read} mensajes recorridos, {changed} leídos de otra forma.",
     "rereadStopped": "Detenido tras {read} mensajes: los {changed} leídos de otra forma se quedan así.",
-    "rereadFailed": "La nueva lectura se detuvo: {error}"
+    "rereadFailed": "La nueva lectura se detuvo: {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "No envía nombre de host",
+        "hint": "Routers, conmutadores y equipos que omiten el nombre de host: la palabra tras la marca de tiempo se queda en el mensaje, y el nombre de host es la dirección de origen."
+      },
+      "camera": {
+        "name": "Cámara o dispositivo IoT",
+        "hint": "Sin nombre de host y con la misma prioridad en todo: el nombre de host es la dirección de origen, y el nivel la palabra que lo indica en el texto."
+      },
+      "level-in-text": {
+        "name": "Nivel en el texto",
+        "hint": "La misma prioridad en todos los mensajes: el nivel es la palabra que lo indica en el texto — ERROR, warning, crit…"
+      },
+      "json": {
+        "name": "JSON tras una cabecera syslog",
+        "hint": "Un contenedor o una aplicación que registra JSON por syslog (Docker, Kubernetes): el nivel, la hora, el host y el mensaje se leen del JSON."
+      },
+      "windows-1252": {
+        "name": "Acentos ilegibles (Windows-1252)",
+        "hint": "Un dispositivo Windows o antiguo que no envía UTF-8: su texto se decodifica como Windows-1252."
+      },
+      "bad-clock": {
+        "name": "Reloj poco fiable",
+        "hint": "Un dispositivo cuyo reloj nadie ha ajustado: sus mensajes toman la hora de llegada."
+      },
+      "own-format": {
+        "name": "Un formato propio",
+        "hint": "Una expresión regular con grupos con nombre — time, level, host, app, msg — que adaptar a las líneas del dispositivo."
+      }
+    },
+    "tplStart": "Partir de",
+    "tplChoose": "Elegir una plantilla…",
+    "tplBuiltIn": "Plantillas",
+    "myTemplates": "Sus plantillas",
+    "myTemplatesHint": "Formas de leer guardadas con un nombre propio, ofrecidas al escribir una regla y al importar un archivo. Se quedan en los ajustes de esta ventana, sea cual sea el motor que maneje, y viajan en los archivos exportados.",
+    "myTemplatesEmpty": "Aún ninguna: en el editor de una regla, o en el formato de una importación de archivo, «Guardar como plantilla…» conserva la forma de leer.",
+    "saveTemplate": "Guardar como plantilla…",
+    "templateName": "Nombre de la plantilla",
+    "templateSaved": "Plantilla guardada",
+    "templateDeleted": "Plantilla eliminada",
+    "fromTemplate": "De una de sus plantillas",
+    "import": "Importar…",
+    "export": "Exportar…",
+    "exported": "Reglas exportadas a {path}",
+    "imported": "{rules} reglas importadas, desactivadas — revise sus direcciones y luego actívelas. {templates} plantillas añadidas.",
+    "hostNone": "No envía ninguno: la dirección de origen",
+    "sumNoHost": "no envía nombre de host"
   },
   "storage": {
     "custom": "Personalizado…",

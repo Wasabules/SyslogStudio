@@ -313,6 +313,9 @@ type AppConfig struct {
 	// SourceRules say how the messages of devices that bend the syslog RFCs
 	// are read, in the order they are tried.
 	SourceRules []SourceRule `json:"sourceRules,omitempty"`
+	// SourceTemplates are the templates a person saved: the window's own,
+	// whichever engine it drives.
+	SourceTemplates []SourceTemplate `json:"sourceTemplates,omitempty"`
 	// Backup is where copies of the database go, and when.
 	Backup BackupConfig `json:"backup"`
 }

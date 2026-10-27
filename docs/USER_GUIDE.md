@@ -182,7 +182,7 @@ expression with named groups (`time`, `level`, `host`, `app`, `msg`), and the ot
 
 | Setting | What it does |
 |---|---|
-| Hostname | As sent, the address the message came from, or a name you give |
+| Hostname | *As sent*. *It sends none*: the word after an RFC 3164 timestamp is not a hostname but the start of the tag or text, and the hostname is the address it came from. *The address it came from*, replacing whatever was sent. Or a name you give |
 | Application | Replaces the one sent |
 | Severity | *Automatic*: the priority, unless the message declares a level in a field. *Always the priority*. *From the message text*: a level word anywhere in the text wins |
 | Encoding | UTF-8, Windows-1252, ISO-8859-1 or ISO-8859-15, for a device that garbles accents |
@@ -195,6 +195,33 @@ that read a message.
 
 Rules belong to the engine the window drives: while it drives the system service, they are the
 service's. Installing the service copies the window's rules to it.
+
+#### Templates, and sharing rules
+
+**Start from** in the rule editor fills the format and the corrections from a template, keeping the
+rule's name and addresses. Those that come with SyslogStudio each do one thing the reading as
+received cannot guess:
+
+| Template | What it sets |
+|---|---|
+| Sends no hostname | *It sends none* — routers, switches and appliances that leave it out |
+| Camera or IoT device | *It sends none*, and the severity from the message text |
+| Level in the text | The severity from the message text, for a device with one priority for everything |
+| JSON behind a syslog header | The JSON format, for a container or application logging JSON through syslog |
+| Garbled accents (Windows-1252) | The Windows-1252 encoding |
+| Clock not to be trusted | The arrival time |
+| A format of its own | A regular expression with named groups, to adapt |
+
+**Save as a template…** keeps a rule's way of reading — its format, your regular expression
+included, and its corrections, not its addresses — under a name of your own. Your templates are
+offered in the rule editor and in a file import's **Format** (*From one of your templates*), where
+a format written for a file can be saved as a template too. They stay in this window's settings
+whichever engine it drives, and are listed, to delete, under **Your templates** in Settings >
+Sources.
+
+**Export…** writes the rules and your templates to a JSON file; **Import…** reads one. Imported
+rules are added after yours and **turned off**: the addresses they name are another network's until
+someone has checked them. A file with a rule that would not be saved is refused whole.
 
 #### Messages already stored
 

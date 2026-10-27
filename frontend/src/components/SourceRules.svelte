@@ -9,16 +9,21 @@
     import { onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
     import { messages } from '../lib/stores';
-    import { toastError } from '../lib/toast';
+    import { toastError, toastSuccess } from '../lib/toast';
     import { entryFor } from '../lib/formats';
     import {
-        emptyRule, getSourceRules, listText, reorderSourceRules, ruleDraft, rulesVersion, saveSourceRule,
-        samplesForRule, samplesOf,
+        deleteSourceTemplate, emptyRule, exportSourceRules, getSourceRules, getSourceTemplates, isOwnTemplate,
+        listText, readSourceRulesFile, reorderSourceRules, ruleDraft, rulesVersion, saveSourceRule,
+        samplesForRule, samplesOf, templatesVersion,
     } from '../lib/sources';
-    import type { SourceRule } from '../lib/sources';
+    import type { SourceRule, SourceTemplate } from '../lib/sources';
     import RereadHistory from './RereadHistory.svelte';
 
     let rules: SourceRule[] = [];
+    // This person's templates; those that come with SyslogStudio are offered
+    // in the editor, not listed here.
+    let mine: SourceTemplate[] = [];
+    $: if ($templatesVersion >= 0) getSourceTemplates().then(t => (mine = t.filter(isOwnTemplate))).catch(() => {});
 
     async function load() {
         try { rules = await getSourceRules(); } catch (e: any) { toastError(e?.message || String(e)); }
@@ -39,7 +44,8 @@
         const parts: string[] = [];
         if (r.format.mode && r.format.mode !== 'auto') parts.push($_(entryFor(r.format).label));
         if (r.format.timezone) parts.push(r.format.timezone);
-        if (r.hostnameFromSource) parts.push($_('sources.sumHostSource'));
+        if (r.noHostname) parts.push($_('sources.sumNoHost'));
+        else if (r.hostnameFromSource) parts.push($_('sources.sumHostSource'));
         else if (r.hostname) parts.push($_('sources.sumHost', { values: { host: r.hostname } }));
         if (r.appName) parts.push($_('sources.sumApp', { values: { app: r.appName } }));
         if (r.levelFrom === 'priority') parts.push($_('sources.levelPriority'));
@@ -67,6 +73,43 @@
         }
     }
 
+    async function exportAll() {
+        try {
+            const path = await exportSourceRules(rules);
+            if (path) toastSuccess($_('sources.exported', { values: { path } }));
+        } catch (e: any) {
+            toastError(e?.message || String(e));
+        }
+    }
+
+    // A file's rules are added after these, turned off: the addresses they
+    // name are another network's until someone has looked. Its templates are
+    // saved already.
+    async function importFile() {
+        try {
+            const file = await readSourceRulesFile();
+            const brought = file.rules || [];
+            for (const r of brought) await saveSourceRule({ ...r, id: '', enabled: false });
+            if (brought.length || file.templates?.length) {
+                toastSuccess($_('sources.imported', { values: { rules: brought.length, templates: file.templates?.length || 0 } }));
+            }
+            templatesVersion.update(v => v + 1);
+        } catch (e: any) {
+            toastError(e?.message || String(e));
+        }
+        await load();
+    }
+
+    async function forget(t: SourceTemplate) {
+        try {
+            await deleteSourceTemplate(t.id);
+            templatesVersion.update(v => v + 1);
+            toastSuccess($_('sources.templateDeleted'));
+        } catch (e: any) {
+            toastError(e?.message || String(e));
+        }
+    }
+
     async function move(i: number, by: number) {
         const ids = rules.map(r => r.id);
         const j = i + by;
@@ -85,7 +128,11 @@
 
 <div class="head">
     <h4>{$_('sources.rules')}</h4>
-    <button class="action-btn" on:click={add}>{$_('sources.add')}</button>
+    <span class="buttons">
+        <button class="action-btn" on:click={importFile}>{$_('sources.import')}</button>
+        <button class="action-btn" on:click={exportAll} disabled={!rules.length && !mine.length}>{$_('sources.export')}</button>
+        <button class="action-btn" on:click={add}>{$_('sources.add')}</button>
+    </span>
 </div>
 
 {#if rules.length === 0}
@@ -111,6 +158,26 @@
     </div>
     <p class="muted">{$_('sources.order')}</p>
 {/if}
+
+<div class="templates">
+    <h4>{$_('sources.myTemplates')}</h4>
+    <p class="muted">{$_('sources.myTemplatesHint')}</p>
+    {#if mine.length === 0}
+        <p class="muted">{$_('sources.myTemplatesEmpty')}</p>
+    {:else}
+        <div class="list">
+            {#each mine as t (t.id)}
+                <div class="row">
+                    <div class="what">
+                        <span class="name">{t.name}</span>
+                        <span class="meta">{what(t.rule)}</span>
+                    </div>
+                    <button class="action-btn" on:click={() => forget(t)}>{$_('sources.delete')}</button>
+                </div>
+            {/each}
+        </div>
+    {/if}
+</div>
 
 <RereadHistory {rules} />
 
@@ -141,7 +208,12 @@
         background: var(--bg-secondary); color: var(--text-primary);
         border: 1px solid var(--border-color); border-radius: 4px;
     }
-    .action-btn:hover { background: var(--bg-hover); }
+    .action-btn:hover:not(:disabled) { background: var(--bg-hover); }
+    .action-btn:disabled { opacity: 0.5; cursor: default; }
+    .buttons { display: flex; gap: 6px; }
+    .templates { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color); }
+    .templates h4 { margin-bottom: 4px; }
+    .templates .muted { margin: 0 0 8px; }
     .icon {
         background: none; border: 1px solid var(--border-color); border-radius: 3px;
         color: var(--text-secondary); font-size: 9px; padding: 3px 6px;

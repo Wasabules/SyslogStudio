@@ -656,6 +656,21 @@ export const BACKUP_LISTING = { files: BACKUP_FILES, problems: [] };
  * sends no hostname. Read the way the engine reads them, as far as a page can
  * pretend to (bridge/App.js, TrySourceRule).
  */
+/** The templates that come with SyslogStudio (sources.Templates), and one saved. */
+export const SOURCE_TEMPLATES = [
+  { id: 'no-hostname', rule: { format: { mode: 'auto' }, noHostname: true } },
+  { id: 'camera', rule: { format: { mode: 'auto' }, noHostname: true, levelFrom: 'message' } },
+  { id: 'level-in-text', rule: { format: { mode: 'auto' }, levelFrom: 'message' } },
+  { id: 'json', rule: { format: { mode: 'json' } } },
+  { id: 'windows-1252', rule: { format: { mode: 'auto' }, encoding: 'windows-1252' } },
+  { id: 'bad-clock', rule: { format: { mode: 'auto' }, arrivalTime: true } },
+  { id: 'own-format', rule: { format: { mode: 'custom', pattern: '^(?P<time>\\S+ \\S+) (?P<level>\\w+) (?P<msg>.*)$' } } },
+  {
+    id: 'mine-lobby', name: 'Lobby cameras (NVR export)',
+    rule: { format: { mode: 'custom', pattern: '^(?P<time>\\S+ \\S+) \\[(?P<level>\\w+)\\] (?P<msg>.*)$' }, noHostname: true },
+  },
+];
+
 export const SOURCE_RULES = [
   {
     id: 'source-forti', name: 'Edge firewall', enabled: true,

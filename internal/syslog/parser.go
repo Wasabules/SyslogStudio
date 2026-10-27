@@ -328,6 +328,25 @@ func absDuration(d time.Duration) time.Duration {
 // space. What is not is kept as text here, and read again by whoever knows
 // more shapes than this parser does.
 func parseRFC3164(remainder string, msg *models.SyslogMessage) bool {
+	return readBSD(remainder, msg, true)
+}
+
+// RereadWithoutHost reads an RFC 3164 message again for a device that sends
+// no hostname: the word after the timestamp, taken for one, is the start of
+// the tag or the text. Any other message is left as it is.
+func RereadWithoutHost(msg *models.SyslogMessage, rd Reading) {
+	if !rd.Standard || msg.Version != 0 || msg.Hostname == "" {
+		return
+	}
+	m := *msg
+	m.Hostname, m.AppName, m.ProcID, m.Message = "", "", "", ""
+	readBSD(rd.Body, &m, false)
+	m.Timestamp = msg.Timestamp
+	*msg = m
+}
+
+// readBSD is parseRFC3164, the host read or not.
+func readBSD(remainder string, msg *models.SyslogMessage, withHost bool) bool {
 	msg.Version = 0
 
 	if len(remainder) == 0 {
@@ -378,7 +397,7 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) bool {
 	// Next token is hostname (until space)
 	spaceIdx := strings.Index(remainder, " ")
 	if spaceIdx < 0 {
-		if isTagToken(remainder) {
+		if !withHost || isTagToken(remainder) {
 			msg.Message = clone(remainder)
 			extractAppFromMsg(msg)
 			return standard
@@ -390,7 +409,7 @@ func parseRFC3164(remainder string, msg *models.SyslogMessage) bool {
 	// Many devices leave the host out — "Oct 27 09:14:02 dhcp: lease …" —
 	// and what stands in its place is then the tag. A hostname never ends in a
 	// colon.
-	if isTagToken(remainder[:spaceIdx]) {
+	if !withHost || isTagToken(remainder[:spaceIdx]) {
 		msg.Message = clone(remainder)
 		extractAppFromMsg(msg)
 		return standard

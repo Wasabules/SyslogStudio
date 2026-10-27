@@ -33,7 +33,7 @@ import {
   IMPORT_PREVIEW,
   SIMULATOR_CONFIG, SIMULATOR_STATUS,
   NETWORK_INTERFACES, CERT_INFO,
-  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK, SOURCE_RULES,
+  BACKGROUND_SETTINGS, SYSTEM_SERVICE, SERVICE_LINK, SOURCE_RULES, SOURCE_TEMPLATES,
   BACKUP_CONFIG, BACKUP_STATUS, BACKUP_FILES, BACKUP_LISTING, RECOVERY_KEY,
 } from '../fixtures.js';
 
@@ -96,6 +96,7 @@ let recoveryKey = clone(RECOVERY_KEY);
 let updateConfig = { checkOnStartup: true, channel: 'stable', skippedVersion: '' };
 let closeAction = 'ask';
 let sourceRules = clone(SOURCE_RULES);
+let sourceTemplates = clone(SOURCE_TEMPLATES);
 
 /**
  * What a rule makes of a message, as far as a page can say without the
@@ -362,6 +363,15 @@ const HANDLERS = {
     return Promise.resolve(null);
   },
   TrySourceRule: (rule, samples) => Promise.resolve(trySource(rule, samples || [])),
+  GetSourceTemplates: () => Promise.resolve(clone(sourceTemplates)),
+  SaveSourceTemplate: (t) => {
+    const saved = { ...t, id: t.id || `mine-${Date.now()}` };
+    sourceTemplates = [...sourceTemplates.filter((x) => x.id !== saved.id), saved];
+    return Promise.resolve(clone(saved));
+  },
+  DeleteSourceTemplate: (id) => { sourceTemplates = sourceTemplates.filter((t) => t.id !== id); return Promise.resolve(null); },
+  ExportSourceRules: () => Promise.resolve('C:\\Users\\operator\\Documents\\syslogstudio-source-rules.json'),
+  ReadSourceRulesFile: () => Promise.resolve({ rules: [], templates: [] }),
   // What reading the stored messages again did last: a page cannot do it.
   GetHistoryReread: () => Promise.resolve({ running: false, total: 1284409, read: 1284409, changed: 3216 }),
   RereadHistory: () => Promise.resolve(null),

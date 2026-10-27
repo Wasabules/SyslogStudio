@@ -767,7 +767,54 @@
     "rereadRunning": "{read} di {total} messaggi esaminati · {changed} letti diversamente",
     "rereadDone": "Fatto: {read} messaggi esaminati, {changed} letti diversamente.",
     "rereadStopped": "Fermato dopo {read} messaggi: i {changed} letti diversamente restano così.",
-    "rereadFailed": "La rilettura si è interrotta: {error}"
+    "rereadFailed": "La rilettura si è interrotta: {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "Non invia il nome host",
+        "hint": "Router, switch e appliance che omettono il nome host: la parola dopo il timestamp resta nel messaggio, e il nome host è l’indirizzo di provenienza."
+      },
+      "camera": {
+        "name": "Telecamera o dispositivo IoT",
+        "hint": "Nessun nome host e la stessa priorità ovunque: il nome host è l’indirizzo di provenienza, e il livello la parola che lo indica nel testo."
+      },
+      "level-in-text": {
+        "name": "Livello nel testo",
+        "hint": "La stessa priorità su ogni messaggio: il livello è la parola che lo indica nel testo — ERROR, warning, crit…"
+      },
+      "json": {
+        "name": "JSON dietro un’intestazione syslog",
+        "hint": "Un container o un’applicazione che registra JSON tramite syslog (Docker, Kubernetes): livello, ora, host e messaggio vengono letti dal JSON."
+      },
+      "windows-1252": {
+        "name": "Accenti illeggibili (Windows-1252)",
+        "hint": "Un dispositivo Windows o datato che non invia UTF-8: il testo viene decodificato come Windows-1252."
+      },
+      "bad-clock": {
+        "name": "Orologio inaffidabile",
+        "hint": "Un dispositivo il cui orologio non è mai stato regolato: i suoi messaggi prendono l’ora di arrivo."
+      },
+      "own-format": {
+        "name": "Un formato tutto suo",
+        "hint": "Un’espressione regolare con gruppi con nome — time, level, host, app, msg — da adattare alle righe del dispositivo."
+      }
+    },
+    "tplStart": "Parti da",
+    "tplChoose": "Scegli un modello…",
+    "tplBuiltIn": "Modelli",
+    "myTemplates": "I tuoi modelli",
+    "myTemplatesHint": "Modi di leggere salvati con un nome a tua scelta, proposti quando si scrive una regola e nell’importazione di un file. Restano nelle impostazioni di questa finestra, qualunque motore piloti, e viaggiano nei file esportati.",
+    "myTemplatesEmpty": "Ancora nessuno: nell’editor di una regola, o nel formato di un’importazione di file, «Salva come modello…» conserva il modo di leggere.",
+    "saveTemplate": "Salva come modello…",
+    "templateName": "Nome del modello",
+    "templateSaved": "Modello salvato",
+    "templateDeleted": "Modello eliminato",
+    "fromTemplate": "Da uno dei tuoi modelli",
+    "import": "Importa…",
+    "export": "Esporta…",
+    "exported": "Regole esportate in {path}",
+    "imported": "{rules} regole importate, disattivate — controlla i loro indirizzi, poi attivale. {templates} modelli aggiunti.",
+    "hostNone": "Non ne invia: l’indirizzo di provenienza",
+    "sumNoHost": "non invia il nome host"
   },
   "storage": {
     "custom": "Personalizzato…",

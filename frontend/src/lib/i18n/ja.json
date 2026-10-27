@@ -767,7 +767,54 @@
     "rereadRunning": "{total} 件中 {read} 件を処理 · {changed} 件の読み方が変化",
     "rereadDone": "完了: {read} 件を処理し、{changed} 件の読み方が変わりました。",
     "rereadStopped": "{read} 件で停止しました。読み方が変わった {changed} 件はそのままです。",
-    "rereadFailed": "読み直しが停止しました: {error}"
+    "rereadFailed": "読み直しが停止しました: {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "ホスト名を送らない",
+        "hint": "ホスト名を省くルーター、スイッチ、アプライアンス向け: タイムスタンプの後の語はメッセージに残し、ホスト名は送信元アドレスにします。"
+      },
+      "camera": {
+        "name": "カメラ / IoT デバイス",
+        "hint": "ホスト名がなく、すべて同じ優先度: ホスト名は送信元アドレス、レベルはテキスト中のレベルを表す語にします。"
+      },
+      "level-in-text": {
+        "name": "テキスト中のレベル",
+        "hint": "すべてのメッセージが同じ優先度: レベルはテキスト中のそれを表す語 (ERROR、warning、crit…) にします。"
+      },
+      "json": {
+        "name": "syslog ヘッダーの後の JSON",
+        "hint": "syslog 経由で JSON を記録するコンテナーやアプリケーション (Docker、Kubernetes): レベル、時刻、ホスト、メッセージを JSON から読み取ります。"
+      },
+      "windows-1252": {
+        "name": "文字化けするアクセント (Windows-1252)",
+        "hint": "UTF-8 を送らない Windows や古いデバイス: テキストを Windows-1252 としてデコードします。"
+      },
+      "bad-clock": {
+        "name": "信頼できない時計",
+        "hint": "時計が設定されていないデバイス: メッセージには到着時刻を使います。"
+      },
+      "own-format": {
+        "name": "独自の形式",
+        "hint": "名前付きグループ (time、level、host、app、msg) を持つ正規表現。デバイスの行に合わせて調整します。"
+      }
+    },
+    "tplStart": "開始点",
+    "tplChoose": "テンプレートを選択…",
+    "tplBuiltIn": "テンプレート",
+    "myTemplates": "マイテンプレート",
+    "myTemplatesHint": "任意の名前で保存した読み方。ルールの作成時とファイルのインポート時に表示されます。このウィンドウの設定に保存され、どのエンジンを操作していても使え、エクスポートしたファイルにも含まれます。",
+    "myTemplatesEmpty": "まだありません: ルールのエディター、またはファイルのインポートの形式で「テンプレートとして保存…」を使うと読み方を保存できます。",
+    "saveTemplate": "テンプレートとして保存…",
+    "templateName": "テンプレート名",
+    "templateSaved": "テンプレートを保存しました",
+    "templateDeleted": "テンプレートを削除しました",
+    "fromTemplate": "マイテンプレートから",
+    "import": "インポート…",
+    "export": "エクスポート…",
+    "exported": "ルールを {path} にエクスポートしました",
+    "imported": "{rules} 件のルールを無効のままインポートしました。アドレスを確認してから有効にしてください。テンプレートを {templates} 件追加しました。",
+    "hostNone": "送らない: 送信元アドレス",
+    "sumNoHost": "ホスト名を送らない"
   },
   "storage": {
     "custom": "カスタム…",
