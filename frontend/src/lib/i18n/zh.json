@@ -767,7 +767,54 @@
     "rereadRunning": "已处理 {read}/{total} 条消息 · {changed} 条读取结果有变化",
     "rereadDone": "完成：已处理 {read} 条消息，{changed} 条读取结果有变化。",
     "rereadStopped": "在 {read} 条消息后停止：已变化的 {changed} 条保持不变。",
-    "rereadFailed": "重新读取已停止：{error}"
+    "rereadFailed": "重新读取已停止：{error}",
+    "templates": {
+      "no-hostname": {
+        "name": "不发送主机名",
+        "hint": "省略主机名的路由器、交换机和设备：时间戳后的词保留在消息中，主机名取来源地址。"
+      },
+      "camera": {
+        "name": "摄像头或物联网设备",
+        "hint": "没有主机名，且所有消息优先级相同：主机名取来源地址，级别取文本中表示级别的词。"
+      },
+      "level-in-text": {
+        "name": "文本中的级别",
+        "hint": "所有消息优先级相同：级别取文本中表示级别的词 — ERROR、warning、crit…"
+      },
+      "json": {
+        "name": "syslog 头之后的 JSON",
+        "hint": "通过 syslog 记录 JSON 的容器或应用（Docker、Kubernetes）：从 JSON 中读取级别、时间、主机和消息。"
+      },
+      "windows-1252": {
+        "name": "重音乱码（Windows-1252）",
+        "hint": "不发送 UTF-8 的 Windows 或旧设备：其文本按 Windows-1252 解码。"
+      },
+      "bad-clock": {
+        "name": "时钟不可靠",
+        "hint": "时钟从未设置的设备：其消息使用到达时间。"
+      },
+      "own-format": {
+        "name": "自有格式",
+        "hint": "带命名分组（time、level、host、app、msg）的正则表达式，按设备的行进行调整。"
+      }
+    },
+    "tplStart": "从模板开始",
+    "tplChoose": "选择模板…",
+    "tplBuiltIn": "模板",
+    "myTemplates": "我的模板",
+    "myTemplatesHint": "以自定义名称保存的读取方式，在编写规则和导入文件时提供。它们保存在此窗口的设置中，无论窗口控制哪个引擎都可使用，并随导出文件一起传递。",
+    "myTemplatesEmpty": "暂无：在规则编辑器或文件导入的格式中，“另存为模板…”可保存读取方式。",
+    "saveTemplate": "另存为模板…",
+    "templateName": "模板名称",
+    "templateSaved": "模板已保存",
+    "templateDeleted": "模板已删除",
+    "fromTemplate": "使用我的模板",
+    "import": "导入…",
+    "export": "导出…",
+    "exported": "规则已导出到 {path}",
+    "imported": "已导入 {rules} 条规则（已停用）— 请检查其地址后再启用。已添加 {templates} 个模板。",
+    "hostNone": "不发送：使用来源地址",
+    "sumNoHost": "不发送主机名"
   },
   "storage": {
     "custom": "自定义…",

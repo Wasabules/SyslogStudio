@@ -433,6 +433,22 @@ func (cs *ConfigStore) SaveSourceRules(rules []models.SourceRule) {
 	cs.saveAll(all)
 }
 
+// LoadSourceTemplates reads the templates a person saved.
+func (cs *ConfigStore) LoadSourceTemplates() []models.SourceTemplate {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	return cs.loadAll().SourceTemplates
+}
+
+// SaveSourceTemplates writes them.
+func (cs *ConfigStore) SaveSourceTemplates(templates []models.SourceTemplate) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	all := cs.loadAll()
+	all.SourceTemplates = templates
+	cs.saveAll(all)
+}
+
 // LoadInbox reads the sealed inbox configuration: nil when what is received
 // is stored in the clear.
 func (cs *ConfigStore) LoadInbox() *models.InboxConfig {

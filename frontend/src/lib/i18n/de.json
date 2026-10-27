@@ -767,7 +767,54 @@
     "rereadRunning": "{read} von {total} Meldungen durchgesehen · {changed} anders gelesen",
     "rereadDone": "Fertig: {read} Meldungen durchgesehen, {changed} anders gelesen.",
     "rereadStopped": "Nach {read} Meldungen angehalten: die {changed} anders gelesenen bleiben so.",
-    "rereadFailed": "Das erneute Lesen wurde abgebrochen: {error}"
+    "rereadFailed": "Das erneute Lesen wurde abgebrochen: {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "Sendet keinen Hostnamen",
+        "hint": "Router, Switches und Appliances ohne Hostnamen: Das Wort nach dem Zeitstempel bleibt in der Meldung, und der Hostname ist die Absenderadresse."
+      },
+      "camera": {
+        "name": "Kamera oder IoT-Gerät",
+        "hint": "Kein Hostname und überall dieselbe Priorität: Der Hostname ist die Absenderadresse, der Schweregrad das Wort dafür im Text."
+      },
+      "level-in-text": {
+        "name": "Schweregrad im Text",
+        "hint": "Dieselbe Priorität für jede Meldung: Der Schweregrad ist das Wort dafür im Text — ERROR, warning, crit…"
+      },
+      "json": {
+        "name": "JSON hinter einem Syslog-Header",
+        "hint": "Ein Container oder eine Anwendung, die JSON über Syslog protokolliert (Docker, Kubernetes): Schweregrad, Zeit, Host und Meldung werden aus dem JSON gelesen."
+      },
+      "windows-1252": {
+        "name": "Verstümmelte Umlaute (Windows-1252)",
+        "hint": "Ein Windows- oder älteres Gerät, das kein UTF-8 sendet: Sein Text wird als Windows-1252 dekodiert."
+      },
+      "bad-clock": {
+        "name": "Unzuverlässige Uhr",
+        "hint": "Ein Gerät, dessen Uhr niemand gestellt hat: Seine Meldungen erhalten die Zeit ihres Eintreffens."
+      },
+      "own-format": {
+        "name": "Ein eigenes Format",
+        "hint": "Ein regulärer Ausdruck mit benannten Gruppen — time, level, host, app, msg — passend zu den Zeilen des Geräts."
+      }
+    },
+    "tplStart": "Ausgehend von",
+    "tplChoose": "Vorlage wählen…",
+    "tplBuiltIn": "Vorlagen",
+    "myTemplates": "Ihre Vorlagen",
+    "myTemplatesHint": "Lesarten, unter einem eigenen Namen gespeichert und beim Schreiben einer Regel sowie beim Dateiimport angeboten. Sie bleiben in den Einstellungen dieses Fensters, egal welche Engine es steuert, und reisen in exportierten Dateien mit.",
+    "myTemplatesEmpty": "Noch keine: Im Editor einer Regel oder im Format eines Dateiimports speichert „Als Vorlage speichern…“ die Lesart.",
+    "saveTemplate": "Als Vorlage speichern…",
+    "templateName": "Name der Vorlage",
+    "templateSaved": "Vorlage gespeichert",
+    "templateDeleted": "Vorlage gelöscht",
+    "fromTemplate": "Aus einer Ihrer Vorlagen",
+    "import": "Importieren…",
+    "export": "Exportieren…",
+    "exported": "Regeln exportiert nach {path}",
+    "imported": "{rules} Regeln importiert, deaktiviert — prüfen Sie ihre Adressen und aktivieren Sie sie dann. {templates} Vorlagen hinzugefügt.",
+    "hostNone": "Sendet keinen: die Absenderadresse",
+    "sumNoHost": "sendet keinen Hostnamen"
   },
   "storage": {
     "custom": "Benutzerdefiniert…",

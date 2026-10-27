@@ -27,6 +27,9 @@
     import { pendingImportPath, frozen } from '../lib/stores';
     import { entryFor } from '../lib/formats';
     import FormatFields from './FormatFields.svelte';
+    import SaveTemplate from './SaveTemplate.svelte';
+    import { emptyRule, getSourceTemplates, isOwnTemplate, templatesVersion } from '../lib/sources';
+    import type { SourceTemplate } from '../lib/sources';
 
     // The counts come back keyed by LABEL, while the colours are keyed by
     // severity number. Inverting the label table once is what keeps the two
@@ -42,6 +45,22 @@
     /** Choosing an entry by hand: a decision, not the detector's. */
     function pickedByHand() {
         adopted = false;
+    }
+
+    // The formats this person saved as templates, from a rule or from here,
+    // and that say more than "automatic".
+    let ownFormats: SourceTemplate[] = [];
+    let ownChosen = '';
+    $: if ($templatesVersion >= 0) getSourceTemplates()
+        .then(t => (ownFormats = t.filter(x => isOwnTemplate(x) && x.rule.format?.mode && x.rule.format.mode !== 'auto')))
+        .catch(() => {});
+
+    function useOwnFormat() {
+        const t = ownFormats.find(x => x.id === ownChosen);
+        if (!t) return;
+        format = { ...t.rule.format, joinContinuations: format.joinContinuations, skipUnmatched: format.skipUnmatched };
+        pickedByHand();
+        refresh();
     }
 
     let path = '';
@@ -310,8 +329,22 @@
                     </button>
 
                     {#if showFormat}
+                        {#if ownFormats.length}
+                            <label class="own-format">
+                                <span>{$_('sources.fromTemplate')}</span>
+                                <select bind:value={ownChosen} on:change={useOwnFormat}>
+                                    <option value="">{$_('sources.tplChoose')}</option>
+                                    {#each ownFormats as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+                                </select>
+                            </label>
+                        {/if}
                         <FormatFields bind:format fileOptions {formatError}
                                       on:pick={pickedByHand} on:change={refresh} />
+                        {#if format.mode !== 'auto'}
+                            <div class="own-format">
+                                <SaveTemplate make={() => ({ ...emptyRule(), format: { ...format, joinContinuations: false, skipUnmatched: false } })} />
+                            </div>
+                        {/if}
                     {/if}
 
                     <label class="check">
@@ -358,6 +391,9 @@
         padding: 16px; display: flex; flex-direction: column; gap: 10px;
         overflow-y: auto;
     }
+    /* Longer than the dialog, it scrolls: nothing in it is squeezed to fit,
+       the file's name and its sample least of all. */
+    .modal-body > :global(*) { flex-shrink: 0; }
     .lead { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
     .note { margin: 0; font-size: 10px; color: var(--text-secondary); line-height: 1.5; }
     .verdict { margin: 0; font-size: 12px; color: var(--text-primary); line-height: 1.5; }
@@ -421,4 +457,9 @@
     .btn:disabled { opacity: 0.5; cursor: default; }
     .btn.primary { background: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); color: #fff; }
     .btn.primary:hover:not(:disabled) { background: var(--accent-hover, #2563eb); }
+    .own-format { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 11px; color: var(--text-secondary); }
+    .own-format select {
+        background: var(--bg-primary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 6px; font-size: 12px;
+    }
 </style>

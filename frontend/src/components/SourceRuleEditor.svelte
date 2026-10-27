@@ -14,10 +14,12 @@
     import { activeZone, formatInZone } from '../lib/timezone';
     import { toastError, toastSuccess } from '../lib/toast';
     import FormatFields from './FormatFields.svelte';
+    import SaveTemplate from './SaveTemplate.svelte';
     import {
-        deleteSourceRule, listText, parseList, ruleDraft, rulesVersion, samplesForRule, saveSourceRule, trySourceRule,
+        deleteSourceRule, getSourceTemplates, isOwnTemplate, listText, parseList, ruleDraft, rulesVersion,
+        samplesForRule, saveSourceRule, templateName, templatesVersion, trySourceRule, withTemplate,
     } from '../lib/sources';
-    import type { SourceRule, SourceSample, SourceTrial } from '../lib/sources';
+    import type { SourceRule, SourceSample, SourceTemplate, SourceTrial } from '../lib/sources';
 
     export let rule: SourceRule;
     export let samples: SourceSample[] = [];
@@ -35,8 +37,29 @@
     const openedWith = sourcesText;
     let hostnamesText = listText(rule.match.hostnames);
     let appNamesText = listText(rule.match.appNames);
-    let hostMode: 'sent' | 'source' | 'fixed' =
-        rule.hostnameFromSource ? 'source' : rule.hostname ? 'fixed' : 'sent';
+    type HostMode = 'sent' | 'none' | 'source' | 'fixed';
+    const hostModeOf = (r: SourceRule): HostMode =>
+        r.noHostname ? 'none' : r.hostnameFromSource ? 'source' : r.hostname ? 'fixed' : 'sent';
+    let hostMode: HostMode = hostModeOf(rule);
+
+    // The templates to start from: those that come with SyslogStudio, then
+    // this person's.
+    let templates: SourceTemplate[] = [];
+    let chosen = '';
+    $: builtIn = templates.filter(t => !isOwnTemplate(t));
+    $: mine = templates.filter(isOwnTemplate);
+    $: chosenTemplate = templates.find(t => t.id === chosen);
+    $: if ($templatesVersion >= 0) getSourceTemplates().then(t => (templates = t)).catch(() => {});
+
+    function useTemplate() {
+        const t = templates.find(x => x.id === chosen);
+        if (!t) return;
+        rule = withTemplate(current(), t);
+        rule.levelFrom = rule.levelFrom || '';
+        rule.encoding = rule.encoding || '';
+        hostMode = hostModeOf(rule);
+        retry();
+    }
 
     let trials: SourceTrial[] = [];
     let error = '';
@@ -58,6 +81,7 @@
             },
             hostname: hostMode === 'fixed' ? (rule.hostname || '').trim() : '',
             hostnameFromSource: hostMode === 'source',
+            noHostname: hostMode === 'none',
             format: { ...rule.format, year: rule.format.year || undefined },
         };
     }
@@ -159,6 +183,26 @@
                 </label>
             </div>
 
+            {#if templates.length}
+                <label class="row">
+                    <span class="row-label">{$_('sources.tplStart')}</span>
+                    <select bind:value={chosen} on:change={useTemplate}>
+                        <option value="">{$_('sources.tplChoose')}</option>
+                        <optgroup label={$_('sources.tplBuiltIn')}>
+                            {#each builtIn as t (t.id)}<option value={t.id}>{templateName(t, $_)}</option>{/each}
+                        </optgroup>
+                        {#if mine.length}
+                            <optgroup label={$_('sources.myTemplates')}>
+                                {#each mine as t (t.id)}<option value={t.id}>{templateName(t, $_)}</option>{/each}
+                            </optgroup>
+                        {/if}
+                    </select>
+                </label>
+                {#if chosenTemplate && !isOwnTemplate(chosenTemplate)}
+                    <p class="note">{$_(`sources.templates.${chosenTemplate.id}.hint`)}</p>
+                {/if}
+            {/if}
+
             <h5>{$_('sources.which')}</h5>
             <label class="row">
                 <span class="row-label">{$_('sources.sources')}</span>
@@ -192,6 +236,7 @@
                 <div class="line">
                     <select bind:value={hostMode} on:change={retry}>
                         <option value="sent">{$_('sources.hostSent')}</option>
+                        <option value="none">{$_('sources.hostNone')}</option>
                         <option value="source">{$_('sources.hostSource')}</option>
                         <option value="fixed">{$_('sources.hostFixed')}</option>
                     </select>
@@ -261,6 +306,7 @@
             {#if editing}
                 <button class="btn danger" on:click={remove} disabled={busy}>{$_('sources.delete')}</button>
             {/if}
+            <SaveTemplate make={() => current()} />
             <span class="spacer"></span>
             <button class="btn" on:click={close} disabled={busy}>{$_('sources.cancel')}</button>
             <button class="btn primary" on:click={save} disabled={busy}>{$_('sources.save')}</button>
@@ -290,6 +336,8 @@
         padding: 16px; display: flex; flex-direction: column; gap: 8px;
         overflow-y: auto;
     }
+    /* Longer than the dialog, it scrolls: the preview is not squeezed. */
+    .modal-body > :global(*) { flex-shrink: 0; }
     h5 {
         margin: 8px 0 0; font-size: 11px; font-weight: 600; text-transform: uppercase;
         letter-spacing: 0.04em; color: var(--text-secondary);

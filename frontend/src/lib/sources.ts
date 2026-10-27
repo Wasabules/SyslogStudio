@@ -31,6 +31,8 @@ export interface SourceRule {
     format: ImportFormat;
     hostname?: string;
     hostnameFromSource?: boolean;
+    /** It sends no hostname: the word after an RFC 3164 stamp is not one. */
+    noHostname?: boolean;
     appName?: string;
     arrivalTime?: boolean;
     levelFrom?: LevelFrom;
@@ -61,6 +63,55 @@ export const deleteSourceRule = (id: string): Promise<void> => callGo('DeleteSou
 export const reorderSourceRules = (ids: string[]): Promise<void> => callGo('ReorderSourceRules', ids);
 export const trySourceRule = async (rule: SourceRule, samples: SourceSample[]): Promise<SourceTrial[]> =>
     (await callGo('TrySourceRule', rule, samples)) || [];
+
+/**
+ * A rule to start from: its way of reading, no device named. One that comes
+ * with SyslogStudio has no name — sources.templates.<id> says it — and one a
+ * person saved has the name they gave it.
+ */
+export interface SourceTemplate {
+    id: string;
+    name?: string;
+    rule: SourceRule;
+}
+
+/** What a file of exported rules brought: its templates are already saved. */
+export interface RuleFile {
+    rules?: SourceRule[];
+    templates?: SourceTemplate[];
+}
+
+export const getSourceTemplates = async (): Promise<SourceTemplate[]> => (await callGo('GetSourceTemplates')) || [];
+export const saveSourceTemplate = (t: SourceTemplate): Promise<SourceTemplate> => callGo('SaveSourceTemplate', t);
+export const deleteSourceTemplate = (id: string): Promise<void> => callGo('DeleteSourceTemplate', id);
+/** Asks where, and writes the rules there with this person's templates; '' when cancelled. */
+export const exportSourceRules = (rules: SourceRule[]): Promise<string> => callGo('ExportSourceRules', rules);
+/** Asks for a file of exported rules and reads it; empty when cancelled. */
+export const readSourceRulesFile = async (): Promise<RuleFile> => (await callGo('ReadSourceRulesFile')) || {};
+
+/** Bumped when a template is saved or deleted, for the lists to read them again. */
+export const templatesVersion = writable(0);
+
+/** A template's name, in the window's language for one that comes with SyslogStudio. */
+export function templateName(t: SourceTemplate, translate: (key: string) => string): string {
+    return t.name || translate(`sources.templates.${t.id}.name`);
+}
+
+/** Whether a person saved it. */
+export const isOwnTemplate = (t: SourceTemplate): boolean => !!t.name;
+
+/**
+ * A rule read the way a template reads: its format and corrections, keeping
+ * the rule's name, whether it is on, and the devices it names.
+ */
+export function withTemplate(rule: SourceRule, t: SourceTemplate): SourceRule {
+    return {
+        ...emptyRule(),
+        ...structuredClone(t.rule),
+        id: rule.id, name: rule.name, enabled: rule.enabled, match: rule.match,
+        format: { ...emptyRule().format, ...t.rule.format },
+    };
+}
 
 /** Which stored messages to read again with the rules. */
 export interface RereadOptions {

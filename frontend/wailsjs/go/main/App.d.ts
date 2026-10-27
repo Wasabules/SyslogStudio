@@ -4,6 +4,7 @@ import {models} from '../models';
 import {search} from '../models';
 import {notify} from '../models';
 import {importer} from '../models';
+import {sources} from '../models';
 
 export function AddAlertRule(arg1:models.AlertRule):Promise<models.AlertRule>;
 
@@ -47,6 +48,8 @@ export function DeleteNotifySink(arg1:string):Promise<void>;
 
 export function DeleteSourceRule(arg1:string):Promise<void>;
 
+export function DeleteSourceTemplate(arg1:string):Promise<void>;
+
 export function DescribeBackup(arg1:string):Promise<models.BackupFile>;
 
 export function DisableEncryption(arg1:string):Promise<void>;
@@ -66,6 +69,8 @@ export function ExportMessages(arg1:Array<models.SyslogMessage>,arg2:string,arg3
 export function ExportSelection(arg1:Array<string>,arg2:string,arg3:string):Promise<string>;
 
 export function ExportServerCertificate():Promise<string>;
+
+export function ExportSourceRules(arg1:Array<models.SourceRule>):Promise<string>;
 
 export function GenerateCA(arg1:models.CertOptions):Promise<models.CertInfo>;
 
@@ -141,6 +146,8 @@ export function GetSimulatorStatus():Promise<models.SimulatorStatus>;
 
 export function GetSourceRules():Promise<Array<models.SourceRule>>;
 
+export function GetSourceTemplates():Promise<Array<models.SourceTemplate>>;
+
 export function GetStats():Promise<models.ServerStats>;
 
 export function GetStorageConfig():Promise<models.StorageConfig>;
@@ -193,6 +200,8 @@ export function QueryMessages(arg1:models.QueryOptions):Promise<models.PagedResu
 
 export function QuitApplication():Promise<void>;
 
+export function ReadSourceRulesFile():Promise<sources.RuleFile>;
+
 export function RemoveRecoveryKey():Promise<void>;
 
 export function ReorderSourceRules(arg1:Array<string>):Promise<void>;
@@ -220,6 +229,8 @@ export function SaveServerConfig(arg1:models.ServerConfig):Promise<void>;
 export function SaveSimulatorConfig(arg1:models.SimulatorConfig):Promise<void>;
 
 export function SaveSourceRule(arg1:models.SourceRule):Promise<models.SourceRule>;
+
+export function SaveSourceTemplate(arg1:models.SourceTemplate):Promise<models.SourceTemplate>;
 
 export function SealServiceHistory(arg1:string):Promise<void>;
 

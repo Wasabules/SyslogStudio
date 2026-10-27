@@ -767,7 +767,54 @@
     "rereadRunning": "{read} of {total} messages gone through · {changed} read differently",
     "rereadDone": "Done: {read} messages gone through, {changed} read differently.",
     "rereadStopped": "Stopped after {read} messages: the {changed} read differently stay so.",
-    "rereadFailed": "Reading again stopped: {error}"
+    "rereadFailed": "Reading again stopped: {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "Sends no hostname",
+        "hint": "Routers, switches and appliances that leave the hostname out: the word after the timestamp stays in the message, and the hostname is the address it came from."
+      },
+      "camera": {
+        "name": "Camera or IoT device",
+        "hint": "No hostname, and the same priority on everything: the hostname is the address it came from, and the level the word for it in the text."
+      },
+      "level-in-text": {
+        "name": "Level in the text",
+        "hint": "The same priority on every message: the level is the word for it in the text — ERROR, warning, crit…"
+      },
+      "json": {
+        "name": "JSON behind a syslog header",
+        "hint": "A container or an application logging JSON through syslog (Docker, Kubernetes): the level, time, host and message are read from the JSON."
+      },
+      "windows-1252": {
+        "name": "Garbled accents (Windows-1252)",
+        "hint": "A Windows or older device that does not send UTF-8: its text is decoded as Windows-1252."
+      },
+      "bad-clock": {
+        "name": "Clock not to be trusted",
+        "hint": "A device whose clock nobody set: its messages take the time they arrived."
+      },
+      "own-format": {
+        "name": "A format of its own",
+        "hint": "A regular expression with named groups — time, level, host, app, msg — to adapt to the lines of the device."
+      }
+    },
+    "tplStart": "Start from",
+    "tplChoose": "Choose a template…",
+    "tplBuiltIn": "Templates",
+    "myTemplates": "Your templates",
+    "myTemplatesHint": "Ways of reading saved under a name of your own, offered when a rule is written and in a file import. They stay in this window’s settings, whichever engine it drives, and travel in exported files.",
+    "myTemplatesEmpty": "None yet: in a rule’s editor, or in a file import’s format, “Save as a template…” keeps the way of reading.",
+    "saveTemplate": "Save as a template…",
+    "templateName": "Template name",
+    "templateSaved": "Template saved",
+    "templateDeleted": "Template deleted",
+    "fromTemplate": "From one of your templates",
+    "import": "Import…",
+    "export": "Export…",
+    "exported": "Rules exported to {path}",
+    "imported": "{rules} rules imported, turned off — check their addresses, then turn them on. {templates} templates added.",
+    "hostNone": "It sends none: the address it came from",
+    "sumNoHost": "sends no hostname"
   },
   "storage": {
     "custom": "Custom…",

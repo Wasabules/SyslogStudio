@@ -158,6 +158,11 @@ func (r *Reader) apply(c *rule, raw []byte, msg models.SyslogMessage, rd syslog.
 		}
 	}
 
+	// A device that sends no hostname: what was taken for one was not.
+	if c.NoHostname {
+		syslog.RereadWithoutHost(&msg, rd)
+	}
+
 	// An RFC 3164 stamp carries no zone, and was read in this machine's: the
 	// device's wall clock is in the rule's. A time the format reads below is
 	// read in it too.
@@ -182,7 +187,7 @@ func (r *Reader) apply(c *rule, raw []byte, msg models.SyslogMessage, rd syslog.
 	}
 
 	switch {
-	case c.HostnameFromSource:
+	case c.HostnameFromSource, c.NoHostname && strings.TrimSpace(msg.Hostname) == "":
 		msg.Hostname = msg.SourceIP
 	case strings.TrimSpace(c.Hostname) != "":
 		msg.Hostname = strings.TrimSpace(c.Hostname)

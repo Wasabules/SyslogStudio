@@ -86,6 +86,10 @@ export function DeleteSourceRule(arg1) {
   return window['go']['main']['App']['DeleteSourceRule'](arg1);
 }
 
+export function DeleteSourceTemplate(arg1) {
+  return window['go']['main']['App']['DeleteSourceTemplate'](arg1);
+}
+
 export function DescribeBackup(arg1) {
   return window['go']['main']['App']['DescribeBackup'](arg1);
 }
@@ -124,6 +128,10 @@ export function ExportSelection(arg1, arg2, arg3) {
 
 export function ExportServerCertificate() {
   return window['go']['main']['App']['ExportServerCertificate']();
+}
+
+export function ExportSourceRules(arg1) {
+  return window['go']['main']['App']['ExportSourceRules'](arg1);
 }
 
 export function GenerateCA(arg1) {
@@ -274,6 +282,10 @@ export function GetSourceRules() {
   return window['go']['main']['App']['GetSourceRules']();
 }
 
+export function GetSourceTemplates() {
+  return window['go']['main']['App']['GetSourceTemplates']();
+}
+
 export function GetStats() {
   return window['go']['main']['App']['GetStats']();
 }
@@ -378,6 +390,10 @@ export function QuitApplication() {
   return window['go']['main']['App']['QuitApplication']();
 }
 
+export function ReadSourceRulesFile() {
+  return window['go']['main']['App']['ReadSourceRulesFile']();
+}
+
 export function RemoveRecoveryKey() {
   return window['go']['main']['App']['RemoveRecoveryKey']();
 }
@@ -432,6 +448,10 @@ export function SaveSimulatorConfig(arg1) {
 
 export function SaveSourceRule(arg1) {
   return window['go']['main']['App']['SaveSourceRule'](arg1);
+}
+
+export function SaveSourceTemplate(arg1) {
+  return window['go']['main']['App']['SaveSourceTemplate'](arg1);
 }
 
 export function SealServiceHistory(arg1) {

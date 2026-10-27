@@ -767,7 +767,54 @@
     "rereadRunning": "{read} de {total} mensagens percorridas · {changed} lidas de outra forma",
     "rereadDone": "Concluído: {read} mensagens percorridas, {changed} lidas de outra forma.",
     "rereadStopped": "Parado após {read} mensagens: as {changed} lidas de outra forma ficam assim.",
-    "rereadFailed": "A nova leitura parou: {error}"
+    "rereadFailed": "A nova leitura parou: {error}",
+    "templates": {
+      "no-hostname": {
+        "name": "Não envia nome de host",
+        "hint": "Routers, switches e equipamentos que omitem o nome de host: a palavra após o carimbo de tempo fica na mensagem, e o nome de host é o endereço de origem."
+      },
+      "camera": {
+        "name": "Câmara ou dispositivo IoT",
+        "hint": "Sem nome de host e com a mesma prioridade em tudo: o nome de host é o endereço de origem, e o nível a palavra que o indica no texto."
+      },
+      "level-in-text": {
+        "name": "Nível no texto",
+        "hint": "A mesma prioridade em todas as mensagens: o nível é a palavra que o indica no texto — ERROR, warning, crit…"
+      },
+      "json": {
+        "name": "JSON atrás de um cabeçalho syslog",
+        "hint": "Um contentor ou uma aplicação que regista JSON por syslog (Docker, Kubernetes): o nível, a hora, o host e a mensagem são lidos do JSON."
+      },
+      "windows-1252": {
+        "name": "Acentos ilegíveis (Windows-1252)",
+        "hint": "Um dispositivo Windows ou antigo que não envia UTF-8: o texto é descodificado como Windows-1252."
+      },
+      "bad-clock": {
+        "name": "Relógio pouco fiável",
+        "hint": "Um dispositivo cujo relógio ninguém acertou: as mensagens tomam a hora de chegada."
+      },
+      "own-format": {
+        "name": "Um formato próprio",
+        "hint": "Uma expressão regular com grupos nomeados — time, level, host, app, msg — a adaptar às linhas do dispositivo."
+      }
+    },
+    "tplStart": "Partir de",
+    "tplChoose": "Escolher um modelo…",
+    "tplBuiltIn": "Modelos",
+    "myTemplates": "Os seus modelos",
+    "myTemplatesHint": "Formas de ler guardadas com um nome à sua escolha, oferecidas ao escrever uma regra e ao importar um ficheiro. Ficam nas definições desta janela, seja qual for o motor que comanda, e viajam nos ficheiros exportados.",
+    "myTemplatesEmpty": "Ainda nenhum: no editor de uma regra, ou no formato de uma importação de ficheiro, «Guardar como modelo…» guarda a forma de ler.",
+    "saveTemplate": "Guardar como modelo…",
+    "templateName": "Nome do modelo",
+    "templateSaved": "Modelo guardado",
+    "templateDeleted": "Modelo eliminado",
+    "fromTemplate": "De um dos seus modelos",
+    "import": "Importar…",
+    "export": "Exportar…",
+    "exported": "Regras exportadas para {path}",
+    "imported": "{rules} regras importadas, desativadas — verifique os endereços e depois ative-as. {templates} modelos adicionados.",
+    "hostNone": "Não envia nenhum: o endereço de origem",
+    "sumNoHost": "não envia nome de host"
   },
   "storage": {
     "custom": "Personalizado…",

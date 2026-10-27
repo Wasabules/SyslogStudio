@@ -26,10 +26,15 @@ type SourceRule struct {
 	// apply, in the device's time zone when one is given.
 	Format ImportFormat `json:"format"`
 
-	// Hostname replaces the one sent, for a device that sends none or the
-	// wrong one; HostnameFromSource uses the address it arrived from.
+	// Hostname replaces the one sent, for a device that sends the wrong one;
+	// HostnameFromSource uses the address it arrived from instead.
 	Hostname           string `json:"hostname,omitempty"`
 	HostnameFromSource bool   `json:"hostnameFromSource,omitempty"`
+	// NoHostname is a device that sends no hostname at all. In an RFC 3164
+	// message the word after the timestamp is then not one but the start of
+	// the tag or the text, and goes back there; the hostname is the address
+	// it arrived from, unless the format read one.
+	NoHostname bool `json:"noHostname,omitempty"`
 	// AppName replaces the application.
 	AppName string `json:"appName,omitempty"`
 	// ArrivalTime uses the moment the message arrived, for a device whose
@@ -97,6 +102,22 @@ type SourceTrial struct {
 	Matched bool          `json:"matched"`
 	Before  SyslogMessage `json:"before"`
 	After   SyslogMessage `json:"after"`
+}
+
+// SourceTemplate is a rule ready to start from, for a kind of device: its
+// format and corrections, with no device named yet. A template that comes
+// with SyslogStudio has no Name: the window says it in its language, by ID.
+// One a person saved has the name they gave it.
+type SourceTemplate struct {
+	ID   string     `json:"id"`
+	Name string     `json:"name,omitempty"`
+	Rule SourceRule `json:"rule"`
+}
+
+// AsTemplate is a rule's way of reading, without the devices it names.
+func (r SourceRule) AsTemplate() SourceRule {
+	r.ID, r.Name, r.Enabled, r.Match = "", "", false, SourceMatch{}
+	return r
 }
 
 // RereadOptions says which stored messages to read again with the source
