@@ -121,6 +121,19 @@ func (r SourceRule) AsTemplate() SourceRule {
 	return r
 }
 
+// AddressInfo is what is known of an address beyond the address: whether it
+// is this machine, or on one of its networks — the only place the system's
+// neighbor table knows a device's MAC — and then that MAC and its maker.
+type AddressInfo struct {
+	MAC         string `json:"mac,omitempty"`
+	Vendor      string `json:"vendor,omitempty"`
+	OnLink      bool   `json:"onLink"`
+	ThisMachine bool   `json:"thisMachine,omitempty"`
+	// Randomized is a locally administered MAC: chosen by the device (a
+	// phone's private address, a virtual machine's), not its maker's.
+	Randomized bool `json:"randomized,omitempty"`
+}
+
 // SourceDevice is one address messages arrive from, as the engine has seen
 // it since it started: what it sends, how much, and how it is read — so that
 // a device that bends the RFCs, or sends no hostname, shows before anyone
@@ -152,6 +165,16 @@ type SourceDevice struct {
 	// LastRaw is its last message as it arrived, cut short: what to try a
 	// rule on when the live view holds none of its messages.
 	LastRaw string `json:"lastRaw"`
+
+	// What the neighbor table says of it (AddressInfo): its MAC and maker,
+	// only for a device on one of this machine's networks.
+	AddressInfo
+	// PreviousMACs are the MACs its address had before the current one,
+	// since the engine started: a device replaced, or two claiming one IP.
+	PreviousMACs []string `json:"previousMacs,omitempty"`
+	// AlsoAt are the other addresses its MAC was heard from since the
+	// engine started: a device whose address changed (DHCP).
+	AlsoAt []string `json:"alsoAt,omitempty"`
 }
 
 // RereadOptions says which stored messages to read again with the source

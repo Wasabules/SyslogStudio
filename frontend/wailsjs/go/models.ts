@@ -79,6 +79,26 @@ export namespace importer {
 
 export namespace models {
 	
+	export class AddressInfo {
+	    mac?: string;
+	    vendor?: string;
+	    onLink: boolean;
+	    thisMachine?: boolean;
+	    randomized?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddressInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mac = source["mac"];
+	        this.vendor = source["vendor"];
+	        this.onLink = source["onLink"];
+	        this.thisMachine = source["thisMachine"];
+	        this.randomized = source["randomized"];
+	    }
+	}
 	export class AlertEvent {
 	    id: string;
 	    ruleId: string;
@@ -1426,6 +1446,13 @@ export namespace models {
 	    ruled: number;
 	    readBy?: string;
 	    lastRaw: string;
+	    mac?: string;
+	    vendor?: string;
+	    onLink: boolean;
+	    thisMachine?: boolean;
+	    randomized?: boolean;
+	    previousMacs?: string[];
+	    alsoAt?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SourceDevice(source);
@@ -1448,6 +1475,13 @@ export namespace models {
 	        this.ruled = source["ruled"];
 	        this.readBy = source["readBy"];
 	        this.lastRaw = source["lastRaw"];
+	        this.mac = source["mac"];
+	        this.vendor = source["vendor"];
+	        this.onLink = source["onLink"];
+	        this.thisMachine = source["thisMachine"];
+	        this.randomized = source["randomized"];
+	        this.previousMacs = source["previousMacs"];
+	        this.alsoAt = source["alsoAt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

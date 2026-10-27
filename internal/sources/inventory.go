@@ -29,6 +29,9 @@ const (
 
 type device struct {
 	models.SourceDevice
+	// macs are the MACs the neighbor table gave its address, the last
+	// first (ObserveMACs).
+	macs []string
 	// counts[i] is how many arrived in the slot slots[i], a count of
 	// rateSlot since the epoch.
 	counts [rateSlots]int64
@@ -88,11 +91,41 @@ func (inv *Inventory) note(msg models.SyslogMessage, rd syslog.Reading) {
 	d.counts[i]++
 }
 
-// Devices returns them, the last heard from first.
+// maxMACs is how many MACs of one address are remembered.
+const maxMACs = 4
+
+// ObserveMACs asks macOf for the MAC of every address heard from, and
+// remembers each new one: what tells a device that moved to another address
+// (DHCP), or an address that changed hands.
+func (inv *Inventory) ObserveMACs(macOf func(address string) string) {
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+	for address, d := range inv.devices {
+		mac := macOf(address)
+		if mac == "" || (len(d.macs) > 0 && d.macs[0] == mac) {
+			continue
+		}
+		d.macs = slices.DeleteFunc(d.macs, func(m string) bool { return m == mac })
+		d.macs = append([]string{mac}, d.macs...)
+		if len(d.macs) > maxMACs {
+			d.macs = d.macs[:maxMACs]
+		}
+	}
+}
+
+// Devices returns them, the last heard from first. Each carries the MAC last
+// seen for its address, those before it, and the other addresses that MAC
+// was seen at; what the neighbor table says now is the caller's to add.
 func (inv *Inventory) Devices(now time.Time) []models.SourceDevice {
 	current := now.UnixNano() / int64(rateSlot)
 	inv.mu.Lock()
 	out := make([]models.SourceDevice, 0, len(inv.devices))
+	at := map[string][]string{}
+	for address, d := range inv.devices {
+		for _, mac := range d.macs {
+			at[mac] = append(at[mac], address)
+		}
+	}
 	for _, d := range inv.devices {
 		dev := d.SourceDevice
 		dev.Hostnames = slices.Clone(d.Hostnames)
@@ -100,6 +133,16 @@ func (inv *Inventory) Devices(now time.Time) []models.SourceDevice {
 			if d.slots[i] > current-rateSlots && d.slots[i] <= current {
 				dev.PerMinute += d.counts[i]
 			}
+		}
+		if len(d.macs) > 0 {
+			dev.MAC = d.macs[0]
+			dev.PreviousMACs = slices.Clone(d.macs[1:])
+			for _, other := range at[d.macs[0]] {
+				if other != d.Address {
+					dev.AlsoAt = append(dev.AlsoAt, other)
+				}
+			}
+			slices.Sort(dev.AlsoAt)
 		}
 		out = append(out, dev)
 	}

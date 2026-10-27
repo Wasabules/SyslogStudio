@@ -18,6 +18,7 @@ import (
 	"SyslogStudio/internal/event"
 	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/neighbors"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/pki"
 	"SyslogStudio/internal/simulator"
@@ -41,6 +42,10 @@ type Engine struct {
 	reader *sources.Reader
 	// inventory is the devices it has read messages from since Open.
 	inventory *sources.Inventory
+	// neighbors is the system's neighbor table, read every so often: the
+	// MAC of the devices on this machine's networks.
+	neighbors     *neighbors.Cache
+	stopNeighbors chan struct{}
 	// rereading reads stored messages again with it (reread.go).
 	rereading   rereading
 	simulator   *simulator.Simulator
@@ -130,6 +135,9 @@ func (e *Engine) Open(emitter event.EventEmitter) error {
 	e.applySourceRules()
 	e.inventory = sources.NewInventory()
 	e.reader.SetInventory(e.inventory)
+	e.neighbors = neighbors.NewCache()
+	e.stopNeighbors = make(chan struct{})
+	go e.watchNeighbors(e.stopNeighbors)
 	e.server.SetReader(e.reader.Read)
 	e.simulator = simulator.New(emitter)
 
@@ -229,6 +237,10 @@ func (e *Engine) OpenError() error {
 func (e *Engine) Close() {
 	if e.simulator != nil {
 		e.simulator.Stop()
+	}
+	if e.stopNeighbors != nil {
+		close(e.stopNeighbors)
+		e.stopNeighbors = nil
 	}
 	if e.dispatcher != nil {
 		e.dispatcher.Close()

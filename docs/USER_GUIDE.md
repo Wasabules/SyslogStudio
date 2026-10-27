@@ -214,6 +214,24 @@ button on each line opens the editor on the rule that reads it, or on a new one 
 tried on its latest messages — its last one at least, even when the live view holds none.
 **Count again** starts the counts from now.
 
+**MAC addresses — on the local network only.** A syslog message carries no MAC address.
+SyslogStudio reads the system's neighbor table (ARP for IPv4, NDP for IPv6) every 30 seconds, and
+that table only knows the devices on this computer's own networks:
+
+- A device on one of them shows its MAC and its maker, from the IEEE's registry: `04:03:12:…
+  · Hangzhou Hikvision`. A *private MAC* is one the device chose (a phone, a virtual machine): it
+  has no maker, and may change.
+- A device behind a router reaches this computer with the router's MAC: it shows **routed — no
+  MAC**, rather than the router's.
+- **MAC changed**: the address had another MAC before — a device replaced, or two devices claiming
+  one address. **also at …**: the same MAC was heard from another address — the device's address
+  changed (DHCP). When a rule names its old address and none its new one, the line says so.
+- Nothing is sent on the network to learn a MAC, and nothing is written to the database: the
+  MACs are known since SyslogStudio started (the service, when the window drives it), and shown
+  in the detail panel of a message too. Anonymous mode replaces them.
+- When the maker is one whose devices a template fits (a camera maker, Cisco, MikroTik), a new
+  rule from this tab suggests that template.
+
 #### Templates, and sharing rules
 
 **Start from** in the rule editor fills the format and the corrections from a template, keeping the

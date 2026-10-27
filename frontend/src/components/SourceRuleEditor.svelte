@@ -23,6 +23,8 @@
 
     export let rule: SourceRule;
     export let samples: SourceSample[] = [];
+    /** A template its maker suggests, for a new rule from the Devices tab. */
+    export let suggest: { template: string; vendor: string } | undefined = undefined;
 
     // How many matched samples are shown; the count covers them all.
     const SHOWN = 8;
@@ -171,6 +173,12 @@
 
         <div class="modal-body">
             <p class="lead">{$_('sources.lead')}</p>
+            {#if suggest && !chosen && templates.some(t => t.id === suggest?.template)}
+                <div class="suggest">
+                    <span>{$_('sources.suggestTemplate', { values: { vendor: suggest.vendor, template: $_(`sources.templates.${suggest.template}.name`) } })}</span>
+                    <button class="btn" on:click={() => { chosen = suggest?.template || ''; useTemplate(); }}>{$_('sources.suggestUse')}</button>
+                </div>
+            {/if}
 
             <div class="line">
                 <label class="row grow">
@@ -388,6 +396,11 @@
         padding: 12px 16px; border-top: 1px solid var(--border-color);
     }
     .spacer { flex: 1; }
+    .suggest {
+        display: flex; align-items: center; gap: 10px; padding: 8px 10px; font-size: 12px;
+        border: 1px solid var(--accent); border-radius: 6px; background: var(--accent-bg);
+    }
+    .suggest span { flex: 1; }
     .btn {
         padding: 6px 14px; font-size: 12px; cursor: pointer;
         background: var(--bg-primary); border: 1px solid var(--border-color);

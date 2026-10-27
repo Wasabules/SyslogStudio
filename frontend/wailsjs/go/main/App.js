@@ -378,6 +378,10 @@ export function LoadPersistedCA() {
   return window['go']['main']['App']['LoadPersistedCA']();
 }
 
+export function LookupAddress(arg1) {
+  return window['go']['main']['App']['LookupAddress'](arg1);
+}
+
 export function OpenBackup(arg1, arg2, arg3) {
   return window['go']['main']['App']['OpenBackup'](arg1, arg2, arg3);
 }
