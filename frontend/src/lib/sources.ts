@@ -134,6 +134,40 @@ export interface SourceDevice {
     readBy?: string;
     /** Its last message as it arrived, cut short. */
     lastRaw: string;
+    /** What the neighbor table says of it: on a local network only. */
+    mac?: string;
+    vendor?: string;
+    onLink: boolean;
+    thisMachine?: boolean;
+    randomized?: boolean;
+    /** The MACs its address had before, since the engine started. */
+    previousMacs?: string[];
+    /** The other addresses its MAC was heard from (its address changed). */
+    alsoAt?: string[];
+}
+
+/** What is known of an address beyond the address: its MAC, on a local network. */
+export interface AddressInfo {
+    mac?: string;
+    vendor?: string;
+    onLink: boolean;
+    thisMachine?: boolean;
+    randomized?: boolean;
+}
+
+export const lookupAddress = async (address: string): Promise<AddressInfo> =>
+    (await callGo('LookupAddress', address)) || { onLink: false };
+
+// Makers whose devices the templates fit: a suggestion, never applied alone.
+const VENDOR_TEMPLATES: [RegExp, string][] = [
+    [/hikvision|dahua|axis communications|hanwha|uniview|reolink|amcrest|vivotek|mobotix|milesight/i, 'camera'],
+    [/cisco|mikrotik|routerboard/i, 'no-hostname'],
+];
+
+/** The template a device's maker suggests, if any. */
+export function templateForVendor(vendor?: string): string | undefined {
+    if (!vendor) return undefined;
+    return VENDOR_TEMPLATES.find(([re]) => re.test(vendor))?.[1];
 }
 
 export const getSourceDevices = async (): Promise<SourceDevice[]> => (await callGo('GetSourceDevices')) || [];
@@ -188,7 +222,7 @@ export function watchReread() {
 }
 
 /** The rule being written, and the messages it is tried on. */
-export const ruleDraft = writable<{ rule: SourceRule; samples: SourceSample[] } | null>(null);
+export const ruleDraft = writable<{ rule: SourceRule; samples: SourceSample[]; suggest?: { template: string; vendor: string } } | null>(null);
 /** Bumped when a rule is saved or deleted, for the list to read them again. */
 export const rulesVersion = writable(0);
 

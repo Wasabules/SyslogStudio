@@ -340,6 +340,10 @@ func (s *Switch) ClearSourceDevices() {
 	s.Current().ClearSourceDevices()
 }
 
+func (s *Switch) LookupAddress(address string) models.AddressInfo {
+	return s.Current().LookupAddress(address)
+}
+
 func (s *Switch) RereadHistory(opts models.RereadOptions) error {
 	return s.Current().RereadHistory(opts)
 }

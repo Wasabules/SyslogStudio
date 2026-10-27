@@ -132,6 +132,8 @@ type Backend interface {
 	// The devices messages arrive from, since the engine started.
 	GetSourceDevices() []models.SourceDevice
 	ClearSourceDevices()
+	// What the neighbor table says of an address: its MAC, on a local network.
+	LookupAddress(address string) models.AddressInfo
 	// Stored messages read again with the rules; history:reread follows it.
 	RereadHistory(opts models.RereadOptions) error
 	GetHistoryReread() models.HistoryReread

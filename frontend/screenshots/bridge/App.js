@@ -365,6 +365,12 @@ const HANDLERS = {
   TrySourceRule: (rule, samples) => Promise.resolve(trySource(rule, samples || [])),
   GetSourceDevices: () => Promise.resolve(clone(SOURCE_DEVICES)),
   ClearSourceDevices: () => Promise.resolve(null),
+  LookupAddress: (address) => {
+    const d = SOURCE_DEVICES.find((x) => x.address === address);
+    return Promise.resolve(d
+      ? { mac: d.mac, vendor: d.vendor, onLink: d.onLink, randomized: d.randomized }
+      : { onLink: address.startsWith('10.10.') });
+  },
   GetSourceTemplates: () => Promise.resolve(clone(sourceTemplates)),
   SaveSourceTemplate: (t) => {
     const saved = { ...t, id: t.id || `mine-${Date.now()}` };

@@ -295,7 +295,7 @@
 
 <CloseDialog />
 {#if $ruleDraft}
-    <SourceRuleEditor rule={$ruleDraft.rule} samples={$ruleDraft.samples} />
+    <SourceRuleEditor rule={$ruleDraft.rule} samples={$ruleDraft.samples} suggest={$ruleDraft.suggest} />
 {/if}
 <ToastContainer />
 {/if}

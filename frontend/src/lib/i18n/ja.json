@@ -236,7 +236,11 @@
     "copyPickedJson": "{count} 件を JSON でコピー",
     "previousMessage": "前のメッセージ",
     "nextMessage": "次のメッセージ",
-    "exportPickedAs": "{count} 件を {format} でエクスポート"
+    "exportPickedAs": "{count} 件を {format} でエクスポート",
+    "macThisComputer": "このコンピューター",
+    "macRouted": "このコンピューターのネットワーク上にありません — MAC はローカルネットワークでのみ判明します",
+    "macUnknown": "まだ近隣テーブルにありません",
+    "macPrivate": "プライベートアドレス"
   },
   "dashboard": {
     "totalMessages": "メッセージ合計",
@@ -731,7 +735,7 @@
     "badgeHosts": "ホスト名 {count} 件",
     "badgeHostsHint": "1 つのアドレスに複数のホスト名: リレー、またはホスト名を送らず各メッセージの最初の語がホスト名と見なされているデバイスです。",
     "badgeRule": "ルール: {name}",
-    "devRead": "別の方法で読む…",
+    "devRead": "新しいルール…",
     "devEditRule": "そのルール…",
     "intro": "一部の機器は syslog 標準から外れています：ホスト名がない、独自の形式、すべて同じ優先度、別のタイムゾーンの時計、UTF-8 以外のエンコーディング。ルールは、そのような機器のメッセージを受信時にどう読むかを決めます。ライブビュー、履歴、アラート、ルーティングより前に適用され、生のメッセージは常に保持されます。",
     "rules": "ルール",
@@ -844,7 +848,22 @@
     "exported": "ルールを {path} にエクスポートしました",
     "imported": "{rules} 件のルールを無効のままインポートしました。アドレスを確認してから有効にしてください。テンプレートを {templates} 件追加しました。",
     "hostNone": "送らない: 送信元アドレス",
-    "sumNoHost": "ホスト名を送らない"
+    "sumNoHost": "ホスト名を送らない",
+    "macLocalOnly": "MAC アドレスはこのコンピューターの近隣テーブル (ARP、NDP) から取得します。自身のローカルネットワーク上のデバイスにしか MAC はありません。ルーターの先にあるデバイスはルーターの MAC で届くため、MAC は表示されません。",
+    "macThisMachine": "このコンピューター",
+    "macRouted": "ルーター経由 — MAC なし",
+    "macRoutedHint": "このコンピューターのネットワーク上にありません。メッセージはルーター経由で届き、テーブルが知っているのはルーターの MAC だけです。",
+    "macUnknown": "MAC はまだテーブルにありません",
+    "macPrivate": "プライベート MAC",
+    "macPrivateHint": "デバイスが選んだローカル管理の MAC (スマートフォンのプライベートアドレス、仮想マシン) です。メーカーはなく、変わることがあります。",
+    "badgeMacChanged": "MAC が変化",
+    "badgeMacChangedHint": "このアドレスには以前別の MAC がありました: {macs}。デバイスが交換されたか、2 台のデバイスが同じアドレスを使っています。",
+    "badgeAlsoAt": "{addresses} でも",
+    "badgeAlsoAtHint": "同じ MAC がこれらのアドレスから受信されました。デバイスのアドレスが変わっています (DHCP)。",
+    "badgeRuleOld": "「{name}」は {address} を指定",
+    "badgeRuleOldHint": "このデバイスの以前のアドレスを指定しているルールがあり、新しいアドレスで読むルールはありません。",
+    "suggestTemplate": "{vendor} 製: 「{template}」テンプレートが合うかもしれません。",
+    "suggestUse": "使用"
   },
   "storage": {
     "custom": "カスタム…",

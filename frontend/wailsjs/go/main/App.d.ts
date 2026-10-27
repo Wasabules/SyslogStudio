@@ -194,6 +194,8 @@ export function ListBackups():Promise<models.BackupListing>;
 
 export function LoadPersistedCA():Promise<void>;
 
+export function LookupAddress(arg1:string):Promise<models.AddressInfo>;
+
 export function OpenBackup(arg1:models.BackupRef,arg2:string,arg3:string):Promise<models.BackupView>;
 
 export function OpenURL(arg1:string):Promise<void>;

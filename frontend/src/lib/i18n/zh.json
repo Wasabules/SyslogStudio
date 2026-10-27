@@ -236,7 +236,11 @@
     "copyPickedJson": "以 JSON 复制 {count} 条消息",
     "previousMessage": "上一条消息",
     "nextMessage": "下一条消息",
-    "exportPickedAs": "将 {count} 条导出为 {format}"
+    "exportPickedAs": "将 {count} 条导出为 {format}",
+    "macThisComputer": "本机",
+    "macRouted": "不在本机的网络中 — 只有局域网内才能知道 MAC",
+    "macUnknown": "尚未出现在邻居表中",
+    "macPrivate": "私有地址"
   },
   "dashboard": {
     "totalMessages": "消息总数",
@@ -731,7 +735,7 @@
     "badgeHosts": "{count} 个主机名",
     "badgeHostsHint": "一个地址对应多个主机名：可能是中继，或者设备不发送主机名，每条消息的第一个词被当作主机名。",
     "badgeRule": "规则：{name}",
-    "devRead": "换一种方式读取…",
+    "devRead": "新建规则…",
     "devEditRule": "其规则…",
     "intro": "有些设备偏离 syslog 标准：没有主机名、自有格式、所有消息同一优先级、时钟在其他时区、编码不是 UTF-8。规则规定此类设备的消息到达时如何读取，先于实时视图、历史记录、告警规则和路由。原始消息始终保留。",
     "rules": "规则",
@@ -844,7 +848,22 @@
     "exported": "规则已导出到 {path}",
     "imported": "已导入 {rules} 条规则（已停用）— 请检查其地址后再启用。已添加 {templates} 个模板。",
     "hostNone": "不发送：使用来源地址",
-    "sumNoHost": "不发送主机名"
+    "sumNoHost": "不发送主机名",
+    "macLocalOnly": "MAC 地址来自本机的邻居表（ARP、NDP）：只有本机所在局域网中的设备才有 MAC。路由器之后的设备以路由器的 MAC 到达，因此不显示其 MAC。",
+    "macThisMachine": "本机",
+    "macRouted": "经路由 — 无 MAC",
+    "macRoutedHint": "不在本机的网络中：其消息经路由器到达，邻居表只知道路由器的 MAC。",
+    "macUnknown": "MAC 尚未出现在表中",
+    "macPrivate": "私有 MAC",
+    "macPrivateHint": "本地管理的 MAC，由设备自行选择（手机的私有地址、虚拟机）：没有制造商，且可能变化。",
+    "badgeMacChanged": "MAC 已变化",
+    "badgeMacChangedHint": "此地址之前有另一个 MAC：{macs}。可能是设备被更换，或两台设备在争用同一地址。",
+    "badgeAlsoAt": "也出现在 {addresses}",
+    "badgeAlsoAtHint": "从这些地址收到了相同的 MAC：设备的地址已变化（DHCP）。",
+    "badgeRuleOld": "“{name}”指定 {address}",
+    "badgeRuleOldHint": "有规则指定了此设备之前的地址，而没有规则在新地址读取它。",
+    "suggestTemplate": "由 {vendor} 制造：“{template}”模板可能适用。",
+    "suggestUse": "使用"
   },
   "storage": {
     "custom": "自定义…",

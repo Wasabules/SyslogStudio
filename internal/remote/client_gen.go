@@ -461,6 +461,12 @@ func (c *Client) ClearSourceDevices() {
 	c.logLost("ClearSourceDevices", c.call("ClearSourceDevices", []any{}))
 }
 
+func (c *Client) LookupAddress(address string) models.AddressInfo {
+	var r0 models.AddressInfo
+	c.logLost("LookupAddress", c.call("LookupAddress", []any{address}, &r0))
+	return r0
+}
+
 func (c *Client) RereadHistory(opts models.RereadOptions) error {
 	err := c.call("RereadHistory", []any{opts})
 	return err

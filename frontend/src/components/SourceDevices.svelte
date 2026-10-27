@@ -10,10 +10,11 @@
     import { messages } from '../lib/stores';
     import { queryMessageGroups } from '../lib/api';
     import { activeZone, formatInZone } from '../lib/timezone';
+    import { anonymous, redactIP, redactMAC } from '../lib/anonymize';
     import { toastError } from '../lib/toast';
     import {
         clearSourceDevices, getSourceDevices, getSourceRules, ruleDraft, ruleForDevice, ruleForSource,
-        rulesVersion, samplesForRule,
+        rulesVersion, samplesForRule, templateForVendor,
     } from '../lib/sources';
     import type { SourceDevice, SourceRule } from '../lib/sources';
 
@@ -64,7 +65,8 @@
         const kept = [...byAddress.values()].filter(r =>
             (!onlyAttention || (r.device && attention(r.device))) &&
             (!needle || r.address.toLowerCase().includes(needle) ||
-                (r.device?.hostnames || []).some(h => h.toLowerCase().includes(needle))));
+                (r.device?.hostnames || []).some(h => h.toLowerCase().includes(needle)) ||
+                (r.device?.mac || '').includes(needle) || (r.device?.vendor || '').toLowerCase().includes(needle)));
         const last = (r: Row) => (r.device ? Date.parse(r.device.lastSeen) : 0);
         const by: Record<typeof sort, (a: Row, b: Row) => number> = {
             last: (a, b) => last(b) - last(a),
@@ -75,7 +77,7 @@
         };
         return kept.sort((a, b) => by[sort](a, b) || a.address.localeCompare(b.address, undefined, { numeric: true }));
     })();
-    $: needing = devices.filter(attention).length;
+    $: needing = rows.filter(r => r.device && attention(r.device)).length;
 
     function readDifferently(row: Row) {
         const existing = ruleForSource(rules, row.address);
@@ -84,7 +86,18 @@
         if (!samples.some(s => s.sourceIP === row.address) && row.device?.lastRaw) {
             samples = [{ raw: row.device.lastRaw, sourceIP: row.address, protocol: row.device.protocol }];
         }
-        ruleDraft.set({ rule, samples });
+        const template = existing ? undefined : templateForVendor(row.device?.vendor);
+        ruleDraft.set({ rule, samples, suggest: template ? { template, vendor: row.device!.vendor! } : undefined });
+    }
+
+    /** The rule that names an address this device had, when none names its own. */
+    function oldRule(d: SourceDevice): { name: string; address: string } | undefined {
+        if (ruleForSource(rules, d.address)) return undefined;
+        for (const a of d.alsoAt || []) {
+            const r = rules.find(x => (x.match.sources || []).some(s => s.trim() === a));
+            if (r) return { name: r.name, address: a };
+        }
+        return undefined;
     }
 
     async function countAgain() {
@@ -108,6 +121,7 @@
 </script>
 
 <p class="intro">{$_('sources.devicesIntro')}</p>
+<p class="mac-note">{$_('sources.macLocalOnly')}</p>
 
 <div class="controls">
     <input class="filter" placeholder={$_('sources.devicesFilter')} bind:value={filter} />
@@ -129,7 +143,7 @@
     <button class="action-btn" on:click={countAgain}>{$_('sources.devicesClear')}</button>
 </div>
 
-<p class="summary">{$_('sources.devicesSummary', { values: { devices: n(rows.length), attention: n(needing) } })}</p>
+<p class="summary">{$_('sources.devicesSummary', { values: { devices: rows.length, attention: needing } })}</p>
 
 {#if rows.length === 0}
     <p class="muted">{$_('sources.devicesEmpty')}</p>
@@ -152,7 +166,7 @@
                 {@const d = row.device}
                 <tr class:attention={d && attention(d)}>
                     <td>
-                        <div class="mono">{row.address}{#if d}<span class="proto">{d.protocol}</span>{/if}</div>
+                        <div class="mono">{redactIP(row.address, $anonymous)}{#if d}<span class="proto">{d.protocol}</span>{/if}</div>
                         {#if d}
                             <div class="host">
                                 {d.hostname || '—'}
@@ -160,6 +174,18 @@
                                     <span class="badge" title={$_('sources.badgeHostsHint') + ' ' + d.hostnames.join(', ')}>
                                         {$_('sources.badgeHosts', { values: { count: d.hostnames.length } })}
                                     </span>
+                                {/if}
+                            </div>
+                            <div class="mac" title={d.vendor || ''}>
+                                {#if d.thisMachine}
+                                    {$_('sources.macThisMachine')}
+                                {:else if !d.onLink}
+                                    <span title={$_('sources.macRoutedHint')}>{$_('sources.macRouted')}</span>
+                                {:else if d.mac}
+                                    <span class="mono">{redactMAC(d.mac, $anonymous)}</span>{#if d.vendor} · {d.vendor}{/if}
+                                    {#if d.randomized}<span class="badge" title={$_('sources.macPrivateHint')}>{$_('sources.macPrivate')}</span>{/if}
+                                {:else}
+                                    {$_('sources.macUnknown')}
                                 {/if}
                             </div>
                         {/if}
@@ -175,6 +201,15 @@
                             {#if d.noPriority > 0}<span class="badge warn">{$_('sources.badgeNoPri')}</span>{/if}
                             {#if d.noHostname > 0}<span class="badge warn">{$_('sources.badgeNoHost')}</span>{/if}
                             {#if !d.readBy && !d.nonStandard && !d.noHostname}<span class="badge ok">{$_('sources.badgeStandard')}</span>{/if}
+                            {#if d.previousMacs?.length}
+                                <span class="badge warn" title={$_('sources.badgeMacChangedHint', { values: { macs: d.previousMacs.map(m => redactMAC(m, $anonymous)).join(', ') } })}>{$_('sources.badgeMacChanged')}</span>
+                            {/if}
+                            {#if d.alsoAt?.length}
+                                <span class="badge" title={$_('sources.badgeAlsoAtHint')}>{$_('sources.badgeAlsoAt', { values: { addresses: d.alsoAt.map(a => redactIP(a, $anonymous)).join(', ') } })}</span>
+                            {/if}
+                            {#if oldRule(d)}
+                                <span class="badge warn" title={$_('sources.badgeRuleOldHint')}>{$_('sources.badgeRuleOld', { values: { name: oldRule(d)?.name, address: redactIP(oldRule(d)?.address || '', $anonymous) } })}</span>
+                            {/if}
                         </div>{/if}
                     </td>
                     <td class="act">
@@ -206,14 +241,22 @@
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th {
         text-align: left; font-weight: 600; font-size: 11px; color: var(--text-secondary);
-        padding: 6px 8px; border-bottom: 1px solid var(--border-color); white-space: nowrap;
+        padding: 6px 6px; border-bottom: 1px solid var(--border-color); white-space: nowrap;
     }
-    td { padding: 6px 8px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+    td { padding: 6px 6px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
     tr.attention td:first-child { box-shadow: inset 3px 0 0 var(--warning, #e5a50a); }
     .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .mono { font-family: var(--font-mono, monospace); white-space: nowrap; }
     .proto { margin-left: 6px; font-size: 10px; color: var(--text-secondary); font-family: inherit; }
     .host { margin-top: 2px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+    .mac {
+        margin-top: 2px; font-size: 10px; color: var(--text-secondary);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+    }
+    .mac-note {
+        margin: 0 0 12px; padding: 6px 10px; font-size: 11px; line-height: 1.5;
+        color: var(--text-secondary); border-left: 3px solid var(--accent); background: var(--accent-bg);
+    }
     .muted-cell { color: var(--text-secondary); white-space: nowrap; }
     .badges { display: flex; flex-wrap: wrap; gap: 4px; }
     .badge {

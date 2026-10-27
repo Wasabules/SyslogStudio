@@ -7,10 +7,12 @@ package engine
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"time"
 
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/neighbors"
 	"SyslogStudio/internal/sources"
 )
 
@@ -28,12 +30,54 @@ func (e *Engine) applySourceRules() {
 }
 
 // GetSourceDevices returns the devices messages have arrived from since the
-// engine started, the last heard from first.
+// engine started, the last heard from first, with what the neighbor table
+// says of each.
 func (e *Engine) GetSourceDevices() []models.SourceDevice {
 	if e.inventory == nil {
 		return []models.SourceDevice{}
 	}
-	return e.inventory.Devices(time.Now())
+	devices := e.inventory.Devices(time.Now())
+	if e.neighbors == nil {
+		return devices
+	}
+	for i := range devices {
+		d := &devices[i]
+		remembered := d.MAC
+		d.AddressInfo = e.neighbors.Lookup(d.Address)
+		// Gone from the table since, the MAC last seen still says who it was.
+		if d.MAC == "" && d.OnLink && !d.ThisMachine && remembered != "" {
+			if mac, ok := neighbors.ParseMAC(remembered); ok {
+				hw, _ := net.ParseMAC(mac)
+				d.MAC, d.Vendor, d.Randomized = mac, neighbors.Vendor(hw), neighbors.Randomized(hw)
+			}
+		}
+	}
+	return devices
+}
+
+// LookupAddress says what is known of an address: whether it is this
+// machine or on one of its networks, and then its MAC and maker.
+func (e *Engine) LookupAddress(address string) models.AddressInfo {
+	if e.neighbors == nil {
+		return models.AddressInfo{}
+	}
+	return e.neighbors.Lookup(address)
+}
+
+// watchNeighbors reads the neighbor table every neighbors.Every, and has the
+// inventory remember the MAC of each address it has heard from.
+func (e *Engine) watchNeighbors(stop <-chan struct{}) {
+	tick := time.NewTicker(neighbors.Every)
+	defer tick.Stop()
+	for {
+		e.neighbors.Refresh()
+		e.inventory.ObserveMACs(e.neighbors.MAC)
+		select {
+		case <-stop:
+			return
+		case <-tick.C:
+		}
+	}
 }
 
 // ClearSourceDevices forgets them: counting starts again from now.

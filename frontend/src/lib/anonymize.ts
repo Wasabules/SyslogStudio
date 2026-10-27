@@ -138,6 +138,12 @@ export function redactIP(ip: string, on: boolean): string {
     return assign(hostMap, ip, fakeHost);
 }
 
+/** Replaces a MAC address with a stable stand-in, as it is in message text. */
+export function redactMAC(mac: string, on: boolean): string {
+    if (!on || !mac) return mac;
+    return assign(macMap, mac.toLowerCase(), fakeMAC);
+}
+
 /** Replaces a hostname with a stable stand-in, keeping loopback recognisable. */
 export function redactHost(host: string, on: boolean): string {
     if (!on || !host) return host;

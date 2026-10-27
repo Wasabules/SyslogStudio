@@ -86,3 +86,32 @@ func TestCut(t *testing.T) {
 		t.Errorf("short: %q", got)
 	}
 }
+
+// A MAC seen at a second address is a device that moved (DHCP); an address
+// whose MAC changes changed hands. Both are remembered.
+func TestInventory_MACs(t *testing.T) {
+	inv := NewInventory()
+	at := time.Now()
+	for _, ip := range []string{"192.168.1.20", "192.168.1.31", "192.168.1.50"} {
+		inv.note(models.SyslogMessage{SourceIP: ip, ReceivedAt: at}, syslog.Reading{HasPRI: true, Standard: true})
+	}
+	table := map[string]string{"192.168.1.20": "aa:aa:aa:00:00:01", "192.168.1.50": "aa:aa:aa:00:00:05"}
+	inv.ObserveMACs(func(ip string) string { return table[ip] })
+	// The camera's lease moved it to .31; .50 was replaced by another box.
+	table = map[string]string{"192.168.1.31": "aa:aa:aa:00:00:01", "192.168.1.50": "bb:bb:bb:00:00:09"}
+	inv.ObserveMACs(func(ip string) string { return table[ip] })
+
+	by := map[string]models.SourceDevice{}
+	for _, d := range inv.Devices(at) {
+		by[d.Address] = d
+	}
+	if d := by["192.168.1.31"]; d.MAC != "aa:aa:aa:00:00:01" || strings.Join(d.AlsoAt, ",") != "192.168.1.20" {
+		t.Errorf("moved to .31: %+v", d)
+	}
+	if d := by["192.168.1.20"]; d.MAC != "aa:aa:aa:00:00:01" || strings.Join(d.AlsoAt, ",") != "192.168.1.31" {
+		t.Errorf("its old address: %+v", d)
+	}
+	if d := by["192.168.1.50"]; d.MAC != "bb:bb:bb:00:00:09" || strings.Join(d.PreviousMACs, ",") != "aa:aa:aa:00:00:05" || len(d.AlsoAt) != 0 {
+		t.Errorf("changed hands: %+v", d)
+	}
+}

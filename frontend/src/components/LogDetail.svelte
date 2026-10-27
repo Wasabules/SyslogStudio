@@ -1,5 +1,7 @@
 <script lang="ts">
-    import { anonymous, redactText, redactHost, redactIP } from '../lib/anonymize';
+    import { anonymous, redactText, redactHost, redactIP, redactMAC } from '../lib/anonymize';
+    import { lookupAddress } from '../lib/sources';
+    import type { AddressInfo } from '../lib/sources';
     import { selectedMessage, filteredMessages } from '../lib/stores';
     import { SEVERITY_COLORS } from '../lib/constants';
     import { activeZone, zoneAbbreviation, formatInZone } from '../lib/timezone';
@@ -22,6 +24,21 @@
         }
     }
     // Where this message sits in the list, so the panel can walk it.
+    // What the neighbor table says of the source, asked once per address.
+    const looked = new Map<string, AddressInfo>();
+    let source: AddressInfo | null = null;
+    $: lookup($selectedMessage?.sourceIP);
+    async function lookup(ip: string | undefined) {
+        source = null;
+        if (!ip) return;
+        if (looked.has(ip)) { source = looked.get(ip)!; return; }
+        try {
+            const info = await lookupAddress(ip);
+            looked.set(ip, info);
+            if ($selectedMessage?.sourceIP === ip) source = info;
+        } catch { /* nothing to say */ }
+    }
+
     $: position = $selectedMessage
         ? $filteredMessages.findIndex(m => m.id === $selectedMessage?.id)
         : -1;
@@ -117,6 +134,21 @@
                 <span class="label">{$_('log.sourceIP')}</span>
                 <span class="value mono">{redactIP(msg.sourceIP, $anonymous)}</span>
             </div>
+
+            {#if source && msg.protocol !== 'file'}
+                <div class="field">
+                    <span class="label">MAC</span>
+                    {#if source.thisMachine}
+                        <span class="value">{$_('log.macThisComputer')}</span>
+                    {:else if !source.onLink}
+                        <span class="value muted">{$_('log.macRouted')}</span>
+                    {:else if source.mac}
+                        <span class="value"><span class="mono">{redactMAC(source.mac, $anonymous)}</span>{#if source.vendor} · {source.vendor}{/if}{#if source.randomized} · {$_('log.macPrivate')}{/if}</span>
+                    {:else}
+                        <span class="value muted">{$_('log.macUnknown')}</span>
+                    {/if}
+                </div>
+            {/if}
 
             <div class="field">
                 <span class="label">{$_('log.protocol')}</span>
@@ -322,4 +354,5 @@
         background: var(--bg-hover);
         color: var(--text-primary);
     }
+    .muted { color: var(--text-secondary); }
 </style>
