@@ -387,6 +387,7 @@
     "disableSuccess": "Criptografia desativada.",
     "unlockTitle": "Banco de dados bloqueado",
     "unlockMessage": "O banco de dados de logs está criptografado. Digite sua senha para desbloquear.",
+    "leftClear": "Esta base de dados foi encontrada sem cifra: o SyslogStudio tinha-a decifrado e parou sem fechar — uma falha, uma paragem forçada, um corte de energia. Introduza a sua palavra-passe: é verificada, a base abre-se como estava e volta a ser cifrada quando o SyslogStudio fechar.",
     "unlock": "Desbloquear",
     "unlocking": "Desbloqueando…",
     "lockedOutSeconds": "Muitas tentativas com falha. Bloqueado por {seconds}s.",

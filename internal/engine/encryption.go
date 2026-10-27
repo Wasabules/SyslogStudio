@@ -60,6 +60,12 @@ func (e *Engine) IsEncryptionEnabled() bool {
 	return e.configStore.LoadStorage().EncryptionEnabled
 }
 
+// IsDatabaseLeftClear says the locked database was found in the clear, left
+// so by a session that ended without closing: the password encrypts it again.
+func (e *Engine) IsDatabaseLeftClear() bool {
+	return e.logStore != nil && e.logStore.LeftClear()
+}
+
 // IsEncryptionLocked returns true if the database is encrypted and not yet unlocked.
 func (e *Engine) IsEncryptionLocked() bool {
 	return e.logStore != nil && e.logStore.IsLocked()
@@ -113,6 +119,15 @@ func (e *Engine) UnlockDatabase(password string) error {
 	var prev string
 	var usedPrev bool
 	master, legacy, err := e.masterFor(password)
+	if err == nil && legacy && e.logStore.LeftClear() {
+		// No keyring to check it, and no encrypted database to fail on: the
+		// password is about to encrypt everything again, and a mistyped one
+		// would lock its owner out. The other files it encrypts say whether
+		// it is the one.
+		if rerr := e.readableWith(password); rerr != nil {
+			err = fmt.Errorf("wrong password: %w", rerr)
+		}
+	}
 	if err == nil {
 		prev, usedPrev, err = e.unlockStore(master)
 	}

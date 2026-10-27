@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
     import { _ } from 'svelte-i18n';
-    import { unlockDatabase, getUnlockLockoutSeconds } from '../lib/api';
+    import { unlockDatabase, getUnlockLockoutSeconds, isDatabaseLeftClear } from '../lib/api';
     import { errorText, getRecoveryKey, resetEncryptionPassword, selectRecoveryKeyFile,
              unlockWithRecoveryKeyFile } from '../lib/backup';
 
@@ -19,6 +19,9 @@
 
     let password = '';
     let error = '';
+    // Found in the clear: a session ended without encrypting it again.
+    let leftClear = false;
+    isDatabaseLeftClear().then(v => (leftClear = v)).catch(() => {});
     let loading = false;
     let lockedOut = false;
     let lockoutSeconds = 0;
@@ -206,6 +209,9 @@
             </div>
         {:else}
             <p class="subtitle">{$_('encryption.unlockMessage')}</p>
+            {#if leftClear}
+                <p class="left-clear">{$_('encryption.leftClear')}</p>
+            {/if}
 
             <div class="input-group">
                 <!-- svelte-ignore a11y-autofocus -->
@@ -304,6 +310,12 @@
         margin: 0;
     }
 
+    .left-clear {
+        margin: 0 0 12px; padding: 8px 10px; max-width: 420px;
+        font-size: 12px; line-height: 1.5; text-align: left;
+        color: var(--text-primary); background: var(--warning-bg);
+        border: 1px solid var(--warning); border-radius: 6px;
+    }
     .subtitle {
         font-size: 13px;
         color: var(--text-secondary);

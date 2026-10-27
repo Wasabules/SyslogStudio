@@ -389,6 +389,7 @@
     "disableSuccess": "Chiffrement désactivé.",
     "unlockTitle": "Base de données verrouillée",
     "unlockMessage": "La base de données est chiffrée. Entrez votre mot de passe pour la déverrouiller.",
+    "leftClear": "Cette base a été trouvée non chiffrée : SyslogStudio l’avait déchiffrée puis s’est arrêté sans se fermer — plantage, arrêt forcé, coupure de courant. Saisissez votre mot de passe : il est vérifié, la base s’ouvre telle qu’elle était et elle est chiffrée à nouveau à la fermeture de SyslogStudio.",
     "unlock": "Déverrouiller",
     "unlocking": "Déverrouillage...",
     "warningTitle": "Important — Lisez attentivement",

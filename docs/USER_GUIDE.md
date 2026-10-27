@@ -490,6 +490,11 @@ destinations' credentials and the sealed inbox key. The password itself is never
   change of password, or the creation of a recovery key, replaces its key, which encrypts
   everything again once.
 - Once this version has written a database, versions before 1.8 can no longer open it.
+- While SyslogStudio runs, the database it works on is decrypted; it is encrypted again when
+  SyslogStudio closes. If SyslogStudio stops without closing — a crash, a forced stop, a power cut —
+  the database is found unencrypted at the next start. SyslogStudio then says so on the unlock
+  screen and asks for the password as usual: the database opens as it was, and is encrypted again
+  when SyslogStudio closes. (Before 1.11, it was opened without the password and stayed unencrypted.)
 
 ### The recovery key
 

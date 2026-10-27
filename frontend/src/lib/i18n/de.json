@@ -387,6 +387,7 @@
     "disableSuccess": "Verschlüsselung deaktiviert.",
     "unlockTitle": "Datenbank gesperrt",
     "unlockMessage": "Die Protokolldatenbank ist verschlüsselt. Geben Sie Ihr Passwort zum Entsperren ein.",
+    "leftClear": "Diese Datenbank wurde unverschlüsselt vorgefunden: SyslogStudio hatte sie entschlüsselt und wurde dann ohne Schließen beendet — Absturz, erzwungenes Beenden, Stromausfall. Geben Sie Ihr Passwort ein: Es wird geprüft, die Datenbank öffnet sich wie zuvor und wird beim Schließen von SyslogStudio wieder verschlüsselt.",
     "unlock": "Entsperren",
     "unlocking": "Wird entsperrt …",
     "lockedOutSeconds": "Zu viele Fehlversuche. Gesperrt für {seconds}s.",

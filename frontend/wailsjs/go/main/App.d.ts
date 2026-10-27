@@ -178,6 +178,8 @@ export function InstallSystemService(arg1:boolean,arg2:boolean):Promise<void>;
 
 export function IsCAKeyUnencrypted():Promise<boolean>;
 
+export function IsDatabaseLeftClear():Promise<boolean>;
+
 export function IsEncryptionEnabled():Promise<boolean>;
 
 export function IsEncryptionLocked():Promise<boolean>;

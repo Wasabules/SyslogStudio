@@ -226,6 +226,12 @@ func (c *Client) IsEncryptionLocked() bool {
 	return r0
 }
 
+func (c *Client) IsDatabaseLeftClear() bool {
+	var r0 bool
+	c.logLost("IsDatabaseLeftClear", c.call("IsDatabaseLeftClear", []any{}, &r0))
+	return r0
+}
+
 func (c *Client) UnlockDatabase(password string) error {
 	err := c.call("UnlockDatabase", []any{password})
 	return err
