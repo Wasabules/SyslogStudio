@@ -445,6 +445,21 @@ func (c *Client) TrySourceRule(rule models.SourceRule, samples []models.SourceSa
 	return r0, err
 }
 
+func (c *Client) RereadHistory(opts models.RereadOptions) error {
+	err := c.call("RereadHistory", []any{opts})
+	return err
+}
+
+func (c *Client) GetHistoryReread() models.HistoryReread {
+	var r0 models.HistoryReread
+	c.logLost("GetHistoryReread", c.call("GetHistoryReread", []any{}, &r0))
+	return r0
+}
+
+func (c *Client) CancelHistoryReread() {
+	c.logLost("CancelHistoryReread", c.call("CancelHistoryReread", []any{}))
+}
+
 func (c *Client) GetImportFormat() models.ImportFormat {
 	var r0 models.ImportFormat
 	c.logLost("GetImportFormat", c.call("GetImportFormat", []any{}, &r0))

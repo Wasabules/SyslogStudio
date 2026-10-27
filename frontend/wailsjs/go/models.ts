@@ -647,6 +647,28 @@ export namespace models {
 	        this.error = source["error"];
 	    }
 	}
+	export class HistoryReread {
+	    running: boolean;
+	    total: number;
+	    read: number;
+	    changed: number;
+	    cancelled?: boolean;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryReread(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.total = source["total"];
+	        this.read = source["read"];
+	        this.changed = source["changed"];
+	        this.cancelled = source["cancelled"];
+	        this.error = source["error"];
+	    }
+	}
 	export class HostListener {
 	    protocol: string;
 	    port: number;
@@ -961,6 +983,108 @@ export namespace models {
 	        this.id = source["id"];
 	        this.created = source["created"];
 	    }
+	}
+	export class SourceMatch {
+	    sources?: string[];
+	    hostnames?: string[];
+	    appNames?: string[];
+	    pattern?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceMatch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sources = source["sources"];
+	        this.hostnames = source["hostnames"];
+	        this.appNames = source["appNames"];
+	        this.pattern = source["pattern"];
+	    }
+	}
+	export class SourceRule {
+	    id: string;
+	    name: string;
+	    enabled: boolean;
+	    match: SourceMatch;
+	    format: ImportFormat;
+	    hostname?: string;
+	    hostnameFromSource?: boolean;
+	    appName?: string;
+	    arrivalTime?: boolean;
+	    levelFrom?: string;
+	    encoding?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.match = this.convertValues(source["match"], SourceMatch);
+	        this.format = this.convertValues(source["format"], ImportFormat);
+	        this.hostname = source["hostname"];
+	        this.hostnameFromSource = source["hostnameFromSource"];
+	        this.appName = source["appName"];
+	        this.arrivalTime = source["arrivalTime"];
+	        this.levelFrom = source["levelFrom"];
+	        this.encoding = source["encoding"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RereadOptions {
+	    since?: string;
+	    sources?: string[];
+	    rules?: SourceRule[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RereadOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.since = source["since"];
+	        this.sources = source["sources"];
+	        this.rules = this.convertValues(source["rules"], SourceRule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ServerConfig {
 	    udpEnabled: boolean;
@@ -1282,74 +1406,8 @@ export namespace models {
 		}
 	}
 	
-	export class SourceMatch {
-	    sources?: string[];
-	    hostnames?: string[];
-	    appNames?: string[];
-	    pattern?: string;
 	
-	    static createFrom(source: any = {}) {
-	        return new SourceMatch(source);
-	    }
 	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.sources = source["sources"];
-	        this.hostnames = source["hostnames"];
-	        this.appNames = source["appNames"];
-	        this.pattern = source["pattern"];
-	    }
-	}
-	export class SourceRule {
-	    id: string;
-	    name: string;
-	    enabled: boolean;
-	    match: SourceMatch;
-	    format: ImportFormat;
-	    hostname?: string;
-	    hostnameFromSource?: boolean;
-	    appName?: string;
-	    arrivalTime?: boolean;
-	    levelFrom?: string;
-	    encoding?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SourceRule(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.enabled = source["enabled"];
-	        this.match = this.convertValues(source["match"], SourceMatch);
-	        this.format = this.convertValues(source["format"], ImportFormat);
-	        this.hostname = source["hostname"];
-	        this.hostnameFromSource = source["hostnameFromSource"];
-	        this.appName = source["appName"];
-	        this.arrivalTime = source["arrivalTime"];
-	        this.levelFrom = source["levelFrom"];
-	        this.encoding = source["encoding"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class SourceSample {
 	    raw: string;
 	    sourceIP: string;

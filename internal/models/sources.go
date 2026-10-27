@@ -99,6 +99,36 @@ type SourceTrial struct {
 	After   SyslogMessage `json:"after"`
 }
 
+// RereadOptions says which stored messages to read again with the source
+// rules. Only messages received from a device are: an imported line was read
+// by its file's format.
+type RereadOptions struct {
+	// Since keeps the messages received at or after it (RFC 3339); "" is
+	// every one. Arrival, since a device whose clock is wrong is what a rule
+	// is often written for.
+	Since string `json:"since,omitempty"`
+	// Sources keeps the messages from these addresses, written as a rule's;
+	// empty is every address.
+	Sources []string `json:"sources,omitempty"`
+	// Rules are what the messages are read with; nil is the engine's own. A
+	// window keeping the history of a service that seals passes the
+	// service's.
+	Rules []SourceRule `json:"rules,omitempty"`
+}
+
+// HistoryReread is how a reading again of the stored messages goes.
+type HistoryReread struct {
+	Running bool `json:"running"`
+	// Total is how many messages were stored when it began; Read how many of
+	// them it has gone through, those it leaves aside included.
+	Total int64 `json:"total"`
+	Read  int64 `json:"read"`
+	// Changed is how many were read differently, and rewritten.
+	Changed   int64  `json:"changed"`
+	Cancelled bool   `json:"cancelled,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 // ValidateSourceRule says what is wrong with a rule before it is saved.
 // The format's own pattern is compiled where it is read (importer).
 func ValidateSourceRule(r SourceRule) error {

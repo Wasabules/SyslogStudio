@@ -985,6 +985,8 @@
         flex-direction: column;
         gap: 12px;
     }
+    /* A tab longer than the body scrolls; nothing in it is squeezed to fit. */
+    .modal-body > :global(*) { flex-shrink: 0; }
 
     .modal-footer {
         grid-column: 1 / -1;

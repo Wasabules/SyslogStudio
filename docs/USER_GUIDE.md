@@ -190,11 +190,29 @@ expression with named groups (`time`, `level`, `host`, `app`, `msg`), and the ot
 
 While a rule is written, every change is tried on the device's latest messages. The preview shows
 each one as read with the rule, with what it was without the rule struck through. A rule applies
-to the messages that arrive once it is saved; messages already received keep their reading. In
-the live view, the detail panel names the rule that read a message.
+to the messages that arrive once it is saved. In the live view, the detail panel names the rule
+that read a message.
 
 Rules belong to the engine the window drives: while it drives the system service, they are the
 service's. Installing the service copies the window's rules to it.
+
+#### Messages already stored
+
+Below the rules, **Messages already stored** reads stored messages again from their raw text, with
+the rules as they are now: a rule written today then reads what its device sent before it.
+Messages stored by an older version are read as this one reads them, which fixes, for instance,
+an rsyslog forward whose application was read as `2026-10-27T09`.
+
+- Choose the messages: from **every device** or from **the addresses of one rule**, received in the
+  last 24 hours, 7 days, 30 days, or at any time.
+- It runs in the background with its progress shown, and can be stopped: what was rewritten stays
+  rewritten. The history is shown again when it ends.
+- The raw message, the source and the arrival time never change, so reading again after a rule
+  has changed or gone undoes what it did.
+- Imported lines keep the reading of their file's format. Alert rules and routing are not run
+  again: they acted when the message arrived.
+- The time range is the arrival time, since a device whose clock is wrong is often the reason
+  for the rule.
 
 ### Auto-Scroll
 

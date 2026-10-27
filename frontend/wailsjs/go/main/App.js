@@ -22,6 +22,10 @@ export function CancelClose() {
   return window['go']['main']['App']['CancelClose']();
 }
 
+export function CancelHistoryReread() {
+  return window['go']['main']['App']['CancelHistoryReread']();
+}
+
 export function ChangeEncryptionPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeEncryptionPassword'](arg1, arg2);
 }
@@ -192,6 +196,10 @@ export function GetDefaultConfig() {
 
 export function GetHistoryCopy() {
   return window['go']['main']['App']['GetHistoryCopy']();
+}
+
+export function GetHistoryReread() {
+  return window['go']['main']['App']['GetHistoryReread']();
 }
 
 export function GetImportFormat() {
@@ -376,6 +384,10 @@ export function RemoveRecoveryKey() {
 
 export function ReorderSourceRules(arg1) {
   return window['go']['main']['App']['ReorderSourceRules'](arg1);
+}
+
+export function RereadHistory(arg1) {
+  return window['go']['main']['App']['RereadHistory'](arg1);
 }
 
 export function ResetEncryptionPassword(arg1) {

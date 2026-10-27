@@ -362,6 +362,10 @@ const HANDLERS = {
     return Promise.resolve(null);
   },
   TrySourceRule: (rule, samples) => Promise.resolve(trySource(rule, samples || [])),
+  // What reading the stored messages again did last: a page cannot do it.
+  GetHistoryReread: () => Promise.resolve({ running: false, total: 1284409, read: 1284409, changed: 3216 }),
+  RereadHistory: () => Promise.resolve(null),
+  CancelHistoryReread: () => Promise.resolve(null),
   RestoreBackupFile: () => refuse('RestoreBackupFile'),
   ImportBackup: () => delayed('ImportBackup', { kind: 'import', running: false, total: 18400, read: 18400, added: 16950 }),
   ImportOpenBackup: () => delayed('ImportOpenBackup', { kind: 'import', running: false, total: 18400, read: 18400, added: 16950 }),

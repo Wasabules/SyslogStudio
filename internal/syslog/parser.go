@@ -40,11 +40,18 @@ type Reading struct {
 
 // Read is Parse, saying how the message was read.
 func Read(raw []byte, sourceIP string, protocol string) (models.SyslogMessage, Reading) {
+	return ReadAt(raw, sourceIP, protocol, time.Now())
+}
+
+// ReadAt is Read for a message that arrived at a given time: a stored one,
+// read again. The arrival stands in for a missing timestamp and gives an
+// RFC 3164 stamp its year.
+func ReadAt(raw []byte, sourceIP string, protocol string, at time.Time) (models.SyslogMessage, Reading) {
 	rawStr := strings.TrimRight(string(raw), "\n\r\x00")
 
 	msg := models.SyslogMessage{
 		ID:         uuid.New().String(),
-		ReceivedAt: time.Now(),
+		ReceivedAt: at,
 		SourceIP:   sourceIP,
 		Protocol:   protocol,
 		RawMessage: rawStr,
