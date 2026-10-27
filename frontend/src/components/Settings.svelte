@@ -40,6 +40,26 @@
 
     type Tab = 'general' | 'storage' | 'backups' | 'background' | 'sources' | 'about';
     let activeTab: Tab = 'general';
+    const TABS: { id: Tab; label: string }[] = [
+        { id: 'general', label: 'settings.general' },
+        { id: 'storage', label: 'settings.storage' },
+        { id: 'backups', label: 'backup.tab' },
+        { id: 'background', label: 'background.tab' },
+        { id: 'sources', label: 'sources.tab' },
+        { id: 'about', label: 'settings.about' },
+    ];
+    let tabButtons: HTMLButtonElement[] = [];
+
+    // Up and down move along the list, as in any vertical tab list.
+    function onTabKeydown(e: KeyboardEvent) {
+        const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        const i = TABS.findIndex(t => t.id === activeTab);
+        const next = (i + step + TABS.length) % TABS.length;
+        activeTab = TABS[next].id;
+        tabButtons[next]?.focus();
+    }
     $: if (visible && initialTab) activeTab = initialTab;
     // A dialog open inside the Background or Backups tab takes Escape first.
     let backgroundOverlayOpen = false;
@@ -486,34 +506,17 @@
                 <button class="close-btn" on:click={onClose} aria-label={$_('common.close')}>&times;</button>
             </div>
 
-            <div class="tabs">
-                <button class="tab" class:active={activeTab === 'general'}
-                        on:click={() => activeTab = 'general'}>
-                    {$_('settings.general')}
-                </button>
-                <button class="tab" class:active={activeTab === 'storage'}
-                        on:click={() => activeTab = 'storage'}>
-                    {$_('settings.storage')}
-                </button>
-                <button class="tab" class:active={activeTab === 'backups'}
-                        on:click={() => activeTab = 'backups'}>
-                    {$_('backup.tab')}
-                </button>
-                <button class="tab" class:active={activeTab === 'background'}
-                        on:click={() => activeTab = 'background'}>
-                    {$_('background.tab')}
-                </button>
-                <button class="tab" class:active={activeTab === 'sources'}
-                        on:click={() => activeTab = 'sources'}>
-                    {$_('sources.tab')}
-                </button>
-                <button class="tab" class:active={activeTab === 'about'}
-                        on:click={() => activeTab = 'about'}>
-                    {$_('settings.about')}
-                </button>
+            <div class="tabs" role="tablist" aria-orientation="vertical" tabindex="-1" on:keydown={onTabKeydown}>
+                {#each TABS as tab, i (tab.id)}
+                    <button class="tab" class:active={activeTab === tab.id} role="tab"
+                            aria-selected={activeTab === tab.id} tabindex={activeTab === tab.id ? 0 : -1}
+                            bind:this={tabButtons[i]} on:click={() => activeTab = tab.id}>
+                        {$_(tab.label)}
+                    </button>
+                {/each}
             </div>
 
-            <div class="modal-body">
+            <div class="modal-body" role="tabpanel">
                 {#if activeTab === 'general'}
                     <div class="form-group">
                         <label for="settings-theme">{$_('settings.theme')}</label>
@@ -915,25 +918,29 @@
         z-index: 200;
     }
 
+    /* The tabs in a column on the left of the body, header and footer across
+       both. One size whatever the tab, so the column does not move. */
     .modal {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
         border-radius: 8px;
-        width: 520px;
+        width: 860px;
         max-width: 95vw;
+        height: 680px;
         max-height: 88vh;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
         box-shadow: 0 8px 32px var(--shadow-color);
     }
 
     .modal-header {
+        grid-column: 1 / -1;
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 12px 16px;
         border-bottom: 1px solid var(--border-color);
-        flex-shrink: 0;
     }
 
     .modal-title { font-size: 14px; font-weight: 600; }
@@ -948,26 +955,31 @@
 
     .tabs {
         display: flex;
-        border-bottom: 1px solid var(--border-color);
-        flex-shrink: 0;
+        flex-direction: column;
+        gap: 2px;
+        padding: 10px 8px 10px 0;
+        background: var(--bg-tertiary);
+        border-right: 1px solid var(--border-color);
+        overflow-y: auto;
     }
 
     .tab {
-        flex: 1;
-        padding: 8px 16px;
+        padding: 8px 12px 8px 14px;
         background: transparent;
         color: var(--text-secondary);
         font-size: 12px;
         font-weight: 600;
+        text-align: left;
         border: none;
-        border-bottom: 2px solid transparent;
+        border-left: 2px solid transparent;
+        border-radius: 0 4px 4px 0;
         cursor: pointer;
     }
     .tab:hover { color: var(--text-primary); background: var(--bg-hover); }
-    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab.active { color: var(--accent); background: var(--accent-bg); border-left-color: var(--accent); }
 
     .modal-body {
-        padding: 16px;
+        padding: 16px 20px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
@@ -975,11 +987,36 @@
     }
 
     .modal-footer {
+        grid-column: 1 / -1;
         display: flex;
         justify-content: flex-end;
         padding: 10px 16px;
         border-top: 1px solid var(--border-color);
-        flex-shrink: 0;
+    }
+
+    /* Too narrow for a column: the tabs go back above the body. */
+    @media (max-width: 700px) {
+        .modal {
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-rows: auto auto minmax(0, 1fr) auto;
+        }
+        .tabs {
+            flex-direction: row;
+            gap: 0;
+            padding: 0;
+            border-right: none;
+            border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        .tab {
+            flex: 1;
+            white-space: nowrap;
+            border-left: none;
+            border-bottom: 2px solid transparent;
+            border-radius: 0;
+        }
+        .tab.active { border-bottom-color: var(--accent); }
     }
     .close-footer-btn {
         background: var(--bg-tertiary);
