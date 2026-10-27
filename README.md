@@ -134,7 +134,8 @@ starts with the computer, before anyone signs in, and that the window then drive
   import uses
 - **Source rules** for the devices that bend it further: right-click a message, say how that
   device is read (any import format, a regex), fix its hostname, application, clock, severity
-  or encoding, and watch its latest messages change before saving
+  or encoding, and watch its latest messages change before saving — then read the stored
+  history again with it
 - **Mutual TLS** where senders must prove who they are
 - **Allowed sources** by IP literal or CIDR (hygiene, not authentication — see the note below)
 - **Per-IP connection cap** so one host cannot occupy every slot

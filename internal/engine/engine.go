@@ -38,7 +38,9 @@ type Engine struct {
 	serverCertStore *storage.PEMStore
 	logStore        *storage.LogStore
 	// reader reads what the server receives: the source rules' reading.
-	reader      *sources.Reader
+	reader *sources.Reader
+	// rereading reads stored messages again with it (reread.go).
+	rereading   rereading
 	simulator   *simulator.Simulator
 	dispatcher  *notify.Dispatcher
 	secretStore *storage.SecretStore
@@ -234,8 +236,10 @@ func (e *Engine) Close() {
 	if e.inbox != nil {
 		e.inbox.Close()
 	}
-	// A copy that runs is stopped: it would hold the database open.
+	// A copy that runs is stopped: it would hold the database open. So is a
+	// reading again of the stored messages.
 	e.stopBackups()
+	e.stopReread()
 	if e.logStore != nil {
 		e.logStore.Close()
 	}

@@ -16,6 +16,7 @@
         samplesForRule, samplesOf,
     } from '../lib/sources';
     import type { SourceRule } from '../lib/sources';
+    import RereadHistory from './RereadHistory.svelte';
 
     let rules: SourceRule[] = [];
 
@@ -110,6 +111,8 @@
     </div>
     <p class="muted">{$_('sources.order')}</p>
 {/if}
+
+<RereadHistory {rules} />
 
 <style>
     .intro { margin: 0 0 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }

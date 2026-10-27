@@ -7,6 +7,7 @@
 import { writable } from 'svelte/store';
 import type { ImportFormat } from './api';
 import { addressMatcher } from './search';
+import { dbStatsVersion } from './stores';
 import type { SyslogMessage } from './stores';
 
 export interface SourceMatch {
@@ -60,6 +61,46 @@ export const deleteSourceRule = (id: string): Promise<void> => callGo('DeleteSou
 export const reorderSourceRules = (ids: string[]): Promise<void> => callGo('ReorderSourceRules', ids);
 export const trySourceRule = async (rule: SourceRule, samples: SourceSample[]): Promise<SourceTrial[]> =>
     (await callGo('TrySourceRule', rule, samples)) || [];
+
+/** Which stored messages to read again with the rules. */
+export interface RereadOptions {
+    /** Received at or after this instant (RFC 3339); '' is every one. */
+    since?: string;
+    /** From these addresses, written as a rule's; none is every address. */
+    sources?: string[];
+}
+
+/** How a reading again of the stored messages goes. */
+export interface HistoryReread {
+    running: boolean;
+    total: number;
+    read: number;
+    changed: number;
+    cancelled?: boolean;
+    error?: string;
+}
+
+export const rereadHistory = (opts: RereadOptions): Promise<void> => callGo('RereadHistory', opts);
+export const cancelHistoryReread = (): Promise<void> => callGo('CancelHistoryReread');
+
+export const rereadProgress = writable<HistoryReread>({ running: false, total: 0, read: 0, changed: 0 });
+
+let watchingReread = false;
+
+/** Follows the reading again of the stored messages; the history is shown again once it has changed some. */
+export function watchReread() {
+    if (watchingReread) return;
+    watchingReread = true;
+    let wasRunning = false;
+    const take = (p: HistoryReread) => {
+        if (!p) return;
+        if (wasRunning && !p.running && p.changed > 0) dbStatsVersion.update(v => v + 1);
+        wasRunning = p.running;
+        rereadProgress.set(p);
+    };
+    callGo('GetHistoryReread').then(take).catch(() => {});
+    (window as any).runtime?.EventsOnMultiple?.('history:reread', take, -1);
+}
 
 /** The rule being written, and the messages it is tried on. */
 export const ruleDraft = writable<{ rule: SourceRule; samples: SourceSample[] } | null>(null);

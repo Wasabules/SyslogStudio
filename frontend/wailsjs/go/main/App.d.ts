@@ -15,6 +15,8 @@ export function BackupNow():Promise<void>;
 
 export function CancelClose():Promise<void>;
 
+export function CancelHistoryReread():Promise<void>;
+
 export function ChangeEncryptionPassword(arg1:string,arg2:string):Promise<void>;
 
 export function CheckForUpdate():Promise<models.UpdateInfo>;
@@ -100,6 +102,8 @@ export function GetDefaultCertOptions():Promise<models.CertOptions>;
 export function GetDefaultConfig():Promise<models.ServerConfig>;
 
 export function GetHistoryCopy():Promise<models.HistoryCopy>;
+
+export function GetHistoryReread():Promise<models.HistoryReread>;
 
 export function GetImportFormat():Promise<models.ImportFormat>;
 
@@ -192,6 +196,8 @@ export function QuitApplication():Promise<void>;
 export function RemoveRecoveryKey():Promise<void>;
 
 export function ReorderSourceRules(arg1:Array<string>):Promise<void>;
+
+export function RereadHistory(arg1:models.RereadOptions):Promise<void>;
 
 export function ResetEncryptionPassword(arg1:string):Promise<void>;
 

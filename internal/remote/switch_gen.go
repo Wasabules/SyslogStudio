@@ -328,6 +328,18 @@ func (s *Switch) TrySourceRule(rule models.SourceRule, samples []models.SourceSa
 	return s.Current().TrySourceRule(rule, samples)
 }
 
+func (s *Switch) RereadHistory(opts models.RereadOptions) error {
+	return s.Current().RereadHistory(opts)
+}
+
+func (s *Switch) GetHistoryReread() models.HistoryReread {
+	return s.Current().GetHistoryReread()
+}
+
+func (s *Switch) CancelHistoryReread() {
+	s.Current().CancelHistoryReread()
+}
+
 func (s *Switch) PreviewLogFile(path string, format models.ImportFormat) (importer.Preview, error) {
 	return s.Current().PreviewLogFile(path, format)
 }

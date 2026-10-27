@@ -47,6 +47,17 @@ func (b sealedBackend) QueryMessageGroups(filter models.FilterCriteria, groupFie
 func (b sealedBackend) CompactDatabase() error { return b.store.CompactDatabase() }
 func (b sealedBackend) ClearDatabase() error   { return b.store.ClearDatabase() }
 
+// Reading the stored messages again happens where they are, with the rules of
+// the service, which reads what arrives.
+func (b sealedBackend) RereadHistory(opts models.RereadOptions) error {
+	if opts.Rules == nil {
+		opts.Rules = b.Client.GetSourceRules()
+	}
+	return b.store.RereadHistory(opts)
+}
+func (b sealedBackend) GetHistoryReread() models.HistoryReread { return b.store.GetHistoryReread() }
+func (b sealedBackend) CancelHistoryReread()                   { b.store.CancelHistoryReread() }
+
 // Encryption: the window's own, which protects that database and the key that
 // opens what the service seals.
 func (b sealedBackend) GetUnlockAttemptsRemaining() int { return b.store.GetUnlockAttemptsRemaining() }

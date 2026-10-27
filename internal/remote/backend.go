@@ -128,6 +128,10 @@ type Backend interface {
 	DeleteSourceRule(id string)
 	ReorderSourceRules(ids []string) error
 	TrySourceRule(rule models.SourceRule, samples []models.SourceSample) ([]models.SourceTrial, error)
+	// Stored messages read again with the rules; history:reread follows it.
+	RereadHistory(opts models.RereadOptions) error
+	GetHistoryReread() models.HistoryReread
+	CancelHistoryReread()
 
 	// Import
 	PreviewLogFile(path string, format models.ImportFormat) (importer.Preview, error)

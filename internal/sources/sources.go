@@ -115,7 +115,13 @@ func (r *Reader) SetRules(rules []models.SourceRule) error {
 
 // Read reads one message received from sourceIP over protocol.
 func (r *Reader) Read(raw []byte, sourceIP, protocol string) models.SyslogMessage {
-	msg, rd := syslog.Read(raw, sourceIP, protocol)
+	return r.ReadAt(raw, sourceIP, protocol, time.Now())
+}
+
+// ReadAt is Read for a message that arrived at a given time: a stored one,
+// read again with the rules as they are now.
+func (r *Reader) ReadAt(raw []byte, sourceIP, protocol string, at time.Time) models.SyslogMessage {
+	msg, rd := syslog.ReadAt(raw, sourceIP, protocol, at)
 	pri := msg.Severity
 	r.wire.Reread(&msg, rd)
 	rules := r.rules.Load()
@@ -144,9 +150,9 @@ func (c *rule) matches(msg models.SyslogMessage) bool {
 func (r *Reader) apply(c *rule, raw []byte, msg models.SyslogMessage, rd syslog.Reading, pri models.Severity) models.SyslogMessage {
 	if c.charmap != nil && !utf8.Valid(raw) {
 		if decoded, err := c.charmap.NewDecoder().Bytes(raw); err == nil {
-			id, at := msg.ID, msg.ReceivedAt
-			msg, rd = syslog.Read(decoded, msg.SourceIP, msg.Protocol)
-			msg.ID, msg.ReceivedAt = id, at
+			id := msg.ID
+			msg, rd = syslog.ReadAt(decoded, msg.SourceIP, msg.Protocol, msg.ReceivedAt)
+			msg.ID = id
 			pri = msg.Severity
 			r.wire.Reread(&msg, rd)
 		}
