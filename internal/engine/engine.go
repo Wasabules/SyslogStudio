@@ -39,6 +39,8 @@ type Engine struct {
 	logStore        *storage.LogStore
 	// reader reads what the server receives: the source rules' reading.
 	reader *sources.Reader
+	// inventory is the devices it has read messages from since Open.
+	inventory *sources.Inventory
 	// rereading reads stored messages again with it (reread.go).
 	rereading   rereading
 	simulator   *simulator.Simulator
@@ -126,6 +128,8 @@ func (e *Engine) Open(emitter event.EventEmitter) error {
 	// source rule the way its rule says (package sources).
 	e.reader = sources.New()
 	e.applySourceRules()
+	e.inventory = sources.NewInventory()
+	e.reader.SetInventory(e.inventory)
 	e.server.SetReader(e.reader.Read)
 	e.simulator = simulator.New(emitter)
 

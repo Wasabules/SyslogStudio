@@ -30,6 +30,8 @@ export function ClearMessages():Promise<void>;
 
 export function ClearNotifyLog():Promise<void>;
 
+export function ClearSourceDevices():Promise<void>;
+
 export function CloseBackup():Promise<void>;
 
 export function CompactDatabase():Promise<void>;
@@ -143,6 +145,8 @@ export function GetServiceLink():Promise<models.ServiceLink>;
 export function GetSimulatorConfig():Promise<models.SimulatorConfig>;
 
 export function GetSimulatorStatus():Promise<models.SimulatorStatus>;
+
+export function GetSourceDevices():Promise<Array<models.SourceDevice>>;
 
 export function GetSourceRules():Promise<Array<models.SourceRule>>;
 

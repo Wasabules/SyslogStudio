@@ -128,6 +128,9 @@ type Backend interface {
 	DeleteSourceRule(id string)
 	ReorderSourceRules(ids []string) error
 	TrySourceRule(rule models.SourceRule, samples []models.SourceSample) ([]models.SourceTrial, error)
+	// The devices messages arrive from, since the engine started.
+	GetSourceDevices() []models.SourceDevice
+	ClearSourceDevices()
 	// Stored messages read again with the rules; history:reread follows it.
 	RereadHistory(opts models.RereadOptions) error
 	GetHistoryReread() models.HistoryReread

@@ -328,6 +328,14 @@ func (s *Switch) TrySourceRule(rule models.SourceRule, samples []models.SourceSa
 	return s.Current().TrySourceRule(rule, samples)
 }
 
+func (s *Switch) GetSourceDevices() []models.SourceDevice {
+	return s.Current().GetSourceDevices()
+}
+
+func (s *Switch) ClearSourceDevices() {
+	s.Current().ClearSourceDevices()
+}
+
 func (s *Switch) RereadHistory(opts models.RereadOptions) error {
 	return s.Current().RereadHistory(opts)
 }
