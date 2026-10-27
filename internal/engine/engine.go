@@ -38,9 +38,9 @@ type Engine struct {
 	serverCertStore *storage.PEMStore
 	logStore        *storage.LogStore
 	// reader reads what the server receives: the source rules' reading.
-	reader      *sources.Reader
+	reader *sources.Reader
 	// rereading reads stored messages again with it (reread.go).
-	rereading rereading
+	rereading   rereading
 	simulator   *simulator.Simulator
 	dispatcher  *notify.Dispatcher
 	secretStore *storage.SecretStore
