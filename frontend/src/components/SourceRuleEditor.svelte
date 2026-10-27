@@ -16,7 +16,7 @@
     import FormatFields from './FormatFields.svelte';
     import SaveTemplate from './SaveTemplate.svelte';
     import {
-        deleteSourceRule, getSourceTemplates, isOwnTemplate, listText, parseList, ruleDraft, rulesVersion,
+        deleteSourceRule, getSourceTemplates, isOwnTemplate, listText, lookupAddress, parseList, ruleDraft, rulesVersion,
         samplesForRule, saveSourceRule, templateName, templatesVersion, trySourceRule, withTemplate,
     } from '../lib/sources';
     import type { SourceRule, SourceSample, SourceTemplate, SourceTrial } from '../lib/sources';
@@ -34,6 +34,25 @@
     rule.levelFrom = rule.levelFrom || '';
     rule.encoding = rule.encoding || '';
     let sourcesText = listText(rule.match.sources);
+    let macsText = listText(rule.match.macs);
+    // A rule naming one address whose MAC is known can name the MAC
+    // instead, and follow the device when its address changes.
+    let knownMAC = '';
+    $: single = parseList(sourcesText).length === 1 ? parseList(sourcesText)[0] : '';
+    $: lookupMAC(single);
+    async function lookupMAC(address: string) {
+        knownMAC = '';
+        if (!address || /[*?/]/.test(address)) return;
+        try {
+            const info = await lookupAddress(address);
+            if (address === single && info.mac && !info.thisMachine) knownMAC = info.mac;
+        } catch { /* nothing to offer */ }
+    }
+    function useMAC() {
+        macsText = knownMAC;
+        sourcesText = '';
+        retry();
+    }
     // The samples it opened with, until the addresses change: then the
     // latest messages from the addresses as now written.
     const openedWith = sourcesText;
@@ -77,6 +96,7 @@
             ...rule,
             match: {
                 sources: parseList(sourcesText),
+                macs: parseList(macsText),
                 hostnames: parseList(hostnamesText),
                 appNames: parseList(appNamesText),
                 pattern: (rule.match.pattern || '').trim(),
@@ -217,6 +237,14 @@
                 <input class="mono" placeholder="10.0.0.9, 10.0.1.0/24, 10.0.2.*" bind:value={sourcesText} on:input={retry} />
             </label>
             <p class="note">{$_('sources.sourcesHint')}</p>
+            <label class="row">
+                <span class="row-label">{$_('sources.macs')}</span>
+                <input class="mono" placeholder="aa:bb:cc:dd:ee:ff, 04:03:12:*" bind:value={macsText} on:input={retry} />
+            </label>
+            <p class="note warn">{$_('sources.macsHint')}</p>
+            {#if knownMAC && !parseList(macsText).length}
+                <button class="link" on:click={useMAC}>{$_('sources.useMac', { values: { mac: knownMAC } })}</button>
+            {/if}
             <div class="line">
                 <label class="row grow">
                     <span class="row-label">{$_('sources.hostnames')}</span>
@@ -396,6 +424,14 @@
         padding: 12px 16px; border-top: 1px solid var(--border-color);
     }
     .spacer { flex: 1; }
+    .note.warn {
+        padding: 6px 8px; border-left: 3px solid var(--warning); background: var(--warning-bg);
+        color: var(--text-primary); font-size: 11px;
+    }
+    .link {
+        align-self: flex-start; background: none; border: none; padding: 0;
+        color: var(--accent); font-size: 11px; cursor: pointer; text-decoration: underline;
+    }
     .suggest {
         display: flex; align-items: center; gap: 10px; padding: 8px 10px; font-size: 12px;
         border: 1px solid var(--accent); border-radius: 6px; background: var(--accent-bg);

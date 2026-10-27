@@ -170,7 +170,9 @@ logger -n 192.0.2.10 -P 1514 -d "hello from $(hostname)"</code></pre>
         send no hostname with no rule to read them. On this computer's own networks it adds each
         device's MAC address and maker, read from the system's neighbor table — a device behind
         a router shows none, since only the router's would be known — and points out a device
-        whose address changed or an address whose device did. The messages already stored can be read
+        whose address changed or an address whose device did. A rule can name devices by MAC
+        address too, and follow one through DHCP — on the local network only, since behind a
+        router every device arrives with the router's MAC. The messages already stored can be read
         again from their raw text with the rules as they are now — from every device or from
         one rule's addresses, over the last day, week, month or all of it.
       </p>

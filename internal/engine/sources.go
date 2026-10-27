@@ -55,6 +55,14 @@ func (e *Engine) GetSourceDevices() []models.SourceDevice {
 	return devices
 }
 
+// macLookup is the MAC of an address, for the rules that name MACs.
+func (e *Engine) macLookup() func(string) string {
+	if e.neighbors == nil {
+		return nil
+	}
+	return e.neighbors.MAC
+}
+
 // LookupAddress says what is known of an address: whether it is this
 // machine or on one of its networks, and then its MAC and maker.
 func (e *Engine) LookupAddress(address string) models.AddressInfo {
@@ -183,5 +191,5 @@ func (e *Engine) TrySourceRule(r models.SourceRule, samples []models.SourceSampl
 	if strings.TrimSpace(r.Name) == "" {
 		r.Name = defaultRuleName(r.Match)
 	}
-	return sources.Try(r, samples)
+	return sources.Try(r, samples, e.macLookup())
 }

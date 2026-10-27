@@ -1006,6 +1006,7 @@ export namespace models {
 	}
 	export class SourceMatch {
 	    sources?: string[];
+	    macs?: string[];
 	    hostnames?: string[];
 	    appNames?: string[];
 	    pattern?: string;
@@ -1017,6 +1018,7 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.sources = source["sources"];
+	        this.macs = source["macs"];
 	        this.hostnames = source["hostnames"];
 	        this.appNames = source["appNames"];
 	        this.pattern = source["pattern"];

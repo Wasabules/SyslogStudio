@@ -136,6 +136,7 @@ func (e *Engine) Open(emitter event.EventEmitter) error {
 	e.inventory = sources.NewInventory()
 	e.reader.SetInventory(e.inventory)
 	e.neighbors = neighbors.NewCache()
+	e.reader.SetMACLookup(e.neighbors.MAC)
 	e.stopNeighbors = make(chan struct{})
 	go e.watchNeighbors(e.stopNeighbors)
 	e.server.SetReader(e.reader.Read)

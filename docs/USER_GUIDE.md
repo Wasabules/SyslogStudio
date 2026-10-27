@@ -162,6 +162,13 @@ A rule has three parts.
 - **Addresses**: comma-separated, each matched whole: an address (`10.0.7.12`), a CIDR range
   (`10.0.7.0/24`) or a pattern (`10.0.7.*`). An address is that device only; a rule naming
   `10.0.7.1` does not read `10.0.7.12`.
+- **MAC addresses** — **local network only**: a MAC whole, in any spelling (`aa:bb:cc:dd:ee:ff`,
+  `AA-BB-CC-DD-EE-FF`, `aabb.ccdd.eeff`), or a pattern for a maker's devices (`04:03:12:*`). A rule
+  by MAC follows a device whose address changes (DHCP). The MAC comes from this computer's neighbor
+  table, read every 30 seconds, which only knows the devices on its own networks: behind a router,
+  every device arrives with the router's MAC, and **a rule by MAC never matches it** — name its
+  address instead. A device's very first messages may arrive before its MAC is known. When a rule
+  names one address whose MAC is known, the editor offers to name the MAC instead.
 - **Hostnames** and **Applications**: patterns such as `fw-*`, matched against the message as
   read without the rule.
 - **Raw text contains**: a regular expression, case-insensitive. Behind a relay every device

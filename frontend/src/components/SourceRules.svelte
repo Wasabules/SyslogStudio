@@ -35,7 +35,7 @@
     /** What a rule matches, as one line. */
     function who(r: SourceRule): string {
         const m = r.match;
-        return [listText(m.sources), listText(m.hostnames), listText(m.appNames), m.pattern ? `/${m.pattern}/` : '']
+        return [listText(m.sources), listText(m.macs), listText(m.hostnames), listText(m.appNames), m.pattern ? `/${m.pattern}/` : '']
             .filter(Boolean).join(' · ');
     }
 

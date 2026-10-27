@@ -13,6 +13,8 @@ import type { SyslogMessage } from './stores';
 export interface SourceMatch {
     /** Addresses messages arrive from: an IP, a CIDR, or a pattern with "*". */
     sources?: string[];
+    /** MAC addresses, whole or a pattern ("04:03:12:*"): on the local network only. */
+    macs?: string[];
     /** Globs, matched against the message as read before the rule. */
     hostnames?: string[];
     appNames?: string[];
@@ -248,14 +250,32 @@ export function namesAddress(rule: SourceRule, ip: string): boolean {
     return (rule.match.sources || []).some(s => s.trim() !== '' && addressMatcher(s, false)(ip));
 }
 
+/** A MAC as the engine writes it — lowercase, colon-separated — from any spelling; '' if it is none. */
+export function normalizeMAC(s: string): string {
+    const hex = s.trim().toLowerCase().replace(/[:.-]/g, '');
+    return /^[0-9a-f]{12}$/.test(hex) ? hex.match(/../g)!.join(':') : '';
+}
+
+/** Whether one of a rule's MACs takes mac, as the engine reads them (sources.macEntry). */
+export function namesMAC(rule: SourceRule, mac?: string): boolean {
+    if (!mac) return false;
+    return (rule.match.macs || []).some(e => {
+        const t = e.trim().toLowerCase();
+        if (!t) return false;
+        if (/[*?]/.test(t)) return addressMatcher(t.replace(/-/g, ':'), false)(mac);
+        return normalizeMAC(t) === mac;
+    });
+}
+
 /**
  * The rule that already reads a device by its address — the first in order,
  * as the engine tries them; a rule turned off only when none is on. A CIDR
  * or a pattern counts: a new rule for one of its devices, added after it,
  * would never be reached.
  */
-export function ruleForSource(rules: SourceRule[], ip: string): SourceRule | undefined {
-    return rules.find(r => r.enabled && namesAddress(r, ip)) ?? rules.find(r => namesAddress(r, ip));
+export function ruleForSource(rules: SourceRule[], ip: string, mac?: string): SourceRule | undefined {
+    const names = (r: SourceRule) => namesAddress(r, ip) || namesMAC(r, mac);
+    return rules.find(r => r.enabled && names(r)) ?? rules.find(names);
 }
 
 /**

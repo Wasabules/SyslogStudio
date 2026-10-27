@@ -25,7 +25,7 @@ func TestInventory(t *testing.T) {
 	r.Read([]byte(`<189>date=2026-10-27 time=09:14:02 devname="FGT60F" level="warning" msg="x"`), "10.0.0.1", "UDP")
 	// Read again and tried: not received, not counted.
 	r.ReadAt([]byte("<14>Oct 27 09:14:03 relay-c sshd: hi"), "10.0.0.9", "UDP", time.Now())
-	Try(models.SourceRule{Name: "t", Enabled: true, Match: bySource("10.0.0.9")}, []models.SourceSample{{Raw: "x", SourceIP: "10.0.0.9", Protocol: "UDP"}})
+	Try(models.SourceRule{Name: "t", Enabled: true, Match: bySource("10.0.0.9")}, []models.SourceSample{{Raw: "x", SourceIP: "10.0.0.9", Protocol: "UDP"}}, nil)
 
 	devs := inv.Devices(time.Now())
 	by := map[string]models.SourceDevice{}
