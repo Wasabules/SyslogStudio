@@ -45,6 +45,9 @@ func (e *Engine) RereadHistory(opts models.RereadOptions) error {
 		// A rule that does not compile is left out, as when it is applied
 		// to what arrives.
 		_ = reader.SetRules(opts.Rules)
+		if lookup := e.macLookup(); lookup != nil {
+			reader.SetMACLookup(lookup)
+		}
 	}
 	var since time.Time
 	if opts.Since != "" {

@@ -189,7 +189,7 @@ func TestTry(t *testing.T) {
 		[]models.SourceSample{
 			{Raw: "<14>motion", SourceIP: "10.0.0.9", Protocol: "UDP"},
 			{Raw: "<14>motion", SourceIP: "10.0.0.8", Protocol: "UDP"},
-		})
+		}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,5 +231,42 @@ func TestCompile_Refuses(t *testing.T) {
 	}
 	if m := r.Read([]byte("<14>x"), "10.0.0.9", "UDP"); m.AppName != "ok" {
 		t.Errorf("the fine rule did not apply: %+v", m)
+	}
+}
+
+// A rule naming MACs follows a device whatever its address, and only as far
+// as a MAC is known: a device with none — behind a router — never matches.
+func TestRule_MACs(t *testing.T) {
+	table := map[string]string{"192.168.1.20": "04:03:12:6e:58:a1", "192.168.1.31": "04:03:12:6e:58:a1", "192.168.1.40": "00:80:77:b2:19:4e"}
+	lookup := func(ip string) string { return table[ip] }
+	r := reader(t,
+		models.SourceRule{Name: "camera", Enabled: true, Match: models.SourceMatch{MACs: []string{"04-03-12-6E-58-A1"}}, AppName: "camera"},
+		models.SourceRule{Name: "maker", Enabled: true, Match: models.SourceMatch{MACs: []string{"00:80:77:*"}}, AppName: "printer"},
+	)
+	r.SetMACLookup(lookup)
+	for ip, want := range map[string]string{
+		"192.168.1.20": "camera", // its address
+		"192.168.1.31": "camera", // its address after a new lease
+		"192.168.1.40": "maker",  // a maker's pattern
+		"10.20.0.5":    "",       // behind a router: no MAC, no match
+	} {
+		if got := r.Read([]byte("<14>motion"), ip, "UDP").ReadBy; got != want {
+			t.Errorf("%s: read by %q, want %q", ip, got, want)
+		}
+	}
+	// Tried, it says the same.
+	trials, err := Try(models.SourceRule{Name: "t", Match: models.SourceMatch{MACs: []string{"04:03:12:6e:58:a1"}}, AppName: "x"},
+		[]models.SourceSample{{Raw: "<14>a", SourceIP: "192.168.1.31", Protocol: "UDP"}, {Raw: "<14>b", SourceIP: "10.20.0.5", Protocol: "UDP"}}, lookup)
+	if err != nil || !trials[0].Matched || trials[1].Matched {
+		t.Errorf("tried: %+v, %v", trials, err)
+	}
+	// No lookup at all: no match either.
+	if Compile(models.SourceRule{Name: "x", Match: models.SourceMatch{MACs: []string{"04:03:12:*"}}}) != nil {
+		t.Error("a maker's pattern refused")
+	}
+	for _, bad := range []string{"04:03:12", "camera", "zz:zz:zz:*", "04:03:12:6e:58:a1:00"} {
+		if Compile(models.SourceRule{Name: "x", Match: models.SourceMatch{MACs: []string{bad}}}) == nil {
+			t.Errorf("%q accepted as a MAC", bad)
+		}
 	}
 }

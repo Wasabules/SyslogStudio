@@ -105,11 +105,17 @@ let sourceTemplates = clone(SOURCE_TEMPLATES);
  */
 function trySource(rule, samples) {
   const named = (rule.match.sources || []).filter((s) => s.trim()).map((s) => addressMatcher(s, false));
-  const matches = (ip) => named.some((take) => take(ip));
+  const macs = (rule.match.macs || []).map((m) => m.trim().toLowerCase()).filter(Boolean);
+  const macOf = (ip) => (SOURCE_DEVICES.find((d) => d.address === ip) || {}).mac || '';
+  const matches = (ip) => (!named.length || named.some((take) => take(ip)))
+    && (!macs.length || macs.some((m) => {
+      const mac = macOf(ip);
+      return mac && (m.endsWith('*') ? mac.startsWith(m.slice(0, -1)) : mac === m);
+    }));
   return samples.map((s) => {
     const before = messages.find((m) => m.rawMessage === s.raw)
       || { ...messages[0], rawMessage: s.raw, message: s.raw, sourceIP: s.sourceIP };
-    const matched = named.length > 0 && matches(s.sourceIP);
+    const matched = (named.length > 0 || macs.length > 0) && matches(s.sourceIP);
     const after = { ...before };
     if (matched) {
       if (rule.hostnameFromSource) after.hostname = s.sourceIP;

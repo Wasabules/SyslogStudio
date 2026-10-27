@@ -80,7 +80,7 @@
     $: needing = rows.filter(r => r.device && attention(r.device)).length;
 
     function readDifferently(row: Row) {
-        const existing = ruleForSource(rules, row.address);
+        const existing = ruleForSource(rules, row.address, row.device?.mac);
         const rule = existing ? structuredClone(existing) : ruleForDevice(row.address, row.device);
         let samples = samplesForRule($messages, rule);
         if (!samples.some(s => s.sourceIP === row.address) && row.device?.lastRaw) {
@@ -92,7 +92,7 @@
 
     /** The rule that names an address this device had, when none names its own. */
     function oldRule(d: SourceDevice): { name: string; address: string } | undefined {
-        if (ruleForSource(rules, d.address)) return undefined;
+        if (ruleForSource(rules, d.address, d.mac)) return undefined;
         for (const a of d.alsoAt || []) {
             const r = rules.find(x => (x.match.sources || []).some(s => s.trim() === a));
             if (r) return { name: r.name, address: a };
@@ -215,7 +215,7 @@
                     <td class="act">
                         <button class="action-btn" on:click={() => readDifferently(row)}
                                 title={d?.lastRaw || ''}>
-                            {ruleForSource(rules, row.address) ? $_('sources.devEditRule') : $_('sources.devRead')}
+                            {ruleForSource(rules, row.address, d?.mac) ? $_('sources.devEditRule') : $_('sources.devRead')}
                         </button>
                     </td>
                 </tr>

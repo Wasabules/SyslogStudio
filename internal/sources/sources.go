@@ -12,6 +12,7 @@ package sources
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,7 @@ import (
 
 	"SyslogStudio/internal/importer"
 	"SyslogStudio/internal/models"
+	"SyslogStudio/internal/neighbors"
 	"SyslogStudio/internal/notify"
 	"SyslogStudio/internal/search"
 	"SyslogStudio/internal/syslog"
@@ -34,6 +36,21 @@ type Reader struct {
 	// inventory, when set, counts what Read reads: messages received, not
 	// those read again or tried.
 	inventory atomic.Pointer[Inventory]
+	// macOf gives the MAC of an address, for the rules that name MACs.
+	macOf atomic.Pointer[func(string) string]
+}
+
+// SetMACLookup has the rules that name MACs ask lookup for the MAC of the
+// address a message came from: the neighbor table's, on this machine's own
+// networks, "" anywhere else.
+func (r *Reader) SetMACLookup(lookup func(address string) string) { r.macOf.Store(&lookup) }
+
+// lookup is the MAC lookup set, nil if none is.
+func (r *Reader) lookup() func(string) string {
+	if f := r.macOf.Load(); f != nil {
+		return *f
+	}
+	return nil
 }
 
 // SetInventory has what is read from now on counted in inv.
@@ -48,6 +65,8 @@ func New() *Reader {
 type rule struct {
 	models.SourceRule
 	sources []search.Address
+	// macs are MACs and MAC patterns, as neighbors.FormatMAC writes them.
+	macs    []string
 	pattern *regexp.Regexp
 	format  *importer.FormatReader
 	charmap *charmap.Charmap
@@ -66,6 +85,16 @@ func compile(r models.SourceRule) (*rule, error) {
 			return nil, err
 		}
 		c.sources = append(c.sources, search.CompileAddress(s, false))
+	}
+	for _, s := range r.Match.MACs {
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
+		m, err := macEntry(s)
+		if err != nil {
+			return nil, err
+		}
+		c.macs = append(c.macs, m)
 	}
 	if p := strings.TrimSpace(r.Match.Pattern); p != "" {
 		re, err := models.SafeCompileRegex(p)
@@ -144,15 +173,26 @@ func (r *Reader) read(raw []byte, sourceIP, protocol string, at time.Time) (mode
 	if rules == nil {
 		return msg, rd
 	}
+	macOf := r.lookup()
 	for _, c := range *rules {
-		if c.matches(msg) {
+		if c.matches(msg, macOf) {
 			return r.apply(c, raw, msg, rd, pri), rd
 		}
 	}
 	return msg, rd
 }
 
-func (c *rule) matches(msg models.SyslogMessage) bool {
+func (c *rule) matches(msg models.SyslogMessage, macOf func(string) string) bool {
+	if len(c.macs) > 0 {
+		// No MAC known — routed, or not in the table yet — is no match.
+		mac := ""
+		if macOf != nil {
+			mac = macOf(msg.SourceIP)
+		}
+		if mac == "" || !slices.ContainsFunc(c.macs, func(p string) bool { return search.Glob(p, mac) }) {
+			return false
+		}
+	}
 	m := c.Match
 	return search.MatchAddresses(c.sources, msg.SourceIP) &&
 		notify.MatchesGlob(m.Hostnames, msg.Hostname) &&
@@ -225,7 +265,7 @@ func setSeverity(msg *models.SyslogMessage, sev models.Severity) {
 
 // Try reads samples without any rule and with r, enabled or not, and says
 // which it matched: what the rule editor shows before a rule is saved.
-func Try(sr models.SourceRule, samples []models.SourceSample) ([]models.SourceTrial, error) {
+func Try(sr models.SourceRule, samples []models.SourceSample, macOf func(string) string) ([]models.SourceTrial, error) {
 	c, err := compile(sr)
 	if err != nil {
 		return nil, err
@@ -238,11 +278,26 @@ func Try(sr models.SourceRule, samples []models.SourceSample) ([]models.SourceTr
 		pri := msg.Severity
 		reader.wire.Reread(&msg, rd)
 		trial := models.SourceTrial{Before: msg, After: msg}
-		if c.matches(msg) {
+		if c.matches(msg, macOf) {
 			trial.Matched = true
 			trial.After = reader.apply(c, raw, msg, rd, pri)
 		}
 		out = append(out, trial)
 	}
 	return out, nil
+}
+
+// macEntry reads a MAC entry of a rule: a whole MAC in any of its spellings,
+// or a pattern with "*" and "?" — "04:03:12:*" for a maker's devices.
+func macEntry(s string) (string, error) {
+	t := strings.ToLower(strings.TrimSpace(s))
+	if strings.ContainsAny(t, "*?") {
+		t = strings.ReplaceAll(t, "-", ":")
+		if strings.Trim(t, "0123456789abcdef:*?") == "" && len(t) <= 17 {
+			return t, nil
+		}
+	} else if mac, ok := neighbors.ParseMAC(t); ok {
+		return mac, nil
+	}
+	return "", fmt.Errorf("%q is not a MAC address: write one whole (aa:bb:cc:dd:ee:ff) or a pattern (aa:bb:cc:*)", strings.TrimSpace(s))
 }

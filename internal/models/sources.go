@@ -56,6 +56,11 @@ type SourceMatch struct {
 	// pattern with "*" ("10.0.7.*"), as the Source IP filter takes them
 	// (search.Address; checked where rules are compiled, internal/sources).
 	Sources []string `json:"sources,omitempty"`
+	// MACs are the MAC addresses the messages come from: whole, or a
+	// pattern ("04:03:12:*", a maker). Known only on this machine's own
+	// networks, from the neighbor table: a device behind a router has none,
+	// and a rule naming MACs never matches it.
+	MACs []string `json:"macs,omitempty"`
 	// Hostnames and AppNames are globs ("fw-*"), matched against the
 	// message as read before the rule.
 	Hostnames []string `json:"hostnames,omitempty"`
@@ -211,9 +216,9 @@ type HistoryReread struct {
 // The format's own pattern is compiled where it is read (importer).
 func ValidateSourceRule(r SourceRule) error {
 	m := r.Match
-	if len(nonEmpty(m.Sources)) == 0 && len(nonEmpty(m.Hostnames)) == 0 &&
+	if len(nonEmpty(m.Sources)) == 0 && len(nonEmpty(m.MACs)) == 0 && len(nonEmpty(m.Hostnames)) == 0 &&
 		len(nonEmpty(m.AppNames)) == 0 && strings.TrimSpace(m.Pattern) == "" {
-		return fmt.Errorf("say which messages the rule applies to: a source, a hostname, an application or a pattern")
+		return fmt.Errorf("say which messages the rule applies to: a source, a MAC, a hostname, an application or a pattern")
 	}
 	for _, g := range append(nonEmpty(m.Hostnames), nonEmpty(m.AppNames)...) {
 		if _, err := path.Match(g, ""); err != nil {
