@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	"SyslogStudio/internal/event"
+	"SyslogStudio/internal/importer"
 	"SyslogStudio/internal/inbox"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
@@ -117,6 +118,8 @@ func (e *Engine) withDBPath(cfg models.StorageConfig) models.StorageConfig {
 func (e *Engine) Open(emitter event.EventEmitter) error {
 	e.emitter = emitter
 	e.server = syslog.NewSyslogServer(emitter, e.tlsManager)
+	// What is not quite syslog is read the way a file is (importer.WireReader).
+	e.server.SetReader(importer.NewWireReader().Read)
 	e.simulator = simulator.New(emitter)
 
 	// The dispatcher resolves a credential by sink id AND destination, so a

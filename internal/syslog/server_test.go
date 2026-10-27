@@ -911,3 +911,21 @@ func freeTCPPort(t *testing.T) int {
 	defer ln.Close()
 	return ln.Addr().(*net.TCPAddr).Port
 }
+
+// The engine sets a more tolerant reader; the server reads with it, and with
+// Parse again once it is taken away.
+func TestSetReader(t *testing.T) {
+	server := NewSyslogServer(event.NewMockEventEmitter(), nil)
+	server.SetReader(func(raw []byte, sourceIP, protocol string) models.SyslogMessage {
+		m := Parse(raw, sourceIP, protocol)
+		m.AppName = "read-again"
+		return m
+	})
+	server.processMessage([]byte("<14>hello"), "10.0.0.9", "UDP")
+	server.SetReader(nil)
+	server.processMessage([]byte("<14>hello"), "10.0.0.9", "UDP")
+	got := server.GetMessages(models.FilterCriteria{})
+	if len(got) != 2 || got[0].AppName != "read-again" || got[1].AppName == "read-again" {
+		t.Fatalf("messages: %+v", got)
+	}
+}

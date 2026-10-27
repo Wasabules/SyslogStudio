@@ -66,6 +66,11 @@ type SyslogServer struct {
 	// for the same reason, and nil until one is installed.
 	dispatcher atomic.Pointer[notify.Dispatcher]
 
+	// reader reads what arrives; Parse when none is set. The engine sets a
+	// more tolerant one (importer.WireReader), which this package cannot
+	// import.
+	reader atomic.Pointer[Reader]
+
 	mu       sync.RWMutex
 	messages []models.SyslogMessage // Ring buffer
 	head     int                    // Next write position
@@ -761,8 +766,26 @@ func (s *SyslogServer) submitWork(fn func()) {
 }
 
 func (s *SyslogServer) processMessage(raw []byte, sourceIP string, protocol string) {
-	msg := Parse(raw, sourceIP, protocol)
+	var msg models.SyslogMessage
+	if r := s.reader.Load(); r != nil {
+		msg = (*r)(raw, sourceIP, protocol)
+	} else {
+		msg = Parse(raw, sourceIP, protocol)
+	}
 	s.addMessage(msg)
+}
+
+// Reader reads one received message.
+type Reader func(raw []byte, sourceIP, protocol string) models.SyslogMessage
+
+// SetReader replaces how a received message is read; nil goes back to Parse.
+// It may be called while the server runs.
+func (s *SyslogServer) SetReader(r Reader) {
+	if r == nil {
+		s.reader.Store(nil)
+		return
+	}
+	s.reader.Store(&r)
 }
 
 // AddImported puts a message from a file into the ring buffer, and nothing

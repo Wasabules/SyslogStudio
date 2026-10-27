@@ -7,7 +7,9 @@ SyslogStudio is a lightweight, cross-platform desktop application for receiving 
 Key capabilities:
 
 - Receive syslog messages over UDP, TCP, and TLS simultaneously
-- Parse both RFC 5424 and RFC 3164 (BSD) syslog formats automatically
+- Parse both RFC 5424 and RFC 3164 (BSD) syslog formats automatically, and read the messages
+  that bend them: rsyslog's forwarding format, JSON, key=value (FortiGate), Cisco IOS and ASA,
+  messages with no priority
 - Filter logs by severity, facility, hostname, application name, source IP, text search (with regex), and date range
 - Export logs as CSV or plain text
 - Monitor real-time statistics: message rates, severity distribution, top sources, buffer usage
@@ -118,6 +120,28 @@ Click any row in the log viewer to open the **Log Detail** panel. This panel sho
 - Source IP and protocol
 
 Click the same row again or click elsewhere to deselect.
+
+### Messages that bend the standard
+
+Many devices send something close to RFC 5424 or RFC 3164, but not quite. SyslogStudio reads
+the header as the RFCs define it when it is one. When it is not, it reads the rest of the
+message the way a file import reads a line:
+
+| What arrives | Example | What is read |
+|---|---|---|
+| rsyslog's forwarding format: an RFC 3339 timestamp and no version | `<30>2026-10-27T09:14:02+01:00 nas-01 smbd[812]: …` | timestamp, host, application, process |
+| No host before the tag | `<134>Oct 27 09:14:02 dhcp: lease …` | application (`dhcp`), no invented host |
+| JSON | `<14>{"level":"error","msg":"disk full","host":"app-3"}` | level, timestamp, host, application, message |
+| key=value (FortiGate and others) | `<189>date=… time=… devname="FGT60F" level="warning" msg="…"` | timestamp (date and time together), host, level, message |
+| Cisco IOS, IOS-XE, NX-OS, ASA | `<187>123: *Oct 27 09:14:02.123: %LINK-3-UPDOWN: …` | timestamp, host when sent, the mnemonic as the application |
+| No priority at all | `2026-10-27 09:14:02 ERROR motion detection failed` | timestamp, and a level word at the very front |
+
+The severity in the priority is the sender's own and stays, unless the message declares its own
+level in a field (JSON `level`, key=value `level=`). A level word inside the text never overrides
+it. With no priority, a level word at the very front of the message is taken; one in the middle
+of a sentence is not.
+
+The raw message is always kept as it arrived, shown in the detail panel.
 
 ### Auto-Scroll
 
