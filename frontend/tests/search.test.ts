@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    words, planMatcher, filterMatcher, sortMessages, groupMessages,
+    words, planMatcher, filterMatcher, sortMessages, groupMessages, parseIP, ipString, addressMatcher,
     type SearchPlan, type Filterable, type Criteria,
 } from '../src/lib/search.ts';
 import { wallToInstant, instantToWall, minuteAfter } from '../src/lib/zonedTime.ts';
@@ -83,4 +83,19 @@ test('the date boxes name instants in the displayed zone', () => {
         assert.equal(instantToWall(Date.parse(wallToInstant('2026-07-01T23:45', zone)), zone), '2026-07-01T23:45', zone);
     }
     assert.equal(minuteAfter('2026-10-23T08:00:00Z'), '2026-10-23T08:01:00Z');
+});
+
+test('addresses are read and matched as Go reads and matches them', () => {
+    const golden: {
+        ips: { text: string; want: string | null }[];
+        matches: { typed: string; partial: boolean; value: string; match: boolean }[];
+    } = load('addresses.json');
+    for (const c of golden.ips) {
+        const ip = parseIP(c.text);
+        assert.equal(ip ? ipString(ip) : null, c.want, `parseIP(${JSON.stringify(c.text)})`);
+    }
+    for (const c of golden.matches) {
+        assert.equal(addressMatcher(c.typed, c.partial)(c.value), c.match,
+            `${JSON.stringify(c.typed)}${c.partial ? ' (box)' : ''} against ${JSON.stringify(c.value)}`);
+    }
 });

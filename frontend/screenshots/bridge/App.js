@@ -24,7 +24,7 @@
 
 import './runtime.js';
 import { isDemo, override, delayed } from './scene.js';
-import { words, filterMatcher, sortMessages, groupMessages } from '../../src/lib/search';
+import { words, filterMatcher, sortMessages, groupMessages, addressMatcher } from '../../src/lib/search';
 import {
   MESSAGES, STATS, SERVER_CONFIG, SERVER_STATUS,
   ALERT_RULES, ALERT_HISTORY,
@@ -103,8 +103,8 @@ let sourceRules = clone(SOURCE_RULES);
  * applies. Reading a format is the engine's; the demo does not pretend to.
  */
 function trySource(rule, samples) {
-  const named = (rule.match.sources || []).map((s) => s.trim()).filter(Boolean);
-  const matches = (ip) => named.some((s) => s === ip || (s.endsWith('.0/24') && ip.startsWith(s.slice(0, -4))));
+  const named = (rule.match.sources || []).filter((s) => s.trim()).map((s) => addressMatcher(s, false));
+  const matches = (ip) => named.some((take) => take(ip));
   return samples.map((s) => {
     const before = messages.find((m) => m.rawMessage === s.raw)
       || { ...messages[0], rawMessage: s.raw, message: s.raw, sourceIP: s.sourceIP };

@@ -394,12 +394,52 @@
       }
     },
     {
-      "name": "ip prefix",
+      "name": "ip whole is exact",
       "criteria": {
         "sourceIP": "10.0.0.1"
       },
+      "want": [],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip exact",
+      "criteria": {
+        "sourceIP": "10.0.0.5"
+      },
       "want": [
-        "b"
+        "a",
+        "g",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip exact v6 written long",
+      "criteria": {
+        "sourceIP": "FE80:0:0::0001"
+      },
+      "want": [
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip being typed",
+      "criteria": {
+        "sourceIP": "10.0.0."
+      },
+      "want": [
+        "a",
+        "b",
+        "c",
+        "g",
+        "h"
       ],
       "plan": {
         "mode": "text"
@@ -409,6 +449,220 @@
       "name": "ip case",
       "criteria": {
         "sourceIP": "FE80"
+      },
+      "want": [
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr",
+      "criteria": {
+        "sourceIP": "10.0.0.0/28"
+      },
+      "want": [
+        "a",
+        "b",
+        "c",
+        "g",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr not on octets",
+      "criteria": {
+        "sourceIP": "10.0.0.8/29"
+      },
+      "want": [
+        "b",
+        "c"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr host bits set",
+      "criteria": {
+        "sourceIP": "10.0.0.9/31"
+      },
+      "want": [
+        "c"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr one address",
+      "criteria": {
+        "sourceIP": "10.0.0.5/32"
+      },
+      "want": [
+        "a",
+        "g",
+        "h"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr wide",
+      "criteria": {
+        "sourceIP": "10.0.0.0/8"
+      },
+      "want": [
+        "a",
+        "b",
+        "c",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr short of an octet",
+      "criteria": {
+        "sourceIP": "192.0.0.0/4"
+      },
+      "want": [
+        "d",
+        "e"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr everything",
+      "criteria": {
+        "sourceIP": "0.0.0.0/0"
+      },
+      "want": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr v6",
+      "criteria": {
+        "sourceIP": "fe80::/10"
+      },
+      "want": [
+        "f"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr v4 written as v6",
+      "criteria": {
+        "sourceIP": "::ffff:10.1.0.0/112"
+      },
+      "want": [
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip cidr v4 holds no v6",
+      "criteria": {
+        "sourceIP": "0.0.0.0/1"
+      },
+      "want": [
+        "a",
+        "b",
+        "c",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip not a cidr",
+      "criteria": {
+        "sourceIP": "10.0.0.0/33"
+      },
+      "want": [],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip glob",
+      "criteria": {
+        "sourceIP": "10.1.0.*"
+      },
+      "want": [
+        "i",
+        "j",
+        "k"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip glob one character",
+      "criteria": {
+        "sourceIP": "192.168.1.?"
+      },
+      "want": [
+        "e"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip glob is whole",
+      "criteria": {
+        "sourceIP": "10.0.0.1*"
+      },
+      "want": [
+        "b"
+      ],
+      "plan": {
+        "mode": "text"
+      }
+    },
+    {
+      "name": "ip glob case",
+      "criteria": {
+        "sourceIP": "FE80::*"
       },
       "want": [
         "f"

@@ -6,10 +6,11 @@
  */
 import { writable } from 'svelte/store';
 import type { ImportFormat } from './api';
+import { addressMatcher } from './search';
 import type { SyslogMessage } from './stores';
 
 export interface SourceMatch {
-    /** Addresses messages arrive from: an IP, a CIDR, or a glob. */
+    /** Addresses messages arrive from: an IP, a CIDR, or a pattern with "*". */
     sources?: string[];
     /** Globs, matched against the message as read before the rule. */
     hostnames?: string[];
@@ -82,9 +83,19 @@ export function ruleFromMessage(msg: SyslogMessage): SourceRule {
     return rule;
 }
 
-/** The rule that already reads a device, if one names its address. */
+/** Whether one of a rule's addresses takes ip, as the engine reads them. */
+export function namesAddress(rule: SourceRule, ip: string): boolean {
+    return (rule.match.sources || []).some(s => s.trim() !== '' && addressMatcher(s, false)(ip));
+}
+
+/**
+ * The rule that already reads a device by its address — the first in order,
+ * as the engine tries them; a rule turned off only when none is on. A CIDR
+ * or a pattern counts: a new rule for one of its devices, added after it,
+ * would never be reached.
+ */
 export function ruleForSource(rules: SourceRule[], ip: string): SourceRule | undefined {
-    return rules.find(r => (r.match.sources || []).some(s => s.trim() === ip));
+    return rules.find(r => r.enabled && namesAddress(r, ip)) ?? rules.find(r => namesAddress(r, ip));
 }
 
 /**
@@ -113,14 +124,14 @@ export function samplesOf(messages: SyslogMessage[], first?: SyslogMessage, limi
  * which of them it matches.
  */
 export function samplesForRule(messages: SyslogMessage[], rule: SourceRule, limit = 60): SourceSample[] {
-    const ips = new Set((rule.match.sources || []).map(s => s.trim()).filter(s => /^[\d.:a-fA-F]+$/.test(s)));
+    const named = (rule.match.sources || []).filter(s => s.trim() !== '').map(s => addressMatcher(s, false));
     const out: SourceSample[] = [];
     for (let i = messages.length - 1; i >= 0 && out.length < limit; i--) {
         const m = messages[i];
-        if (m.protocol === 'file' || (ips.size && !ips.has(m.sourceIP))) continue;
+        if (m.protocol === 'file' || (named.length && !named.some(take => take(m.sourceIP)))) continue;
         out.push({ raw: m.rawMessage, sourceIP: m.sourceIP, protocol: m.protocol });
     }
-    return out.length || !ips.size ? out : samplesOf(messages);
+    return out.length || !named.length ? out : samplesOf(messages);
 }
 
 /** A list as typed in one box, comma-separated. */

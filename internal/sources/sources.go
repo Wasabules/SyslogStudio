@@ -22,6 +22,7 @@ import (
 	"SyslogStudio/internal/importer"
 	"SyslogStudio/internal/models"
 	"SyslogStudio/internal/notify"
+	"SyslogStudio/internal/search"
 	"SyslogStudio/internal/syslog"
 )
 
@@ -40,6 +41,7 @@ func New() *Reader {
 // rule is a SourceRule ready to apply.
 type rule struct {
 	models.SourceRule
+	sources []search.Address
 	pattern *regexp.Regexp
 	format  *importer.FormatReader
 	charmap *charmap.Charmap
@@ -50,6 +52,15 @@ func compile(r models.SourceRule) (*rule, error) {
 		return nil, err
 	}
 	c := &rule{SourceRule: r}
+	for _, s := range r.Match.Sources {
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
+		if err := search.CheckAddressEntry(s); err != nil {
+			return nil, err
+		}
+		c.sources = append(c.sources, search.CompileAddress(s, false))
+	}
 	if p := strings.TrimSpace(r.Match.Pattern); p != "" {
 		re, err := models.SafeCompileRegex(p)
 		if err != nil {
@@ -121,7 +132,7 @@ func (r *Reader) Read(raw []byte, sourceIP, protocol string) models.SyslogMessag
 
 func (c *rule) matches(msg models.SyslogMessage) bool {
 	m := c.Match
-	return notify.MatchesSource(m.Sources, msg.SourceIP) &&
+	return search.MatchAddresses(c.sources, msg.SourceIP) &&
 		notify.MatchesGlob(m.Hostnames, msg.Hostname) &&
 		notify.MatchesGlob(m.AppNames, msg.AppName) &&
 		(c.pattern == nil || c.pattern.MatchString(msg.RawMessage))
