@@ -25,6 +25,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       # Only this job may write findings; everything else stays read-only.
       security-events: write
@@ -50,9 +51,11 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.language == 'go'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+        # The action CI and the release use: it leaves the runner's Ubuntu
+        # mirror for archive.ubuntu.com when that mirror crawls, and the limit
+        # is for a network that does not answer at all.
+        timeout-minutes: 15
+        uses: ./.github/actions/linux-deps
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

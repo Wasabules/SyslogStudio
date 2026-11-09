@@ -1,0 +1,51 @@
+name: Wails CLI
+description: >
+  Installs the Wails CLI at the version go.mod requires of the wails/v2
+  library, compiled from source or, when asked, restored from a cache.
+
+# The CLI generates the bridge bindings and drives the build, so it has to
+# match the library it builds against. Reading its version from go.mod makes
+# that a single number: Dependabot's wails/v2 bump now moves the CLI with it,
+# where four pins written into the workflows had to follow by hand.
+#
+# `cache: "true"` keeps the compiled CLI between runs, under a key naming the
+# system, the CLI version and the Go that compiled it: building it costs 40 to
+# 55 seconds a job. The release workflow leaves it off. A cache is written by
+# whatever ran in CI before it, and a binary taken from one would then build a
+# signed release.
+
+inputs:
+  cache:
+    description: Restore the compiled CLI from actions/cache, and save it there.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+        {
+          echo "version=$version"
+          echo "go=$(go env GOVERSION)"
+          echo "bin=$(go env GOPATH)/bin"
+        } >> "$GITHUB_OUTPUT"
+        echo "Wails CLI $version, the version go.mod requires"
+
+    - id: cache
+      if: inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ steps.version.outputs.bin }}/wails
+          ${{ steps.version.outputs.bin }}/wails.exe
+        key: wails-cli-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.version }}-${{ steps.version.outputs.go }}
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        WAILS_VERSION: ${{ steps.version.outputs.version }}
+      run: go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
