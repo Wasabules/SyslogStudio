@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	fyne.io/systray v1.12.2
 	github.com/Microsoft/go-winio v0.6.4
-	github.com/fclairamb/ftpserverlib v0.32.4
+	github.com/fclairamb/ftpserverlib v0.32.7
 	github.com/google/uuid v1.6.0
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/minio/selfupdate v0.6.0
