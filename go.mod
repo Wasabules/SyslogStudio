@@ -11,7 +11,7 @@ require (
 	github.com/minio/selfupdate v0.6.0
 	github.com/pkg/sftp v1.13.12
 	github.com/spf13/afero v1.15.0
-	github.com/wailsapp/wails/v2 v2.17.0
+	github.com/wailsapp/wails/v2 v2.17.1
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mod v0.42.0
 	golang.org/x/net v0.62.0
