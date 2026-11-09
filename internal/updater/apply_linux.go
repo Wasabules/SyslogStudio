@@ -15,6 +15,9 @@ const (
 	debInstallPath = "/usr/bin/syslogstudio"
 )
 
+// platformAssets are the assets target can pick on Linux.
+func platformAssets() []string { return []string{linuxBinaryAsset, linuxDebAsset} }
+
 // target on Linux: a managed install (from the .deb, or any location the
 // running user cannot replace in place — e.g. a root-owned /usr/bin) hands the
 // new .deb to the browser; a portable binary the user owns self-replaces.

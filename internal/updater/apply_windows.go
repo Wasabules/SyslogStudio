@@ -15,6 +15,9 @@ const (
 	windowsBinaryAsset = "SyslogStudio-windows-amd64.exe"
 )
 
+// platformAssets are the assets target can pick on Windows.
+func platformAssets() []string { return []string{windowsSetupAsset, windowsBinaryAsset} }
+
 // target selects the Windows asset and apply mode. The NSIS-installed copy
 // updates by running the new setup; a portable copy self-replaces the exe.
 func target() (string, applyMode) {

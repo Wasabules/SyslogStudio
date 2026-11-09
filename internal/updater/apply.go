@@ -105,17 +105,8 @@ func (s *Service) verifiedChecksum(ctx context.Context, checksumURL, sigURL, ass
 	if err != nil {
 		return "", fmt.Errorf("fetch checksums signature: %w", err)
 	}
-	if err := verifyManifestSignature(manifest, sig); err != nil {
+	if err := acceptManifest(manifest, sig, expectedVersion); err != nil {
 		return "", err
-	}
-	// Bind the signed manifest to the release we intend to install, defeating a
-	// replay of an old but validly-signed manifest served by a compromised CDN.
-	mv := parseManifestVersion(manifest)
-	if mv == "" {
-		return "", fmt.Errorf("checksums manifest is missing a version line")
-	}
-	if normalizeVersion(mv) != normalizeVersion(expectedVersion) {
-		return "", fmt.Errorf("checksums manifest version %q does not match the expected release %q", mv, expectedVersion)
 	}
 	return parseChecksum(manifest, asset)
 }
