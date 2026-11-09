@@ -12,6 +12,16 @@ on:
 permissions:
   contents: read
 
+# Nothing in this workflow is restored from a cache: not Go's module and build
+# caches, not npm's, not a compiled Wails CLI. Caches are written by CI runs,
+# which run every pull request's dependencies, and whatever one of them left
+# there would be compiled into a signed release. Every byte comes from the Go
+# module proxy and the npm registry instead, checked against go.sum and
+# package-lock.json; it costs about a minute a build, once per release.
+#
+# Each job has a time limit: GitHub's default of six hours would let a stuck
+# build hold the release, and a macOS runner, for the whole of it.
+
 # Asset names are FIXED (no version in the filename) so the in-app updater can
 # match them by constant name across releases:
 #   SyslogStudio-windows-amd64.exe          raw exe   (self-update, portable)
@@ -28,6 +38,7 @@ jobs:
   build-windows:
     name: Windows (amd64)
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,14 +46,14 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Vite 8 requires ^20.19 || >=22.12. Pinning the major to 22 rather
           # than 20 keeps that satisfied without depending on which 20.x the
           # runner happens to resolve.
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          package-manager-cache: false
       - name: Install NSIS
         run: |
           choco install nsis -y
@@ -50,14 +61,11 @@ jobs:
       - name: Verify NSIS
         run: makensis /VERSION
       - name: Install Wails
-        # Pinned, and kept in sync with the wails/v2 version in go.mod: this CLI
-        # produces the binaries that are then checksummed and signed, so an
-        # unpinned @latest would make releases non-reproducible and would put a
-        # compromised Wails release straight into a signed artifact.
-        # Kept in step with the wails/v2 requirement in go.mod. This pin is a
-        # `go install` argument, so Dependabot does not manage it: bumping the
-        # library without this leaves releases built by an older CLI.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+        # The version go.mod requires of wails/v2, compiled from source: this
+        # CLI produces the binaries that are then checksummed and signed, so it
+        # comes from the module proxy, checked against go.sum, never from a
+        # cache (see the top of this file).
+        uses: ./.github/actions/wails-cli
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -91,6 +99,7 @@ jobs:
   build-macos:
     name: macOS (universal)
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,17 +107,17 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          package-manager-cache: false
       - name: Install Wails
-        # Pinned, and kept in sync with the wails/v2 version in go.mod: this CLI
-        # produces the binaries that are then checksummed and signed, so an
-        # unpinned @latest would make releases non-reproducible and would put a
-        # compromised Wails release straight into a signed artifact.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+        # The version go.mod requires of wails/v2, compiled from source: this
+        # CLI produces the binaries that are then checksummed and signed, so it
+        # comes from the module proxy, checked against go.sum, never from a
+        # cache (see the top of this file).
+        uses: ./.github/actions/wails-cli
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -142,6 +151,7 @@ jobs:
   build-linux:
     name: Linux (amd64)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -149,11 +159,11 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          package-manager-cache: false
       - name: Install dependencies
         # Normally done in well under a minute. The runner's Ubuntu mirror once
         # crawled at 20 kB/s and held the v1.7.0 release for half an hour: the
@@ -162,11 +172,11 @@ jobs:
         timeout-minutes: 15
         uses: ./.github/actions/linux-deps
       - name: Install Wails
-        # Pinned, and kept in sync with the wails/v2 version in go.mod: this CLI
-        # produces the binaries that are then checksummed and signed, so an
-        # unpinned @latest would make releases non-reproducible and would put a
-        # compromised Wails release straight into a signed artifact.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+        # The version go.mod requires of wails/v2, compiled from source: this
+        # CLI produces the binaries that are then checksummed and signed, so it
+        # comes from the module proxy, checked against go.sum, never from a
+        # cache (see the top of this file).
+        uses: ./.github/actions/wails-cli
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
@@ -225,7 +235,8 @@ jobs:
   release:
     name: Create release
     needs: [build-windows, build-macos, build-linux]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
       # Build provenance: id-token to get the OIDC token that proves the
@@ -239,6 +250,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts

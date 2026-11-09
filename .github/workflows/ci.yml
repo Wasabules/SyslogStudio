@@ -27,6 +27,9 @@ jobs:
   build:
     name: Build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # A test that hangs (on a pipe, a service, a lock) would otherwise hold the
+    # runner for GitHub's default of six hours.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -67,34 +70,43 @@ jobs:
         uses: ./.github/actions/linux-deps
 
       - name: Install Wails CLI
-        # Pinned, and kept in sync with the wails/v2 version in go.mod. The CLI
-        # generates the bridge bindings and drives the build, so letting it
-        # float means a future release can change the output — or drift from the
-        # library it generates against — with nothing in this repository
-        # changing. The release workflow pins the same version.
-        # Kept in step with the wails/v2 requirement in go.mod. This pin is a
-        # `go install` argument, so Dependabot does not manage it: bumping the
-        # library without this leaves releases built by an older CLI.
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+        # The version go.mod requires of wails/v2 (see the action), cached:
+        # what CI builds is checked, never shipped.
+        uses: ./.github/actions/wails-cli
+        with:
+          cache: "true"
 
       - name: Build
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          TAGS=""
-          if [ "$RUNNER_OS" = "Linux" ]; then TAGS="-tags webkit2_41"; fi
-          wails build -platform ${{ matrix.platform }} $TAGS
+          tags=()
+          if [ "$RUNNER_OS" = "Linux" ]; then tags=(-tags webkit2_41); fi
+          wails build -platform "$PLATFORM" "${tags[@]}"
 
       - name: Vet & test
         shell: bash
         run: |
-          TAGS=""
-          if [ "$RUNNER_OS" = "Linux" ]; then TAGS="-tags webkit2_41"; fi
-          go vet $TAGS ./...
-          go test $TAGS -race -count=1 ./...
+          tags=()
+          if [ "$RUNNER_OS" = "Linux" ]; then tags=(-tags webkit2_41); fi
+          # The race detector runs on Linux and Windows, not on macOS. It
+          # instruments every memory access, and two things here make a great
+          # many: SQLite, which modernc translates from C into Go, and Argon2,
+          # whose amd64 assembly has no arm64 counterpart. On the arm64 macOS
+          # runners internal/engine took 471 s under it against 110 s on Linux,
+          # and the job twelve minutes against five. The code the detector
+          # watches is shared, and the other two systems run it; macOS still
+          # runs every test, its own code included.
+          race=(-race)
+          if [ "$RUNNER_OS" = "macOS" ]; then race=(); fi
+          go vet "${tags[@]}" ./...
+          go test "${tags[@]}" "${race[@]}" -count=1 ./...
 
   quality:
     name: Quality (lint, types, tidy)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,9 +138,20 @@ jobs:
           if [ -n "$unformatted" ]; then
             echo "::error::these files are not gofmt-formatted:"
             echo "$unformatted"
-            gofmt -d $unformatted
+            gofmt -d .
             exit 1
           fi
+
+      - name: Workflows
+        # The release workflow runs only when a tag is pushed, which is to say
+        # once it is already a release. actionlint reads every workflow now:
+        # expressions, job and step references, the inputs given to actions,
+        # and each `run:` script through shellcheck (installed on the runner).
+        # A mistake in a workflow is found on the pull request that makes it.
+        # Pinned, like staticcheck below and for the same reason.
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint
 
       - name: Install Linux dependencies
         timeout-minutes: 15
@@ -257,6 +280,7 @@ jobs:
   dependency-review:
     name: Dependency review
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
