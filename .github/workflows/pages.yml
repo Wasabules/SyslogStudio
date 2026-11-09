@@ -23,10 +23,10 @@ on:
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
+# Read-only by default. Only the deploy job may publish: the check job runs a
+# script from the repository and needs nothing but to read it.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deployment at a time, and never cancel one half-way: a cancelled deploy
 # can leave the site serving a partial upload.
@@ -37,8 +37,11 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: The demo must be built
         run: |
@@ -53,11 +56,18 @@ jobs:
   deploy:
     needs: check
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

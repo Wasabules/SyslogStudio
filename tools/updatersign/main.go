@@ -6,13 +6,16 @@
 //	go run ./tools/updatersign keygen         # print a fresh keypair
 //	UPDATER_PRIVATE_KEY=<hex> \
 //	  go run ./tools/updatersign sign <file>  # write <file>.sig
+//	go run ./tools/updatersign verify <dir> <tag>
+//	                                          # judge a release as the updater will
 //
 // The public key (base64) is embedded in the app at
 // internal/updater/verify.go (updaterPublicKey); the private key (hex) is
 // stored as the GitHub Actions secret UPDATER_PRIVATE_KEY and injected into
 // the release workflow. If the secret is unset, `sign` is a no-op so
 // unsigned builds still succeed (updates then fall back to SHA-256-only
-// integrity, without authenticity).
+// integrity, without authenticity). `verify` then refuses the release: the
+// updater accepts no unsigned manifest.
 package main
 
 import (
@@ -27,7 +30,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: updatersign <keygen|sign> [file]")
+		fmt.Fprintln(os.Stderr, "usage: updatersign <keygen|sign|verify> [args]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -39,6 +42,12 @@ func main() {
 			os.Exit(2)
 		}
 		sign(os.Args[2])
+	case "verify":
+		if len(os.Args) != 4 {
+			fmt.Fprintln(os.Stderr, "usage: updatersign verify <assets-dir> <tag>")
+			os.Exit(2)
+		}
+		verify(os.Args[2], os.Args[3])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", os.Args[1])
 		os.Exit(2)

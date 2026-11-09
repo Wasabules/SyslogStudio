@@ -184,73 +184,8 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod go.sum
 
-  security:
-    name: Security audit
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      # main.go carries `//go:embed all:frontend/dist`, and frontend/dist is
-      # gitignored, so anything that compiles the main package fails with
-      # "pattern all:frontend/dist: no matching files found" before it analyses a
-      # line. staticcheck stops outright; govulncheck is worse — it carries on
-      # and silently reports on the subpackages alone, so main would look clean
-      # because it was never looked at. A placeholder rather than a real frontend
-      # build: neither tool inspects the bytes the binary embeds, and the build
-      # job already compiles the real thing on all three platforms.
-      - name: Placeholder for the embedded frontend
-        run: |
-          mkdir -p frontend/dist
-          echo '<!-- CI placeholder -->' > frontend/dist/index.html
-
-      # govulncheck's analysis is only as complete as the packages it manages to
-      # load, and it does not fail when one of them does not build — it reports
-      # on the rest and prints a clean bill of health. On Linux the Wails
-      # packages need cgo against GTK/WebKit and the webkit2_41 tag, so without
-      # these the main package silently drops out of the scan. This build is the
-      # tripwire: it fails loudly if the toolchain cannot compile what the next
-      # step is supposed to analyse.
-      - name: Install Linux dependencies
-        timeout-minutes: 15
-        uses: ./.github/actions/linux-deps
-
-      - name: Confirm the tree builds before scanning it
-        run: go build -tags webkit2_41 ./...
-
-      - name: Go vulnerability check
-        # Reports only vulnerabilities in code paths the binary actually calls,
-        # standard library included — which is how the Go 1.25 -> 1.26 toolchain
-        # bump was found to be a security fix and not just housekeeping.
-        #
-        # Deliberately @latest, unlike staticcheck: the point of this step is to
-        # know about advisories published since the last commit, and an old
-        # scanner reports an old world. A new finding here means a real new
-        # advisory, not a new opinion about existing code.
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck -tags webkit2_41 ./...
-
-      - name: npm audit (production dependencies)
-        # --omit=dev because the Vite/esbuild advisories affect the developer
-        # machine during `wails dev`, not the shipped binary; they are tracked
-        # separately and must not block a release. No `|| true` here: a swallowed
-        # exit code turns this step into decoration.
-        run: npm audit --omit=dev --audit-level=high
-        working-directory: frontend
+  # The known-vulnerability scans (govulncheck, npm audit) are in security.yml,
+  # which runs on pull requests and pushes as well, and every week besides.
 
   # Blocks a pull request that introduces a dependency carrying a known
   # advisory. govulncheck cannot do this: it reports on what is already merged.

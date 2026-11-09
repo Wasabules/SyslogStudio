@@ -44,8 +44,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install NSIS
+        # Pinned: the installer that ships is built by this makensis, and an
+        # unpinned install takes whatever Chocolatey serves that day. Bumped by
+        # hand, since Dependabot does not read a `run:` step.
         run: |
-          choco install nsis -y
+          choco install nsis -y --version 3.13.0
           Add-Content $env:GITHUB_PATH "C:\Program Files (x86)\NSIS"
       - name: Verify NSIS
         run: makensis /VERSION
@@ -73,7 +76,12 @@ jobs:
           jq --arg v "$v" '.info.productVersion = $v' wails.json > "$tmp" && mv "$tmp" wails.json
           echo "wails.json info.productVersion set to $v"
       - name: Build with NSIS
-        run: wails build -nsis -ldflags "-X SyslogStudio/internal/updater.AppVersion=${{ github.ref_name }}"
+        # The tag reaches the build through the environment, never as a
+        # github.ref_name expression written into the script: an expression is
+        # pasted into the script's source before the shell reads it, so a tag
+        # named to look like code would run as code. Only maintainers can push
+        # a tag; this keeps the tag data whoever names it. Same in every job.
+        run: wails build -nsis -ldflags "-X SyslogStudio/internal/updater.AppVersion=$env:GITHUB_REF_NAME"
       - name: Package assets
         shell: bash
         run: |
@@ -123,7 +131,7 @@ jobs:
           jq --arg v "$v" '.info.productVersion = $v' wails.json > "$tmp" && mv "$tmp" wails.json
           echo "wails.json info.productVersion set to $v"
       - name: Build
-        run: wails build -platform darwin/universal -ldflags "-X SyslogStudio/internal/updater.AppVersion=${{ github.ref_name }}"
+        run: wails build -platform darwin/universal -ldflags "-X SyslogStudio/internal/updater.AppVersion=$GITHUB_REF_NAME"
       - name: Package assets
         run: |
           (cd build/bin && zip -r "../../SyslogStudio-macos-universal.zip" SyslogStudio.app)
@@ -171,7 +179,7 @@ jobs:
         run: npm ci
         working-directory: frontend
       - name: Build
-        run: wails build -tags webkit2_41 -ldflags "-X SyslogStudio/internal/updater.AppVersion=${{ github.ref_name }}"
+        run: wails build -tags webkit2_41 -ldflags "-X SyslogStudio/internal/updater.AppVersion=$GITHUB_REF_NAME"
       - name: Package assets
         run: |
           cp build/bin/SyslogStudio SyslogStudio-linux-amd64
@@ -262,6 +270,16 @@ jobs:
           fi
           go run ./tools/updatersign sign artifacts/SyslogStudio-checksums.txt
           test -s artifacts/SyslogStudio-checksums.txt.sig
+      # The updater's own judgement, before anything is published: the
+      # signature against the public key the app embeds, the version line
+      # against this tag, one entry per asset and every SHA-256. A signing key
+      # rotated without internal/updater/verify.go would otherwise publish a
+      # release every installed copy refuses, and an asset missing from the
+      # manifest one that a whole system cannot update to; the job stops here
+      # instead. The release skill's check after publishing stays: it reads
+      # what GitHub actually serves.
+      - name: Verify as the updater will
+        run: go run ./tools/updatersign verify artifacts "$GITHUB_REF_NAME"
       # Signed, verifiable provenance for every published asset: which workflow,
       # which commit, which runner produced these exact bytes. It answers a
       # question the Ed25519 manifest signature does not — that signature proves
