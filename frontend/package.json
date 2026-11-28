@@ -13,7 +13,7 @@
     "screenshots": "node ../tools/screenshots.mjs"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.2",
     "@tsconfig/svelte": "^5.0.9",
     "playwright": "^1.65.1",
     "svelte": "^5.59.1",
